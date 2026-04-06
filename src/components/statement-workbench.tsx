@@ -14,14 +14,13 @@ import { OnboardingPanel } from "@/components/workbench/onboarding-panel";
 import { CorrectionMemoryPanel } from "@/components/workbench/correction-memory-panel";
 import { JobsPanel } from "@/components/workbench/jobs-panel";
 
-type Tab = "table" | "quality" | "ocr" | "rules" | "history";
+type Tab = "table" | "quality" | "ocr" | "rules";
 
 const TABS: { key: Tab; label: string; shortLabel: string; icon: string }[] = [
   { key: "table",    label: "Транзакции",   shortLabel: "Список",   icon: "≡" },
   { key: "quality",  label: "Качество",     shortLabel: "Качество", icon: "◎" },
   { key: "ocr",      label: "Распознавание",shortLabel: "Скан",     icon: "⬚" },
   { key: "rules",    label: "Правила",      shortLabel: "Правила",  icon: "⚙" },
-  { key: "history",  label: "История",      shortLabel: "История",  icon: "↺" },
 ];
 
 /* ─── Theme toggle ─── */
@@ -100,6 +99,7 @@ function WorkbenchInner() {
 
   const [tab, setTab] = useState<Tab>("table");
   const [localFile, setLocalFile] = useState<File | null>(null);
+  const [showDashboard, setShowDashboard] = useState(false);
 
   const hasPreview   = Boolean(deferredPreview?.session_id);
   const hasOcrReview = Boolean(deferredPreview?.ocr_review);
@@ -139,12 +139,18 @@ function WorkbenchInner() {
           </span>
         </div>
         <div className="flex items-center gap-2 flex-shrink-0">
-          {activeJobs.length > 0 && (
-            <span className="flex items-center gap-1 text-xs text-amber-300 whitespace-nowrap">
-              <span className="h-1.5 w-1.5 rounded-full bg-amber-400 animate-pulse flex-shrink-0" />
-              <span className="hidden sm:inline">{activeJobs.length} задач</span>
-            </span>
-          )}
+          <button
+            onClick={() => setShowDashboard((v) => !v)}
+            className="btn-ghost text-xs px-2.5 py-1.5 flex items-center gap-1.5 relative"
+            type="button"
+            title="История, задачи и память исправлений"
+          >
+            <span>↺</span>
+            <span className="hidden sm:inline">История</span>
+            {activeJobs.length > 0 && (
+              <span className="absolute -top-0.5 -right-0.5 h-2 w-2 rounded-full bg-amber-400 animate-pulse" />
+            )}
+          </button>
           <ThemeToggle />
         </div>
       </header>
@@ -193,13 +199,20 @@ function WorkbenchInner() {
       <main className="flex-1 px-4 sm:px-6 py-4 sm:py-5 max-w-6xl w-full mx-auto space-y-4 pb-24 sm:pb-8">
 
         {tab === "table" && !hasPreview && (
-          <div className="grid gap-4 xl:grid-cols-2 animate-fade-in">
-            <HistoryPanel history={history} loading={isLoadingSession}
-              onOpen={(id) => { loadSession(id); setTab("table"); }} />
-            <div className="space-y-4">
-              <JobsPanel jobs={jobs} onOpenSession={(id) => { loadSession(id); setTab("table"); }} />
-              <CorrectionMemoryPanel entries={correctionMemory} />
-            </div>
+          <div className="animate-fade-in flex flex-col items-center justify-center py-20 text-center">
+            <div className="text-5xl mb-4 opacity-20" style={{ color: "var(--text-muted)" }}>⬆</div>
+            <p className="text-sm" style={{ color: "var(--text-muted)" }}>Загрузите файл выписки для анализа</p>
+            <p className="text-xs mt-2" style={{ color: "var(--text-muted)", opacity: 0.7 }}>
+              Или{" "}
+              <button
+                className="underline underline-offset-2"
+                style={{ color: "var(--accent-blue)" }}
+                onClick={() => setShowDashboard(true)}
+                type="button"
+              >
+                откройте историю сессий
+              </button>
+            </p>
           </div>
         )}
 
@@ -277,17 +290,51 @@ function WorkbenchInner() {
           </div>
         )}
 
-        {tab === "history" && (
-          <div className="grid gap-4 xl:grid-cols-2 animate-fade-in">
-            <HistoryPanel history={history} loading={isLoadingSession}
-              onOpen={(id) => { loadSession(id); setTab("table"); }} />
-            <div className="space-y-4">
-              <JobsPanel jobs={jobs} onOpenSession={(id) => { loadSession(id); setTab("table"); }} />
+      </main>
+
+      {/* ── Dashboard drawer ── */}
+      {showDashboard && (
+        <>
+          <div
+            className="fixed inset-0 z-40"
+            style={{ background: "rgba(0,0,0,0.45)", backdropFilter: "blur(3px)" }}
+            onClick={() => setShowDashboard(false)}
+          />
+          <aside
+            className="fixed top-0 right-0 bottom-0 z-50 w-full max-w-md flex flex-col overflow-hidden"
+            style={{ background: "var(--surface)", borderLeft: "1px solid var(--border-subtle)" }}
+          >
+            <div
+              className="sticky top-0 flex items-center justify-between px-4 py-3 border-b flex-shrink-0"
+              style={{ background: "var(--header-bg)", borderColor: "var(--border-subtle)" }}
+            >
+              <span className="text-sm font-semibold" style={{ color: "var(--text-primary)" }}>
+                История и задачи
+              </span>
+              <button
+                className="btn-ghost text-base px-2 py-1"
+                onClick={() => setShowDashboard(false)}
+                type="button"
+                aria-label="Закрыть"
+              >
+                ✕
+              </button>
+            </div>
+            <div className="flex-1 overflow-y-auto p-4 space-y-4 pb-8">
+              <HistoryPanel
+                history={history}
+                loading={isLoadingSession}
+                onOpen={(id) => { loadSession(id); setTab("table"); setShowDashboard(false); }}
+              />
+              <JobsPanel
+                jobs={jobs}
+                onOpenSession={(id) => { loadSession(id); setTab("table"); setShowDashboard(false); }}
+              />
               <CorrectionMemoryPanel entries={correctionMemory} />
             </div>
-          </div>
-        )}
-      </main>
+          </aside>
+        </>
+      )}
 
       {/* ── Mobile bottom navigation ── */}
       <nav
