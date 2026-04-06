@@ -5,7 +5,6 @@ import { useEffect, useState } from "react";
 import { WorkbenchProvider, useWorkbench } from "@/components/workbench/context";
 import { ToastContainer } from "@/components/workbench/toast";
 import { UploadPanel } from "@/components/workbench/upload-panel";
-import { OverviewPanel } from "@/components/workbench/overview-panel";
 import { HistoryPanel } from "@/components/workbench/history-panel";
 import { QualityPanel } from "@/components/workbench/quality-panel";
 import { VariantPreviewPanel } from "@/components/workbench/variant-preview-panel";
@@ -15,10 +14,9 @@ import { OnboardingPanel } from "@/components/workbench/onboarding-panel";
 import { CorrectionMemoryPanel } from "@/components/workbench/correction-memory-panel";
 import { JobsPanel } from "@/components/workbench/jobs-panel";
 
-type Tab = "overview" | "table" | "quality" | "ocr" | "rules" | "history";
+type Tab = "table" | "quality" | "ocr" | "rules" | "history";
 
 const TABS: { key: Tab; label: string; shortLabel: string; icon: string }[] = [
-  { key: "overview", label: "Обзор",       shortLabel: "Обзор",    icon: "◈" },
   { key: "table",    label: "Транзакции",   shortLabel: "Список",   icon: "≡" },
   { key: "quality",  label: "Качество",     shortLabel: "Качество", icon: "◎" },
   { key: "ocr",      label: "Распознавание",shortLabel: "Скан",     icon: "⬚" },
@@ -100,7 +98,7 @@ function WorkbenchInner() {
     isCreatingTemplate, handleCreateTemplate,
   } = useWorkbench();
 
-  const [tab, setTab] = useState<Tab>("overview");
+  const [tab, setTab] = useState<Tab>("table");
   const [localFile, setLocalFile] = useState<File | null>(null);
 
   const hasPreview   = Boolean(deferredPreview?.session_id);
@@ -108,7 +106,6 @@ function WorkbenchInner() {
   const activeJobs   = jobs.filter((j) => j.status === "running" || j.status === "queued");
 
   const visibleTabs = TABS.filter((t) => {
-    if (t.key === "table"   && !hasPreview)   return false;
     if (t.key === "quality" && !hasPreview)   return false;
     if (t.key === "ocr"     && !hasOcrReview) return false;
     return true;
@@ -195,49 +192,42 @@ function WorkbenchInner() {
       {/* pb-24 on mobile leaves space for bottom nav */}
       <main className="flex-1 px-4 sm:px-6 py-4 sm:py-5 max-w-6xl w-full mx-auto space-y-4 pb-24 sm:pb-8">
 
-        {tab === "overview" && (
-          <div className="space-y-4 animate-fade-in">
-            <OverviewPanel preview={deferredPreview} />
-            {!hasPreview && (
-              <div className="grid gap-4 xl:grid-cols-2">
-                <HistoryPanel history={history} loading={isLoadingSession}
-                  onOpen={(id) => { loadSession(id); setTab("table"); }} />
-                <div className="space-y-4">
-                  <JobsPanel jobs={jobs} onOpenSession={(id) => { loadSession(id); setTab("table"); }} />
-                  <CorrectionMemoryPanel entries={correctionMemory} />
-                </div>
-              </div>
-            )}
-            {hasPreview && (
-              <div className="card p-4 sm:p-5">
-                <h3 className="text-sm font-semibold mb-3" style={{ color: "var(--text-primary)" }}>
-                  Сохранить шаблон
-                </h3>
-                <div className="grid gap-2 sm:grid-cols-2 mb-3">
-                  <input className="input-field" placeholder="Название" value={templateName}
-                    onChange={(e) => setTemplateName(e.target.value)} />
-                  <input className="input-field" placeholder="Описание" value={templateDescription}
-                    onChange={(e) => setTemplateDescription(e.target.value)} />
-                </div>
-                <div className="flex items-center gap-4">
-                  <label className="flex items-center gap-2 text-sm cursor-pointer" style={{ color: "var(--text-secondary)" }}>
-                    <input type="checkbox" checked={templateIsDefault}
-                      onChange={(e) => setTemplateIsDefault(e.target.checked)} className="accent-blue-500" />
-                    По умолчанию
-                  </label>
-                  <button className="btn-ghost text-xs" disabled={isCreatingTemplate || !templateName.trim()}
-                    onClick={handleCreateTemplate} type="button">
-                    {isCreatingTemplate ? "Сохранение…" : "Сохранить"}
-                  </button>
-                </div>
-              </div>
-            )}
+        {tab === "table" && !hasPreview && (
+          <div className="grid gap-4 xl:grid-cols-2 animate-fade-in">
+            <HistoryPanel history={history} loading={isLoadingSession}
+              onOpen={(id) => { loadSession(id); setTab("table"); }} />
+            <div className="space-y-4">
+              <JobsPanel jobs={jobs} onOpenSession={(id) => { loadSession(id); setTab("table"); }} />
+              <CorrectionMemoryPanel entries={correctionMemory} />
+            </div>
           </div>
         )}
 
         {tab === "table" && hasPreview && (
-          <div className="animate-fade-in">
+          <div className="space-y-4 animate-fade-in">
             <VariantPreviewPanel variants={allVariants} diagnostics={deferredPreview?.row_diagnostics ?? []} />
+            <div className="card p-4 sm:p-5">
+              <h3 className="text-sm font-semibold mb-3" style={{ color: "var(--text-primary)" }}>
+                Сохранить шаблон
+              </h3>
+              <div className="grid gap-2 sm:grid-cols-2 mb-3">
+                <input className="input-field" placeholder="Название" value={templateName}
+                  onChange={(e) => setTemplateName(e.target.value)} />
+                <input className="input-field" placeholder="Описание" value={templateDescription}
+                  onChange={(e) => setTemplateDescription(e.target.value)} />
+              </div>
+              <div className="flex items-center gap-4">
+                <label className="flex items-center gap-2 text-sm cursor-pointer" style={{ color: "var(--text-secondary)" }}>
+                  <input type="checkbox" checked={templateIsDefault}
+                    onChange={(e) => setTemplateIsDefault(e.target.checked)} className="accent-blue-500" />
+                  По умолчанию
+                </label>
+                <button className="btn-ghost text-xs" disabled={isCreatingTemplate || !templateName.trim()}
+                  onClick={handleCreateTemplate} type="button">
+                  {isCreatingTemplate ? "Сохранение…" : "Сохранить"}
+                </button>
+              </div>
+            </div>
           </div>
         )}
 
