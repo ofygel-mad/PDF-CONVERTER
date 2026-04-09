@@ -201,53 +201,81 @@ export function WorkbenchProvider({ children }: PropsWithChildren) {
 
   /* ─── Data loaders ─── */
   const loadHistory = useCallback(async () => {
-    const res = await fetch(`${API}/api/v1/transforms/history`);
-    setHistory((await res.json()) as SessionSummary[]);
+    try {
+      const res = await fetch(`${API}/api/v1/transforms/history`);
+      setHistory((await res.json()) as SessionSummary[]);
+    } catch {
+      // Backend unreachable — keep empty state
+    }
   }, []);
 
   const loadParsers = useCallback(async () => {
-    const res = await fetch(`${API}/api/v1/transforms/parsers`);
-    setParsers((await res.json()) as ParserDescriptor[]);
+    try {
+      const res = await fetch(`${API}/api/v1/transforms/parsers`);
+      setParsers((await res.json()) as ParserDescriptor[]);
+    } catch {
+      // Backend unreachable — keep empty state
+    }
   }, []);
 
   const loadVisionStatus = useCallback(async () => {
-    const res = await fetch(`${API}/api/v1/transforms/vision-status`);
-    setVisionStatus((await res.json()) as VisionStatus);
+    try {
+      const res = await fetch(`${API}/api/v1/transforms/vision-status`);
+      setVisionStatus((await res.json()) as VisionStatus);
+    } catch {
+      // Backend unreachable — keep empty state
+    }
   }, []);
 
   const loadRuleManager = useCallback(async () => {
-    const res = await fetch(`${API}/api/v1/transforms/ocr-rule-manager`);
-    setRuleManager((await res.json()) as OCRRuleManagerSnapshot);
+    try {
+      const res = await fetch(`${API}/api/v1/transforms/ocr-rule-manager`);
+      setRuleManager((await res.json()) as OCRRuleManagerSnapshot);
+    } catch {
+      // Backend unreachable — keep empty state
+    }
   }, []);
 
   const loadCorrectionMemory = useCallback(async () => {
-    const res = await fetch(`${API}/api/v1/transforms/correction-memory`);
-    setCorrectionMemory((await res.json()) as CorrectionMemoryEntry[]);
+    try {
+      const res = await fetch(`${API}/api/v1/transforms/correction-memory`);
+      setCorrectionMemory((await res.json()) as CorrectionMemoryEntry[]);
+    } catch {
+      // Backend unreachable — keep empty state
+    }
   }, []);
 
   const loadJobs = useCallback(async () => {
-    const res = await fetch(`${API}/api/v1/transforms/jobs`);
-    const next = (await res.json()) as JobSummary[];
-    setJobs((prev) => {
-      // Notify on newly-completed jobs
-      const prevMap = new Map(prev.map((j) => [j.job_id, j]));
-      for (const job of next) {
-        const was = prevMap.get(job.job_id);
-        if (was && was.status !== "completed" && job.status === "completed") {
-          pushToast("success", `Задача выполнена: ${job.source_filename ?? job.job_id}`);
+    try {
+      const res = await fetch(`${API}/api/v1/transforms/jobs`);
+      const next = (await res.json()) as JobSummary[];
+      setJobs((prev) => {
+        // Notify on newly-completed jobs
+        const prevMap = new Map(prev.map((j) => [j.job_id, j]));
+        for (const job of next) {
+          const was = prevMap.get(job.job_id);
+          if (was && was.status !== "completed" && job.status === "completed") {
+            pushToast("success", `Задача выполнена: ${job.source_filename ?? job.job_id}`);
+          }
+          if (was && was.status !== "failed" && job.status === "failed") {
+            pushToast("error", `Ошибка задачи: ${job.source_filename ?? job.job_id}`);
+          }
         }
-        if (was && was.status !== "failed" && job.status === "failed") {
-          pushToast("error", `Ошибка задачи: ${job.source_filename ?? job.job_id}`);
-        }
-      }
-      return next;
-    });
-    prevJobsRef.current = next;
+        return next;
+      });
+      prevJobsRef.current = next;
+    } catch {
+      // Backend unreachable — skip update
+    }
   }, [pushToast]);
 
   const loadProjects = useCallback(async () => {
-    const res = await fetch(`${API}/api/v1/transforms/onboarding/projects`);
-    setProjects((await res.json()) as OnboardingProject[]);
+    try {
+      const res = await fetch(`${API}/api/v1/transforms/onboarding/projects`);
+      setProjects((await res.json()) as OnboardingProject[]);
+    } catch {
+      // Backend unreachable — keep empty state
+    }
   }, []);
 
   /* ─── Initial load ─── */
@@ -261,13 +289,19 @@ export function WorkbenchProvider({ children }: PropsWithChildren) {
         loadCorrectionMemory(),
         loadJobs(),
         loadProjects(),
-      ]);
+      ]).catch(() => {
+        // Backend unreachable on startup — app continues with empty state
+      });
     });
   }, [loadHistory, loadParsers, loadVisionStatus, loadRuleManager, loadCorrectionMemory, loadJobs, loadProjects]);
 
   /* ─── Job polling ─── */
   useEffect(() => {
-    const id = window.setInterval(() => void loadJobs(), 8000);
+    const id = window.setInterval(() => {
+      void loadJobs().catch(() => {
+        // Backend unreachable — skip this poll cycle
+      });
+    }, 8000);
     return () => window.clearInterval(id);
   }, [loadJobs]);
 

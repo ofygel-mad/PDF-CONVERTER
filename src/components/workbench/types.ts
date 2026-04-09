@@ -10,6 +10,7 @@ export type PreviewVariant = {
   description: string;
   columns: PreviewColumn[];
   rows: Array<Record<string, string | number | null>>;
+  group?: string;
   template_id?: string | null;
   base_variant_key?: string | null;
 };

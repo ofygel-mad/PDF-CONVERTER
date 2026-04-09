@@ -29,9 +29,11 @@ type Theme = "dark" | "light" | "system";
 function ThemeToggle() {
   const [theme, setTheme] = useState<Theme>("system");
 
+  /* Read theme from localStorage after hydration (valid use case in Next.js) */
   useEffect(() => {
     try {
       const stored = localStorage.getItem("theme") as Theme | null;
+      // eslint-disable-next-line react-hooks/set-state-in-effect
       setTheme(stored === "dark" || stored === "light" ? stored : "system");
     } catch { /* ignore */ }
   }, []);
