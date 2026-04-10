@@ -382,9 +382,7 @@ export function WorkbenchProvider({ children, apiBaseUrl }: WorkbenchProviderPro
       setIsLoadingSession(true);
       setError(null);
       try {
-        const res = await fetch(`${api}/api/v1/transforms/sessions/${sessionId}`);
-        if (!res.ok) throw new Error(await res.text());
-        setPreview((await res.json()) as PreviewResponse);
+        setPreview(await fetchJson<PreviewResponse>(`${api}/api/v1/transforms/sessions/${sessionId}`));
       } catch (e) {
         setError(e instanceof Error ? e.message : "Ошибка загрузки сессии.");
       } finally {
@@ -401,9 +399,7 @@ export function WorkbenchProvider({ children, apiBaseUrl }: WorkbenchProviderPro
         try {
           const fd = new FormData();
           fd.append("file", file);
-          const res = await fetch(`${api}/api/v1/transforms/preview`, { method: "POST", body: fd });
-          if (!res.ok) throw new Error(await res.text());
-          setPreview((await res.json()) as PreviewResponse);
+          setPreview(await fetchJson<PreviewResponse>(`${api}/api/v1/transforms/preview`, { method: "POST", body: fd }));
           await Promise.all([loadHistory(), loadCorrectionMemory(), loadJobs()]);
         } catch (e) {
           setError(e instanceof Error ? e.message : "Ошибка обработки.");
@@ -419,8 +415,7 @@ export function WorkbenchProvider({ children, apiBaseUrl }: WorkbenchProviderPro
       try {
         const fd = new FormData();
         fd.append("file", file);
-        const res = await fetch(`${api}/api/v1/transforms/jobs/preview`, { method: "POST", body: fd });
-        if (!res.ok) throw new Error(await res.text());
+        await fetchJson(`${api}/api/v1/transforms/jobs/preview`, { method: "POST", body: fd });
         pushToast("info", `В очередь: ${file.name}`);
         await loadJobs();
       } catch (e) {
@@ -440,7 +435,7 @@ export function WorkbenchProvider({ children, apiBaseUrl }: WorkbenchProviderPro
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ session_id: preview.session_id, variant_key: selectedVariantKey }),
       });
-      if (!res.ok) throw new Error(await res.text());
+      if (!res.ok) throw new Error(await readErrorMessage(res));
       const blob = await res.blob();
       const url = URL.createObjectURL(blob);
       const a = document.createElement("a");
@@ -465,7 +460,7 @@ export function WorkbenchProvider({ children, apiBaseUrl }: WorkbenchProviderPro
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ session_id: preview.session_id, variant_key: selectedVariantKey }),
       });
-      if (!res.ok) throw new Error(await res.text());
+      if (!res.ok) throw new Error(await readErrorMessage(res));
       const blob = await res.blob();
       const url = URL.createObjectURL(blob);
       const a = document.createElement("a");
@@ -500,7 +495,7 @@ export function WorkbenchProvider({ children, apiBaseUrl }: WorkbenchProviderPro
           }),
         },
       );
-      if (!res.ok) throw new Error(await res.text());
+      if (!res.ok) throw new Error(await readErrorMessage(res));
       setPreview((await res.json()) as PreviewResponse);
       setSelectedDiagnosticRow(null);
       await loadCorrectionMemory();
@@ -531,7 +526,7 @@ export function WorkbenchProvider({ children, apiBaseUrl }: WorkbenchProviderPro
           ),
         }),
       });
-      if (!res.ok) throw new Error(await res.text());
+      if (!res.ok) throw new Error(await readErrorMessage(res));
       setPreview((await res.json()) as PreviewResponse);
       await Promise.all([loadHistory(), loadRuleManager(), loadJobs()]);
     } catch (e) {
@@ -563,7 +558,7 @@ export function WorkbenchProvider({ children, apiBaseUrl }: WorkbenchProviderPro
           columns,
         }),
       });
-      if (!res.ok) throw new Error(await res.text());
+      if (!res.ok) throw new Error(await readErrorMessage(res));
       await loadSession(preview.session_id);
       setTemplateName("");
       setTemplateDescription("");
@@ -576,16 +571,18 @@ export function WorkbenchProvider({ children, apiBaseUrl }: WorkbenchProviderPro
   }, [api, preview, selectedVariantKey, templateName, templateDescription, templateIsDefault, loadSession]);
 
   const handleToggleRule = useCallback(async (templateId: string, isActive: boolean) => {
-    await fetch(`${api}/api/v1/transforms/ocr-mapping-templates/${templateId}/status`, {
+    const res = await fetch(`${api}/api/v1/transforms/ocr-mapping-templates/${templateId}/status`, {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ is_active: isActive }),
     });
+    if (!res.ok) throw new Error(await readErrorMessage(res));
     await loadRuleManager();
   }, [api, loadRuleManager]);
 
   const handleRollbackRule = useCallback(async (templateId: string) => {
-    await fetch(`${api}/api/v1/transforms/ocr-mapping-templates/${templateId}/rollback`, { method: "POST" });
+    const res = await fetch(`${api}/api/v1/transforms/ocr-mapping-templates/${templateId}/rollback`, { method: "POST" });
+    if (!res.ok) throw new Error(await readErrorMessage(res));
     await loadRuleManager();
   }, [api, loadRuleManager]);
 
@@ -597,17 +594,18 @@ export function WorkbenchProvider({ children, apiBaseUrl }: WorkbenchProviderPro
 
   const handleCreateProject = useCallback(async (name: string, bankName: string, notes: string) => {
     if (!name.trim() || !bankName.trim()) return;
-    await fetch(`${api}/api/v1/transforms/onboarding/projects`, {
+    const res = await fetch(`${api}/api/v1/transforms/onboarding/projects`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ name, bank_name: bankName, notes }),
     });
+    if (!res.ok) throw new Error(await readErrorMessage(res));
     await loadProjects();
   }, [api, loadProjects]);
 
   const handleAttachCurrentResult = useCallback(async (projectId: string) => {
     if (!preview) return;
-    await fetch(`${api}/api/v1/transforms/onboarding/projects/${projectId}/samples`, {
+    const res = await fetch(`${api}/api/v1/transforms/onboarding/projects/${projectId}/samples`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
@@ -618,6 +616,7 @@ export function WorkbenchProvider({ children, apiBaseUrl }: WorkbenchProviderPro
         payload: { parser_key: preview.document.parser_key, applied_rule: preview.applied_rule },
       }),
     });
+    if (!res.ok) throw new Error(await readErrorMessage(res));
     await loadProjects();
   }, [api, preview, loadProjects]);
 
