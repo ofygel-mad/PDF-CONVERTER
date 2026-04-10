@@ -27,7 +27,6 @@ import type {
   VisionStatus,
 } from "@/components/workbench/types";
 
-const API = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000";
 
 /* ─── Toast types ─────────────────────────────────────────────── */
 export type Toast = {
@@ -130,8 +129,14 @@ export function useWorkbench(): WorkbenchCtx {
   return ctx;
 }
 
+type WorkbenchProviderProps = PropsWithChildren<{
+  apiBaseUrl: string;
+}>;
+
 /* ─── Provider ────────────────────────────────────────────────── */
-export function WorkbenchProvider({ children }: PropsWithChildren) {
+export function WorkbenchProvider({ children, apiBaseUrl }: WorkbenchProviderProps) {
+  const api = apiBaseUrl.replace(/\/$/, "");
+
   /* ── server data ── */
   const [preview, setPreview] = useState<PreviewResponse | null>(null);
   const [history, setHistory] = useState<SessionSummary[]>([]);
@@ -202,52 +207,52 @@ export function WorkbenchProvider({ children }: PropsWithChildren) {
   /* ─── Data loaders ─── */
   const loadHistory = useCallback(async () => {
     try {
-      const res = await fetch(`${API}/api/v1/transforms/history`);
+      const res = await fetch(`${api}/api/v1/transforms/history`);
       setHistory((await res.json()) as SessionSummary[]);
     } catch {
       // Backend unreachable — keep empty state
     }
-  }, []);
+  }, [api]);
 
   const loadParsers = useCallback(async () => {
     try {
-      const res = await fetch(`${API}/api/v1/transforms/parsers`);
+      const res = await fetch(`${api}/api/v1/transforms/parsers`);
       setParsers((await res.json()) as ParserDescriptor[]);
     } catch {
       // Backend unreachable — keep empty state
     }
-  }, []);
+  }, [api]);
 
   const loadVisionStatus = useCallback(async () => {
     try {
-      const res = await fetch(`${API}/api/v1/transforms/vision-status`);
+      const res = await fetch(`${api}/api/v1/transforms/vision-status`);
       setVisionStatus((await res.json()) as VisionStatus);
     } catch {
       // Backend unreachable — keep empty state
     }
-  }, []);
+  }, [api]);
 
   const loadRuleManager = useCallback(async () => {
     try {
-      const res = await fetch(`${API}/api/v1/transforms/ocr-rule-manager`);
+      const res = await fetch(`${api}/api/v1/transforms/ocr-rule-manager`);
       setRuleManager((await res.json()) as OCRRuleManagerSnapshot);
     } catch {
       // Backend unreachable — keep empty state
     }
-  }, []);
+  }, [api]);
 
   const loadCorrectionMemory = useCallback(async () => {
     try {
-      const res = await fetch(`${API}/api/v1/transforms/correction-memory`);
+      const res = await fetch(`${api}/api/v1/transforms/correction-memory`);
       setCorrectionMemory((await res.json()) as CorrectionMemoryEntry[]);
     } catch {
       // Backend unreachable — keep empty state
     }
-  }, []);
+  }, [api]);
 
   const loadJobs = useCallback(async () => {
     try {
-      const res = await fetch(`${API}/api/v1/transforms/jobs`);
+      const res = await fetch(`${api}/api/v1/transforms/jobs`);
       const next = (await res.json()) as JobSummary[];
       setJobs((prev) => {
         // Notify on newly-completed jobs
@@ -267,16 +272,16 @@ export function WorkbenchProvider({ children }: PropsWithChildren) {
     } catch {
       // Backend unreachable — skip update
     }
-  }, [pushToast]);
+  }, [api, pushToast]);
 
   const loadProjects = useCallback(async () => {
     try {
-      const res = await fetch(`${API}/api/v1/transforms/onboarding/projects`);
+      const res = await fetch(`${api}/api/v1/transforms/onboarding/projects`);
       setProjects((await res.json()) as OnboardingProject[]);
     } catch {
       // Backend unreachable — keep empty state
     }
-  }, []);
+  }, [api]);
 
   /* ─── Initial load ─── */
   useEffect(() => {
@@ -348,7 +353,7 @@ export function WorkbenchProvider({ children }: PropsWithChildren) {
       setIsLoadingSession(true);
       setError(null);
       try {
-        const res = await fetch(`${API}/api/v1/transforms/sessions/${sessionId}`);
+        const res = await fetch(`${api}/api/v1/transforms/sessions/${sessionId}`);
         if (!res.ok) throw new Error(await res.text());
         setPreview((await res.json()) as PreviewResponse);
       } catch (e) {
@@ -357,7 +362,7 @@ export function WorkbenchProvider({ children }: PropsWithChildren) {
         setIsLoadingSession(false);
       }
     },
-    [],
+    [api],
   );
 
   const handlePreviewNow = useCallback(
@@ -367,7 +372,7 @@ export function WorkbenchProvider({ children }: PropsWithChildren) {
         try {
           const fd = new FormData();
           fd.append("file", file);
-          const res = await fetch(`${API}/api/v1/transforms/preview`, { method: "POST", body: fd });
+          const res = await fetch(`${api}/api/v1/transforms/preview`, { method: "POST", body: fd });
           if (!res.ok) throw new Error(await res.text());
           setPreview((await res.json()) as PreviewResponse);
           await Promise.all([loadHistory(), loadCorrectionMemory(), loadJobs()]);
@@ -376,7 +381,7 @@ export function WorkbenchProvider({ children }: PropsWithChildren) {
         }
       });
     },
-    [loadHistory, loadCorrectionMemory, loadJobs],
+    [api, loadHistory, loadCorrectionMemory, loadJobs],
   );
 
   const handleQueueJob = useCallback(
@@ -385,7 +390,7 @@ export function WorkbenchProvider({ children }: PropsWithChildren) {
       try {
         const fd = new FormData();
         fd.append("file", file);
-        const res = await fetch(`${API}/api/v1/transforms/jobs/preview`, { method: "POST", body: fd });
+        const res = await fetch(`${api}/api/v1/transforms/jobs/preview`, { method: "POST", body: fd });
         if (!res.ok) throw new Error(await res.text());
         pushToast("info", `В очередь: ${file.name}`);
         await loadJobs();
@@ -393,7 +398,7 @@ export function WorkbenchProvider({ children }: PropsWithChildren) {
         setError(e instanceof Error ? e.message : "Ошибка добавления в очередь.");
       }
     },
-    [loadJobs, pushToast],
+    [api, loadJobs, pushToast],
   );
 
   const handleExport = useCallback(async () => {
@@ -401,7 +406,7 @@ export function WorkbenchProvider({ children }: PropsWithChildren) {
     setIsExporting(true);
     setError(null);
     try {
-      const res = await fetch(`${API}/api/v1/transforms/export`, {
+      const res = await fetch(`${api}/api/v1/transforms/export`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ session_id: preview.session_id, variant_key: selectedVariantKey }),
@@ -419,14 +424,14 @@ export function WorkbenchProvider({ children }: PropsWithChildren) {
     } finally {
       setIsExporting(false);
     }
-  }, [preview, selectedVariantKey]);
+  }, [api, preview, selectedVariantKey]);
 
   const handleExportCsv = useCallback(async () => {
     if (!preview || !selectedVariantKey) return;
     setIsExportingCsv(true);
     setError(null);
     try {
-      const res = await fetch(`${API}/api/v1/transforms/export/csv`, {
+      const res = await fetch(`${api}/api/v1/transforms/export/csv`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ session_id: preview.session_id, variant_key: selectedVariantKey }),
@@ -444,7 +449,7 @@ export function WorkbenchProvider({ children }: PropsWithChildren) {
     } finally {
       setIsExportingCsv(false);
     }
-  }, [preview, selectedVariantKey]);
+  }, [api, preview, selectedVariantKey]);
 
   const handleSaveRowCorrection = useCallback(async () => {
     if (!preview || !selectedDiagnosticRow) return;
@@ -452,7 +457,7 @@ export function WorkbenchProvider({ children }: PropsWithChildren) {
     setError(null);
     try {
       const res = await fetch(
-        `${API}/api/v1/transforms/sessions/${preview.session_id}/rows/${selectedDiagnosticRow}`,
+        `${api}/api/v1/transforms/sessions/${preview.session_id}/rows/${selectedDiagnosticRow}`,
         {
           method: "PATCH",
           headers: { "Content-Type": "application/json" },
@@ -475,7 +480,7 @@ export function WorkbenchProvider({ children }: PropsWithChildren) {
     } finally {
       setIsSavingRowCorrection(false);
     }
-  }, [preview, selectedDiagnosticRow, rowEditorDate, rowEditorAmount, rowEditorOperation, rowEditorDetail, rowEditorDirection, rowEditorNote, loadCorrectionMemory]);
+  }, [api, preview, selectedDiagnosticRow, rowEditorDate, rowEditorAmount, rowEditorOperation, rowEditorDetail, rowEditorDirection, rowEditorNote, loadCorrectionMemory]);
 
   const handleMaterializeReview = useCallback(async () => {
     const review = preview?.ocr_review;
@@ -483,7 +488,7 @@ export function WorkbenchProvider({ children }: PropsWithChildren) {
     setIsMaterializingReview(true);
     setError(null);
     try {
-      const res = await fetch(`${API}/api/v1/transforms/ocr-reviews/${review.review_id}/materialize`, {
+      const res = await fetch(`${api}/api/v1/transforms/ocr-reviews/${review.review_id}/materialize`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -505,7 +510,7 @@ export function WorkbenchProvider({ children }: PropsWithChildren) {
     } finally {
       setIsMaterializingReview(false);
     }
-  }, [preview, selectedReviewTableIndex, selectedReviewHeaderRow, reviewTitle, saveReviewTemplate, reviewTemplateName, reviewColumnMapping, loadHistory, loadRuleManager, loadJobs]);
+  }, [api, preview, selectedReviewTableIndex, selectedReviewHeaderRow, reviewTitle, saveReviewTemplate, reviewTemplateName, reviewColumnMapping, loadHistory, loadRuleManager, loadJobs]);
 
   const handleCreateTemplate = useCallback(async () => {
     if (!preview || !selectedVariantKey || !templateName.trim()) return;
@@ -517,7 +522,7 @@ export function WorkbenchProvider({ children }: PropsWithChildren) {
       const columns: TemplateColumnConfig[] = baseVariant.columns.map((c) => ({
         key: c.key, label: c.label, kind: c.kind, enabled: true,
       }));
-      const res = await fetch(`${API}/api/v1/transforms/templates`, {
+      const res = await fetch(`${api}/api/v1/transforms/templates`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -539,41 +544,41 @@ export function WorkbenchProvider({ children }: PropsWithChildren) {
     } finally {
       setIsCreatingTemplate(false);
     }
-  }, [preview, selectedVariantKey, templateName, templateDescription, templateIsDefault, loadSession]);
+  }, [api, preview, selectedVariantKey, templateName, templateDescription, templateIsDefault, loadSession]);
 
   const handleToggleRule = useCallback(async (templateId: string, isActive: boolean) => {
-    await fetch(`${API}/api/v1/transforms/ocr-mapping-templates/${templateId}/status`, {
+    await fetch(`${api}/api/v1/transforms/ocr-mapping-templates/${templateId}/status`, {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ is_active: isActive }),
     });
     await loadRuleManager();
-  }, [loadRuleManager]);
+  }, [api, loadRuleManager]);
 
   const handleRollbackRule = useCallback(async (templateId: string) => {
-    await fetch(`${API}/api/v1/transforms/ocr-mapping-templates/${templateId}/rollback`, { method: "POST" });
+    await fetch(`${api}/api/v1/transforms/ocr-mapping-templates/${templateId}/rollback`, { method: "POST" });
     await loadRuleManager();
-  }, [loadRuleManager]);
+  }, [api, loadRuleManager]);
 
   const handleCompareRule = useCallback(async (templateId: string): Promise<OCRRuleVersionDiff | null> => {
-    const res = await fetch(`${API}/api/v1/transforms/ocr-mapping-templates/${templateId}/compare`);
+    const res = await fetch(`${api}/api/v1/transforms/ocr-mapping-templates/${templateId}/compare`);
     if (!res.ok) return null;
     return (await res.json()) as OCRRuleVersionDiff;
-  }, []);
+  }, [api]);
 
   const handleCreateProject = useCallback(async (name: string, bankName: string, notes: string) => {
     if (!name.trim() || !bankName.trim()) return;
-    await fetch(`${API}/api/v1/transforms/onboarding/projects`, {
+    await fetch(`${api}/api/v1/transforms/onboarding/projects`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ name, bank_name: bankName, notes }),
     });
     await loadProjects();
-  }, [loadProjects]);
+  }, [api, loadProjects]);
 
   const handleAttachCurrentResult = useCallback(async (projectId: string) => {
     if (!preview) return;
-    await fetch(`${API}/api/v1/transforms/onboarding/projects/${projectId}/samples`, {
+    await fetch(`${api}/api/v1/transforms/onboarding/projects/${projectId}/samples`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
@@ -585,7 +590,7 @@ export function WorkbenchProvider({ children }: PropsWithChildren) {
       }),
     });
     await loadProjects();
-  }, [preview, loadProjects]);
+  }, [api, preview, loadProjects]);
 
   const setReviewColumnMappingField = useCallback((field: string, value: string) => {
     setReviewColumnMapping((prev) => ({ ...prev, [field]: value }));

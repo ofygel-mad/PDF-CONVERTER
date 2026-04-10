@@ -381,9 +381,13 @@ function WorkbenchInner() {
   );
 }
 
-export function StatementWorkbench() {
+type StatementWorkbenchProps = {
+  apiBaseUrl: string;
+};
+
+export function StatementWorkbench({ apiBaseUrl }: StatementWorkbenchProps) {
   return (
-    <WorkbenchProvider>
+    <WorkbenchProvider apiBaseUrl={apiBaseUrl}>
       <WorkbenchInner />
     </WorkbenchProvider>
   );

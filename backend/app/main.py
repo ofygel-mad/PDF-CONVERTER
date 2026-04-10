@@ -1,3 +1,5 @@
+import logging
+import traceback
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
@@ -8,11 +10,15 @@ from app.core.config import settings
 from app.core.database import get_resolved_database_url, init_database
 from app.services.storage_service import ensure_storage_buckets
 
+log = logging.getLogger(__name__)
+
 
 def _run_migrations() -> None:
     """Apply pending Alembic migrations, fall back to create_all for SQLite."""
     db_url = get_resolved_database_url()
+    log.info("DB URL resolved to driver: %s", db_url.split("://")[0] if "://" in db_url else db_url)
     if db_url.startswith("sqlite"):
+        log.info("SQLite detected — skipping alembic, running create_all")
         init_database()
         return
     try:
@@ -22,18 +28,34 @@ def _run_migrations() -> None:
         alembic_cfg = Config("alembic.ini")
         alembic_cfg.set_main_option("sqlalchemy.url", db_url)
         command.upgrade(alembic_cfg, "head")
-    except Exception:
-        # Graceful fallback: create all tables directly (no migration history)
-        init_database()
+        log.info("Alembic migrations applied successfully")
+    except Exception as exc:
+        log.warning("Alembic failed (%s: %s) — falling back to create_all", type(exc).__name__, exc)
+        log.debug(traceback.format_exc())
+        try:
+            init_database()
+            log.info("create_all fallback succeeded")
+        except Exception as exc2:
+            log.error("create_all fallback ALSO failed: %s: %s", type(exc2).__name__, exc2)
+            log.error(traceback.format_exc())
+            raise
 
 
 @asynccontextmanager
 async def lifespan(_: FastAPI):
-    _run_migrations()
+    log.info("Application startup — running migrations")
+    try:
+        _run_migrations()
+    except Exception as exc:
+        log.critical("Startup failed during migrations: %s: %s", type(exc).__name__, exc)
+        log.critical(traceback.format_exc())
+        raise
     try:
         ensure_storage_buckets()
-    except Exception:
-        pass
+        log.info("Storage buckets verified")
+    except Exception as exc:
+        log.warning("Storage bucket setup failed (non-fatal): %s: %s", type(exc).__name__, exc)
+    log.info("Application startup complete")
     yield
 
 
