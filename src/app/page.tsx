@@ -1,5 +1,12 @@
 import { StatementWorkbench } from "@/components/statement-workbench";
 
+export const dynamic = "force-dynamic";
+
 export default function Home() {
-  return <StatementWorkbench apiBaseUrl="/api/backend" />;
+  const apiBaseUrl =
+    process.env.NEXT_PUBLIC_API_URL ??
+    process.env.API_URL ??
+    "http://localhost:8000";
+
+  return <StatementWorkbench apiBaseUrl={apiBaseUrl} />;
 }

@@ -59,7 +59,7 @@ docker compose up -d --build
 
 The frontend starts at `http://localhost:3000`.
 
-**Key variable**: `NEXT_PUBLIC_API_URL` is baked into the JS bundle at **build time**. It must be the URL reachable from the **user's browser** (not from inside Docker). If you change the backend URL you must rebuild the image.
+**Key variable**: the frontend resolves `NEXT_PUBLIC_API_URL` at runtime on the page server and passes it into the client app. `API_URL` is also accepted as a fallback. The value must be the backend URL reachable from the user's browser.
 
 ## Development (local processes, Docker infra only)
 

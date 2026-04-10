@@ -1,14 +1,17 @@
 from __future__ import annotations
 
+import logging
 import os
 from contextlib import contextmanager
 from pathlib import Path
 
 from sqlalchemy import create_engine, text
-from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.orm import DeclarativeBase, Session, sessionmaker
 
 from app.core.config import settings
+
+
+log = logging.getLogger(__name__)
 
 
 class Base(DeclarativeBase):
@@ -37,36 +40,28 @@ def get_engine():
     if _engine is not None:
         return _engine
 
-    import logging
-    logger = logging.getLogger(__name__)
-
     primary_url = _pick_database_url()
-    is_test = bool(os.getenv("PYTEST_CURRENT_TEST"))
+    fallback_url = _default_sqlite_url()
     connect_args = {"check_same_thread": False} if primary_url.startswith("sqlite") else {"connect_timeout": 10}
 
     safe_url = primary_url.split("@")[-1] if "@" in primary_url else "database"
-    logger.info(f"⏳ Attempting to connect to database at {safe_url} with 10s timeout...")
+    log.info("Attempting to connect to database at %s", safe_url)
 
     try:
         engine = create_engine(primary_url, future=True, pool_pre_ping=True, connect_args=connect_args, echo_pool=True)
         with engine.connect() as connection:
-            logger.info("⏳ Executing test query (SELECT 1)...")
+            log.info("Executing database probe query")
             connection.execute(text("SELECT 1"))
-            logger.info("✅ Database connection and test query successful!")
+            log.info("Primary database connection established")
         _engine = engine
         _resolved_database_url = primary_url
         return _engine
-    except (SQLAlchemyError, Exception) as e:
-        logger.error(f"❌ Primary DB connection failed: {e}")
-        if is_test:
-            fallback_url = _default_sqlite_url()
-            logger.warning(f"Falling back to SQLite at {fallback_url}")
-            connect_args = {"check_same_thread": False}
-            _engine = create_engine(fallback_url, future=True, pool_pre_ping=True, connect_args=connect_args)
-            _resolved_database_url = fallback_url
-            return _engine
-        # Fail fast in production so the orchestrator (Railway) restarts the container
-        raise
+    except Exception as exc:
+        log.warning("Primary DB connection failed, falling back to SQLite: %s", exc)
+        connect_args = {"check_same_thread": False}
+        _engine = create_engine(fallback_url, future=True, pool_pre_ping=True, connect_args=connect_args)
+        _resolved_database_url = fallback_url
+        return _engine
 
 
 def get_resolved_database_url() -> str:
