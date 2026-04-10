@@ -129,6 +129,37 @@ export function useWorkbench(): WorkbenchCtx {
   return ctx;
 }
 
+async function readErrorMessage(response: Response): Promise<string> {
+  const contentType = response.headers.get("content-type") ?? "";
+  if (contentType.includes("application/json")) {
+    try {
+      const payload = (await response.json()) as { detail?: string; message?: string; error?: string };
+      return payload.detail ?? payload.message ?? payload.error ?? `HTTP ${response.status}`;
+    } catch {
+      return `HTTP ${response.status}`;
+    }
+  }
+
+  try {
+    const text = await response.text();
+    return text || `HTTP ${response.status}`;
+  } catch {
+    return `HTTP ${response.status}`;
+  }
+}
+
+async function fetchJson<T>(input: RequestInfo | URL, init?: RequestInit): Promise<T> {
+  const response = await fetch(input, init);
+  if (!response.ok) {
+    throw new Error(await readErrorMessage(response));
+  }
+  return (await response.json()) as T;
+}
+
+function ensureArray<T>(value: unknown): T[] {
+  return Array.isArray(value) ? (value as T[]) : [];
+}
+
 type WorkbenchProviderProps = PropsWithChildren<{
   apiBaseUrl: string;
 }>;
@@ -207,8 +238,8 @@ export function WorkbenchProvider({ children, apiBaseUrl }: WorkbenchProviderPro
   /* ─── Data loaders ─── */
   const loadHistory = useCallback(async () => {
     try {
-      const res = await fetch(`${api}/api/v1/transforms/history`);
-      setHistory((await res.json()) as SessionSummary[]);
+      const payload = await fetchJson<unknown>(`${api}/api/v1/transforms/history`);
+      setHistory(ensureArray<SessionSummary>(payload));
     } catch {
       // Backend unreachable — keep empty state
     }
@@ -216,8 +247,8 @@ export function WorkbenchProvider({ children, apiBaseUrl }: WorkbenchProviderPro
 
   const loadParsers = useCallback(async () => {
     try {
-      const res = await fetch(`${api}/api/v1/transforms/parsers`);
-      setParsers((await res.json()) as ParserDescriptor[]);
+      const payload = await fetchJson<unknown>(`${api}/api/v1/transforms/parsers`);
+      setParsers(ensureArray<ParserDescriptor>(payload));
     } catch {
       // Backend unreachable — keep empty state
     }
@@ -225,8 +256,7 @@ export function WorkbenchProvider({ children, apiBaseUrl }: WorkbenchProviderPro
 
   const loadVisionStatus = useCallback(async () => {
     try {
-      const res = await fetch(`${api}/api/v1/transforms/vision-status`);
-      setVisionStatus((await res.json()) as VisionStatus);
+      setVisionStatus(await fetchJson<VisionStatus>(`${api}/api/v1/transforms/vision-status`));
     } catch {
       // Backend unreachable — keep empty state
     }
@@ -234,8 +264,7 @@ export function WorkbenchProvider({ children, apiBaseUrl }: WorkbenchProviderPro
 
   const loadRuleManager = useCallback(async () => {
     try {
-      const res = await fetch(`${api}/api/v1/transforms/ocr-rule-manager`);
-      setRuleManager((await res.json()) as OCRRuleManagerSnapshot);
+      setRuleManager(await fetchJson<OCRRuleManagerSnapshot>(`${api}/api/v1/transforms/ocr-rule-manager`));
     } catch {
       // Backend unreachable — keep empty state
     }
@@ -243,8 +272,8 @@ export function WorkbenchProvider({ children, apiBaseUrl }: WorkbenchProviderPro
 
   const loadCorrectionMemory = useCallback(async () => {
     try {
-      const res = await fetch(`${api}/api/v1/transforms/correction-memory`);
-      setCorrectionMemory((await res.json()) as CorrectionMemoryEntry[]);
+      const payload = await fetchJson<unknown>(`${api}/api/v1/transforms/correction-memory`);
+      setCorrectionMemory(ensureArray<CorrectionMemoryEntry>(payload));
     } catch {
       // Backend unreachable — keep empty state
     }
@@ -252,8 +281,8 @@ export function WorkbenchProvider({ children, apiBaseUrl }: WorkbenchProviderPro
 
   const loadJobs = useCallback(async () => {
     try {
-      const res = await fetch(`${api}/api/v1/transforms/jobs`);
-      const next = (await res.json()) as JobSummary[];
+      const payload = await fetchJson<unknown>(`${api}/api/v1/transforms/jobs`);
+      const next = ensureArray<JobSummary>(payload);
       setJobs((prev) => {
         // Notify on newly-completed jobs
         const prevMap = new Map(prev.map((j) => [j.job_id, j]));
@@ -276,8 +305,8 @@ export function WorkbenchProvider({ children, apiBaseUrl }: WorkbenchProviderPro
 
   const loadProjects = useCallback(async () => {
     try {
-      const res = await fetch(`${api}/api/v1/transforms/onboarding/projects`);
-      setProjects((await res.json()) as OnboardingProject[]);
+      const payload = await fetchJson<unknown>(`${api}/api/v1/transforms/onboarding/projects`);
+      setProjects(ensureArray<OnboardingProject>(payload));
     } catch {
       // Backend unreachable — keep empty state
     }
