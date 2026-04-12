@@ -20,10 +20,6 @@ from app.schemas.statement import (
     StatementTotals,
     StatementTransaction,
 )
-from app.services.kaspi_business_statement import (
-    detect_kaspi_business_statement,
-    parse_kaspi_business_statement,
-)
 from app.services.ocr_service import OCRProcessingError, parse_ocr_statement
 
 DATE_PATTERN = re.compile(r"^\d{2}\.\d{2}\.\d{2}$")
@@ -190,20 +186,6 @@ def _detect_ocr_statement(filename: str, content: bytes) -> float:
         sample_text = "\n".join(_normalize(document[index].get_text("text")) for index in range(min(2, document.page_count)))
         return 0.45 if len(sample_text.strip()) < 80 else 0.0
     return 0.0
-
-
-def _detect_kaspi_business_statement(filename: str, content: bytes) -> float:
-    extension = Path(filename).suffix.lower()
-    if extension not in {".xlsx", ".xlsm"}:
-        return 0.0
-    return detect_kaspi_business_statement(content)
-
-
-def _parse_kaspi_business_statement(filename: str, content: bytes) -> ParsedStatement:
-    try:
-        return parse_kaspi_business_statement(filename, content)
-    except ValueError as exc:
-        raise DocumentParseError(str(exc)) from exc
 
 
 def _parse_ocr_statement(filename: str, content: bytes) -> ParsedStatement:
@@ -666,3 +648,26 @@ def _string_or_none(rows: list[list[object]], row_index: int, column_index: int)
 
 def _value_exists(rows: list[list[object]], row_index: int, column_index: int) -> bool:
     return row_index < len(rows) and column_index < len(rows[row_index]) and rows[row_index][column_index] not in (None, "")
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# KASPI BUSINESS PARSER — lazy import, safe at startup
+# ─────────────────────────────────────────────────────────────────────────────
+
+
+def _detect_kaspi_business_statement(filename: str, content: bytes) -> float:
+    if Path(filename).suffix.lower() not in {".xlsx", ".xlsm"}:
+        return 0.0
+    try:
+        from app.services.kaspi_business_statement_service import detect_kaspi_business_statement
+        return detect_kaspi_business_statement(content)
+    except Exception:
+        return 0.0
+
+
+def _parse_kaspi_business_statement(filename: str, content: bytes) -> ParsedStatement:
+    try:
+        from app.services.kaspi_business_statement_service import parse_kaspi_business_statement
+        return parse_kaspi_business_statement(filename, content)
+    except Exception as exc:
+        raise DocumentParseError(f"Ошибка парсинга Kaspi Business: {exc}") from exc

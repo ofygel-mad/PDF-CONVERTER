@@ -8,12 +8,7 @@ from app.schemas.statement import (
     PreviewVariant,
     TransformationTemplate,
 )
-from app.services.kaspi_business_statement import (
-    derive_counterparty_type,
-    derive_flow_group,
-    derive_flow_signal,
-    derive_kaspi_bucket,
-)
+# kaspi_business_statement_service imported lazily inside _build_kaspi_business_variants
 
 PRIMARY_GROUP = "primary"
 KASPI_BUSINESS_GROUP = "kaspi_business_plus"
@@ -248,15 +243,27 @@ def _build_primary_variants(transactions) -> list[PreviewVariant]:
     return variants
 
 
+def _kaspi_flow_type(row) -> str:
+    return "\u041f\u0440\u0438\u0445\u043e\u0434" if row.income is not None else "\u0420\u0430\u0441\u0445\u043e\u0434"
+
+
+def _kaspi_amount(row):
+    return row.income if row.income is not None else row.expense
+
+
+_SELF_TRANSFER_OP = "\u0421\u043e\u0431\u0441\u0442\u0432\u0435\u043d\u043d\u044b\u0439 \u043f\u0435\u0440\u0435\u0432\u043e\u0434"
+
+
+def _kaspi_self_transfer_flag(row) -> str:
+    return "\u2713" if row.operation == _SELF_TRANSFER_OP else ""
+
+
 def _build_kaspi_business_variants(transactions) -> list[PreviewVariant]:
     return [
         PreviewVariant(
             key="business_compact_classic",
-            name="\u041a\u043b\u0430\u0441\u0441\u0438\u043a\u0430",
-            description=(
-                "\u041a\u043e\u043c\u043f\u0430\u043a\u0442\u043d\u0430\u044f \u043b\u0435\u043d\u0442\u0430 "
-                "\u0434\u043b\u044f \u0444\u0438\u043d\u0430\u043b\u044c\u043d\u043e\u0439 \u0432\u044b\u0433\u0440\u0443\u0437\u043a\u0438."
-            ),
+            name="\u041a\u043e\u043c\u043f\u0430\u043a\u0442\u043d\u0430\u044f",
+            description="\u041e\u0441\u043d\u043e\u0432\u043d\u043e\u0439 \u0444\u043e\u0440\u043c\u0430\u0442 \u0434\u043b\u044f \u0431\u0443\u0445\u0433\u0430\u043b\u0442\u0435\u0440\u0438\u0438.",
             columns=[
                 PreviewColumn(key="document_number", label="\u2116 \u0434\u043e\u043a\u0443\u043c\u0435\u043d\u0442\u0430"),
                 PreviewColumn(key="date", label="\u0414\u0430\u0442\u0430 \u043e\u043f\u0435\u0440\u0430\u0446\u0438\u0438"),
@@ -280,30 +287,25 @@ def _build_kaspi_business_variants(transactions) -> list[PreviewVariant]:
             group=KASPI_BUSINESS_GROUP,
         ),
         PreviewVariant(
-            key="business_flow_lens",
-            name="\u041f\u043e\u0442\u043e\u043a",
-            description=(
-                "\u041b\u0435\u043d\u0442\u0430 \u043f\u043e\u0442\u043e\u043a\u043e\u0432 "
-                "\u043f\u043e \u0442\u0438\u043f\u0443 \u0434\u0432\u0438\u0436\u0435\u043d\u0438\u044f."
-            ),
+            key="business_counterparty_first",
+            name="\u041f\u043e \u043a\u043e\u043d\u0442\u0440\u0430\u0433\u0435\u043d\u0442\u0443",
+            description="\u0411\u044b\u0441\u0442\u0440\u044b\u0439 \u043f\u0440\u043e\u0441\u043c\u043e\u0442\u0440 \u043f\u043e \u043f\u043b\u0430\u0442\u0435\u043b\u044c\u0449\u0438\u043a\u0430\u043c \u0438 \u043f\u043e\u043b\u0443\u0447\u0430\u0442\u0435\u043b\u044f\u043c.",
             columns=[
                 PreviewColumn(key="date", label="\u0414\u0430\u0442\u0430"),
-                PreviewColumn(key="flow_group", label="\u041f\u043e\u0442\u043e\u043a"),
-                PreviewColumn(key="flow_signal", label="\u0421\u0438\u0433\u043d\u0430\u043b"),
+                PreviewColumn(key="detail", label="\u041a\u043e\u043d\u0442\u0440\u0430\u0433\u0435\u043d\u0442"),
                 PreviewColumn(key="income", label="\u041f\u0440\u0438\u0445\u043e\u0434, \u20b8", kind="currency"),
                 PreviewColumn(key="expense", label="\u0420\u0430\u0441\u0445\u043e\u0434, \u20b8", kind="currency"),
-                PreviewColumn(key="detail", label="\u041a\u043e\u043d\u0442\u0440\u0430\u0433\u0435\u043d\u0442"),
                 PreviewColumn(key="comment", label="\u041a\u043e\u043c\u043c\u0435\u043d\u0442\u0430\u0440\u0438\u0439"),
+                PreviewColumn(key="document_number", label="\u2116 \u0434\u043e\u043a\u0443\u043c\u0435\u043d\u0442\u0430"),
             ],
             rows=[
                 {
                     "date": row.date,
-                    "flow_group": derive_flow_group(row),
-                    "flow_signal": derive_flow_signal(row),
+                    "detail": row.detail,
                     "income": row.income,
                     "expense": row.expense,
-                    "detail": row.detail,
                     "comment": row.comment,
+                    "document_number": row.document_number,
                     "direction": row.direction,
                 }
                 for row in transactions
@@ -311,34 +313,25 @@ def _build_kaspi_business_variants(transactions) -> list[PreviewVariant]:
             group=KASPI_BUSINESS_GROUP,
         ),
         PreviewVariant(
-            key="business_counterparty_grid",
-            name="\u041a\u043e\u043d\u0442\u0440\u0430\u0433\u0435\u043d\u0442\u044b",
-            description=(
-                "\u0410\u043a\u0446\u0435\u043d\u0442 \u043d\u0430 "
-                "\u043a\u043e\u043d\u0442\u0440\u0430\u0433\u0435\u043d\u0442\u0430\u0445 \u0438 "
-                "\u0438\u0445 \u0442\u0438\u043f\u0435."
-            ),
+            key="business_comment_audit",
+            name="\u0410\u0443\u0434\u0438\u0442 \u043f\u043b\u0430\u0442\u0435\u0436\u0435\u0439",
+            description="\u041f\u0440\u043e\u0432\u0435\u0440\u043a\u0430 \u043f\u043e \u043d\u0430\u0437\u043d\u0430\u0447\u0435\u043d\u0438\u044e \u043f\u043b\u0430\u0442\u0435\u0436\u0430.",
             columns=[
-                PreviewColumn(key="detail", label="\u041a\u043e\u043d\u0442\u0440\u0430\u0433\u0435\u043d\u0442"),
-                PreviewColumn(
-                    key="counterparty_type",
-                    label="\u0422\u0438\u043f \u043a\u043e\u043d\u0442\u0440\u0430\u0433\u0435\u043d\u0442\u0430",
-                ),
                 PreviewColumn(key="date", label="\u0414\u0430\u0442\u0430"),
+                PreviewColumn(key="comment", label="\u041a\u043e\u043c\u043c\u0435\u043d\u0442\u0430\u0440\u0438\u0439"),
+                PreviewColumn(key="detail", label="\u041a\u043e\u043d\u0442\u0440\u0430\u0433\u0435\u043d\u0442"),
                 PreviewColumn(key="income", label="\u041f\u0440\u0438\u0445\u043e\u0434, \u20b8", kind="currency"),
                 PreviewColumn(key="expense", label="\u0420\u0430\u0441\u0445\u043e\u0434, \u20b8", kind="currency"),
                 PreviewColumn(key="document_number", label="\u2116 \u0434\u043e\u043a\u0443\u043c\u0435\u043d\u0442\u0430"),
-                PreviewColumn(key="comment", label="\u041a\u043e\u043c\u043c\u0435\u043d\u0442\u0430\u0440\u0438\u0439"),
             ],
             rows=[
                 {
-                    "detail": row.detail,
-                    "counterparty_type": derive_counterparty_type(row.detail),
                     "date": row.date,
+                    "comment": row.comment,
+                    "detail": row.detail,
                     "income": row.income,
                     "expense": row.expense,
                     "document_number": row.document_number,
-                    "comment": row.comment,
                     "direction": row.direction,
                 }
                 for row in transactions
@@ -346,66 +339,53 @@ def _build_kaspi_business_variants(transactions) -> list[PreviewVariant]:
             group=KASPI_BUSINESS_GROUP,
         ),
         PreviewVariant(
-            key="business_kaspi_stream",
-            name="Kaspi \u041f\u043e\u0442\u043e\u043a\u0438",
-            description=(
-                "\u0421\u0435\u0433\u043c\u0435\u043d\u0442\u0430\u0446\u0438\u044f "
-                "\u0432\u044b\u0440\u0443\u0447\u043a\u0438, \u043a\u043e\u043c\u0438\u0441\u0441\u0438\u0439, "
-                "\u0434\u0435\u043f\u043e\u0437\u0438\u0442\u043e\u0432 \u0438 \u0432\u044b\u0432\u043e\u0434\u0430."
-            ),
+            key="business_cashflow_control",
+            name="\u041a\u043e\u043d\u0442\u0440\u043e\u043b\u044c \u043f\u043e\u0442\u043e\u043a\u043e\u0432",
+            description="\u041e\u043f\u0435\u0440\u0430\u0442\u0438\u0432\u043d\u044b\u0439 \u043e\u0431\u0437\u043e\u0440 \u0434\u0432\u0438\u0436\u0435\u043d\u0438\u044f \u0441\u0440\u0435\u0434\u0441\u0442\u0432.",
             columns=[
                 PreviewColumn(key="date", label="\u0414\u0430\u0442\u0430"),
-                PreviewColumn(key="kaspi_bucket", label="Kaspi bucket"),
-                PreviewColumn(key="operation", label="\u041e\u043f\u0435\u0440\u0430\u0446\u0438\u044f"),
+                PreviewColumn(key="flow_type", label="\u0422\u0438\u043f"),
+                PreviewColumn(key="amount", label="\u0421\u0443\u043c\u043c\u0430, \u20b8", kind="currency"),
+                PreviewColumn(key="detail", label="\u041a\u043e\u043d\u0442\u0440\u0430\u0433\u0435\u043d\u0442"),
+                PreviewColumn(key="comment", label="\u041a\u043e\u043c\u043c\u0435\u043d\u0442\u0430\u0440\u0438\u0439"),
+                PreviewColumn(key="document_number", label="\u2116 \u0434\u043e\u043a\u0443\u043c\u0435\u043d\u0442\u0430"),
+            ],
+            rows=[
+                {
+                    "date": row.date,
+                    "flow_type": _kaspi_flow_type(row),
+                    "amount": _kaspi_amount(row),
+                    "detail": row.detail,
+                    "comment": row.comment,
+                    "document_number": row.document_number,
+                    "direction": row.direction,
+                }
+                for row in transactions
+            ],
+            group=KASPI_BUSINESS_GROUP,
+        ),
+        PreviewVariant(
+            key="business_self_transfer_trace",
+            name="\u0421\u0432\u043e\u0438 \u043f\u0435\u0440\u0435\u0432\u043e\u0434\u044b",
+            description="\u041f\u0440\u043e\u0441\u043b\u0435\u0436\u0438\u0432\u0430\u043d\u0438\u0435 \u0441\u043e\u0431\u0441\u0442\u0432\u0435\u043d\u043d\u044b\u0445 \u043f\u0435\u0440\u0435\u0432\u043e\u0434\u043e\u0432.",
+            columns=[
+                PreviewColumn(key="date", label="\u0414\u0430\u0442\u0430"),
+                PreviewColumn(key="document_number", label="\u2116 \u0434\u043e\u043a\u0443\u043c\u0435\u043d\u0442\u0430"),
+                PreviewColumn(key="detail", label="\u041a\u043e\u043d\u0442\u0440\u0430\u0433\u0435\u043d\u0442"),
                 PreviewColumn(key="income", label="\u041f\u0440\u0438\u0445\u043e\u0434, \u20b8", kind="currency"),
                 PreviewColumn(key="expense", label="\u0420\u0430\u0441\u0445\u043e\u0434, \u20b8", kind="currency"),
-                PreviewColumn(key="detail", label="\u041a\u043e\u043d\u0442\u0440\u0430\u0433\u0435\u043d\u0442"),
                 PreviewColumn(key="comment", label="\u041a\u043e\u043c\u043c\u0435\u043d\u0442\u0430\u0440\u0438\u0439"),
+                PreviewColumn(key="self_transfer", label="\u0421\u0432\u043e\u0439 \u043f\u0435\u0440\u0435\u0432\u043e\u0434"),
             ],
             rows=[
                 {
                     "date": row.date,
-                    "kaspi_bucket": derive_kaspi_bucket(row),
-                    "operation": row.operation,
+                    "document_number": row.document_number,
+                    "detail": row.detail,
                     "income": row.income,
                     "expense": row.expense,
-                    "detail": row.detail,
                     "comment": row.comment,
-                    "direction": row.direction,
-                }
-                for row in transactions
-            ],
-            group=KASPI_BUSINESS_GROUP,
-        ),
-        PreviewVariant(
-            key="business_control_ledger",
-            name="\u041a\u043e\u043d\u0442\u0440\u043e\u043b\u044c",
-            description=(
-                "\u041a\u043e\u043d\u0442\u0440\u043e\u043b\u044c\u043d\u0430\u044f "
-                "\u043b\u0435\u043d\u0442\u0430 \u0434\u043b\u044f \u0441\u0432\u0435\u0440\u043a\u0438 "
-                "\u0438 \u0431\u044b\u0441\u0442\u0440\u043e\u0433\u043e \u0444\u0438\u043b\u044c\u0442\u0440\u0430."
-            ),
-            columns=[
-                PreviewColumn(key="document_number", label="\u2116 \u0434\u043e\u043a\u0443\u043c\u0435\u043d\u0442\u0430"),
-                PreviewColumn(key="date", label="\u0414\u0430\u0442\u0430"),
-                PreviewColumn(
-                    key="direction_label",
-                    label="\u041d\u0430\u043f\u0440\u0430\u0432\u043b\u0435\u043d\u0438\u0435",
-                ),
-                PreviewColumn(key="amount_abs", label="\u0421\u0443\u043c\u043c\u0430, \u20b8", kind="currency"),
-                PreviewColumn(key="flow_group", label="\u041f\u043e\u0442\u043e\u043a"),
-                PreviewColumn(key="detail", label="\u041a\u043e\u043d\u0442\u0440\u0430\u0433\u0435\u043d\u0442"),
-                PreviewColumn(key="comment", label="\u041a\u043e\u043c\u043c\u0435\u043d\u0442\u0430\u0440\u0438\u0439"),
-            ],
-            rows=[
-                {
-                    "document_number": row.document_number,
-                    "date": row.date,
-                    "direction_label": _direction_label(row.direction),
-                    "amount_abs": row.income if row.income is not None else row.expense,
-                    "flow_group": derive_flow_group(row),
-                    "detail": row.detail,
-                    "comment": row.comment,
+                    "self_transfer": _kaspi_self_transfer_flag(row),
                     "direction": row.direction,
                 }
                 for row in transactions
