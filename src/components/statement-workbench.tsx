@@ -13,9 +13,9 @@ import { OcrReviewPanel } from "@/components/workbench/ocr-review-panel";
 type Tab = "table" | "quality" | "ocr";
 
 const TABS: { key: Tab; label: string; shortLabel: string; icon: string }[] = [
-  { key: "table", label: "РўСЂР°РЅР·Р°РєС†РёРё", shortLabel: "РЎРїРёСЃРѕРє", icon: "в‰Ў" },
-  { key: "quality", label: "РљР°С‡РµСЃС‚РІРѕ", shortLabel: "РљР°С‡РµСЃС‚РІРѕ", icon: "в—Ћ" },
-  { key: "ocr", label: "Р Р°СЃРїРѕР·РЅР°РІР°РЅРёРµ", shortLabel: "РЎРєР°РЅ", icon: "в¬љ" },
+  { key: "table", label: "Транзакции", shortLabel: "Список", icon: "📊" },
+  { key: "quality", label: "Качество", shortLabel: "Качество", icon: "⚠️" },
+  { key: "ocr", label: "Распознавание", shortLabel: "Скан", icon: "📄" },
 ];
 
 type Theme = "dark" | "light" | "system";
@@ -50,15 +50,15 @@ function ThemeToggle() {
     }
   };
 
-  const icons: Record<Theme, string> = { dark: "рџЊ™", light: "вЂпёЏ", system: "вљ™" };
-  const labels: Record<Theme, string> = { dark: "РўС‘РјРЅР°СЏ", light: "РЎРІРµС‚Р»Р°СЏ", system: "РђРІС‚Рѕ" };
+  const icons: Record<Theme, string> = { dark: "🌙", light: "☀️", system: "⚙️" };
+  const labels: Record<Theme, string> = { dark: "Тёмная", light: "Светлая", system: "Авто" };
 
   return (
     <button
       onClick={cycle}
       className="btn-ghost text-xs px-2.5 py-1.5 flex items-center gap-1.5"
       type="button"
-      title={`РўРµРјР°: ${labels[theme]}`}
+      title={`Тема: ${labels[theme]}`}
     >
       <span>{icons[theme]}</span>
       <span className="hidden sm:inline">{labels[theme]}</span>
@@ -136,11 +136,11 @@ function WorkbenchInner() {
       >
         <div className="flex items-center gap-2 overflow-hidden">
           <span className="text-sm font-bold whitespace-nowrap" style={{ color: "var(--text-primary)" }}>
-            РђРЅР°Р»РёР·Р°С‚РѕСЂ РІС‹РїРёСЃРѕРє
+            Анализатор выписок
           </span>
           <span className="hidden sm:flex items-center gap-1.5 text-xs whitespace-nowrap" style={{ color: "var(--text-muted)" }}>
             <StatusDot ok={parsers.length > 0} />
-            {parsers.length > 0 ? `${parsers.length} С„РѕСЂРј.` : "РѕС„Р»Р°Р№РЅ"}
+            {parsers.length > 0 ? `${parsers.length} форм.` : "офлайн"}
           </span>
         </div>
         <div className="flex items-center gap-2 flex-shrink-0">
@@ -148,10 +148,10 @@ function WorkbenchInner() {
             onClick={() => setShowHistory((value) => !value)}
             className="btn-ghost text-xs px-2.5 py-1.5 flex items-center gap-1.5"
             type="button"
-            title="РСЃС‚РѕСЂРёСЏ СЃРµСЃСЃРёР№"
+            title="История сессий"
           >
-            <span>в†є</span>
-            <span className="hidden sm:inline">РСЃС‚РѕСЂРёСЏ</span>
+            <span>⏱</span>
+            <span className="hidden sm:inline">История</span>
           </button>
           <ThemeToggle />
         </div>
@@ -191,17 +191,17 @@ function WorkbenchInner() {
       <main className="flex-1 px-4 sm:px-6 py-4 sm:py-5 max-w-6xl w-full mx-auto space-y-4 pb-24 sm:pb-8">
         {tab === "table" && !hasPreview && (
           <div className="animate-fade-in flex flex-col items-center justify-center py-20 text-center">
-            <div className="text-5xl mb-4 opacity-20" style={{ color: "var(--text-muted)" }}>в¬†</div>
-            <p className="text-sm" style={{ color: "var(--text-muted)" }}>Р—Р°РіСЂСѓР·РёС‚Рµ С„Р°Р№Р» РІС‹РїРёСЃРєРё РґР»СЏ Р°РЅР°Р»РёР·Р°</p>
+            <div className="text-5xl mb-4 opacity-20" style={{ color: "var(--text-muted)" }}>📁</div>
+            <p className="text-sm" style={{ color: "var(--text-muted)" }}>Загрузите файл выписки для анализа</p>
             <p className="text-xs mt-2" style={{ color: "var(--text-muted)", opacity: 0.7 }}>
-              РР»Рё{" "}
+              Или{" "}
               <button
                 className="underline underline-offset-2"
                 style={{ color: "var(--accent-blue)" }}
                 onClick={() => setShowHistory(true)}
                 type="button"
               >
-                РѕС‚РєСЂРѕР№С‚Рµ РёСЃС‚РѕСЂРёСЋ СЃРµСЃСЃРёР№
+                откройте историю сессий
               </button>
             </p>
           </div>
@@ -212,19 +212,19 @@ function WorkbenchInner() {
             <VariantPreviewPanel variants={allVariants} diagnostics={deferredPreview?.row_diagnostics ?? []} />
             <div className="card p-4 sm:p-5">
               <h3 className="text-sm font-semibold mb-3" style={{ color: "var(--text-primary)" }}>
-                РЎРѕС…СЂР°РЅРёС‚СЊ С€Р°Р±Р»РѕРЅ
+                Сохранить шаблон
               </h3>
               <div className="grid gap-2 sm:grid-cols-2 mb-3">
-                <input className="input-field" placeholder="РќР°Р·РІР°РЅРёРµ" value={templateName} onChange={(e) => setTemplateName(e.target.value)} />
-                <input className="input-field" placeholder="РћРїРёСЃР°РЅРёРµ" value={templateDescription} onChange={(e) => setTemplateDescription(e.target.value)} />
+                <input className="input-field" placeholder="Название" value={templateName} onChange={(e) => setTemplateName(e.target.value)} />
+                <input className="input-field" placeholder="Описание" value={templateDescription} onChange={(e) => setTemplateDescription(e.target.value)} />
               </div>
               <div className="flex items-center gap-4">
                 <label className="flex items-center gap-2 text-sm cursor-pointer" style={{ color: "var(--text-secondary)" }}>
                   <input type="checkbox" checked={templateIsDefault} onChange={(e) => setTemplateIsDefault(e.target.checked)} className="accent-blue-500" />
-                  РџРѕ СѓРјРѕР»С‡Р°РЅРёСЋ
+                  По умолчанию
                 </label>
                 <button className="btn-ghost text-xs" disabled={isCreatingTemplate || !templateName.trim()} onClick={handleCreateTemplate} type="button">
-                  {isCreatingTemplate ? "РЎРѕС…СЂР°РЅРµРЅРёРµвЂ¦" : "РЎРѕС…СЂР°РЅРёС‚СЊ"}
+                  {isCreatingTemplate ? "Сохранение…" : "Сохранить"}
                 </button>
               </div>
             </div>
@@ -259,7 +259,7 @@ function WorkbenchInner() {
               />
             ) : (
               <div className="card p-10 text-center text-sm" style={{ color: "var(--text-muted)" }}>
-                Р Р°СЃРїРѕР·РЅР°РІР°РЅРёРµ РЅРµ С‚СЂРµР±СѓРµС‚СЃСЏ РґР»СЏ СЌС‚РѕРіРѕ РґРѕРєСѓРјРµРЅС‚Р°.
+                Распознавание не требуется для этого документа.
               </div>
             )}
           </div>
@@ -282,15 +282,15 @@ function WorkbenchInner() {
               style={{ background: "var(--header-bg)", borderColor: "var(--border-subtle)" }}
             >
               <span className="text-sm font-semibold" style={{ color: "var(--text-primary)" }}>
-                РСЃС‚РѕСЂРёСЏ СЃРµСЃСЃРёР№
+                История сессий
               </span>
               <button
                 className="btn-ghost text-base px-2 py-1"
                 onClick={() => setShowHistory(false)}
                 type="button"
-                aria-label="Р—Р°РєСЂС‹С‚СЊ"
+                aria-label="Закрыть"
               >
-                вњ•
+                ✕
               </button>
             </div>
             <div className="flex-1 overflow-y-auto p-4 space-y-4 pb-8">
