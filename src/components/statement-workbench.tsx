@@ -189,24 +189,6 @@ function WorkbenchInner() {
       )}
 
       <main className="flex-1 px-4 sm:px-6 py-4 sm:py-5 max-w-6xl w-full mx-auto space-y-4 pb-24 sm:pb-8">
-        {tab === "table" && !hasPreview && (
-          <div className="animate-fade-in flex flex-col items-center justify-center py-20 text-center">
-            <div className="text-5xl mb-4 opacity-20" style={{ color: "var(--text-muted)" }}>📁</div>
-            <p className="text-sm" style={{ color: "var(--text-muted)" }}>Загрузите файл выписки для анализа</p>
-            <p className="text-xs mt-2" style={{ color: "var(--text-muted)", opacity: 0.7 }}>
-              Или{" "}
-              <button
-                className="underline underline-offset-2"
-                style={{ color: "var(--accent-blue)" }}
-                onClick={() => setShowHistory(true)}
-                type="button"
-              >
-                откройте историю сессий
-              </button>
-            </p>
-          </div>
-        )}
-
         {tab === "table" && hasPreview && (
           <div className="space-y-4 animate-fade-in">
             <VariantPreviewPanel variants={allVariants} diagnostics={deferredPreview?.row_diagnostics ?? []} />
