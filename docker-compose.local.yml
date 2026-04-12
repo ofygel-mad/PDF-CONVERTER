@@ -108,6 +108,7 @@ services:
     environment:
       APP_NAME:        ${APP_NAME:-PDF Converter API}
       ENVIRONMENT:     development        # enables uvicorn reload
+      RUN_MIGRATIONS:  "true"
       API_V1_PREFIX:   /api/v1
       LOG_LEVEL:       ${LOG_LEVEL:-INFO}
       APP_HOST:        0.0.0.0
@@ -162,6 +163,7 @@ services:
     environment:
       APP_NAME:        ${APP_NAME:-PDF Converter API}
       ENVIRONMENT:     development
+      RUN_MIGRATIONS:  "false"
       LOG_LEVEL:       ${LOG_LEVEL:-INFO}
       DATABASE_URL:    postgresql+psycopg://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD:-postgres}@postgres:5432/${POSTGRES_DB:-pdf_converter}
       REDIS_URL:       redis://redis:6379/0

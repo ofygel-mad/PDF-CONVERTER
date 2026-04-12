@@ -70,6 +70,7 @@ services:
     environment:
       APP_NAME: ${APP_NAME:-PDF Converter API}
       ENVIRONMENT: ${ENVIRONMENT:-production}
+      RUN_MIGRATIONS: "true"
       API_V1_PREFIX: /api/v1
       LOG_LEVEL: ${LOG_LEVEL:-INFO}
       APP_HOST: 0.0.0.0
@@ -110,6 +111,7 @@ services:
     environment:
       APP_NAME: ${APP_NAME:-PDF Converter API}
       ENVIRONMENT: ${ENVIRONMENT:-production}
+      RUN_MIGRATIONS: "false"
       API_V1_PREFIX: /api/v1
       LOG_LEVEL: ${LOG_LEVEL:-INFO}
       DATABASE_URL: postgresql+psycopg://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD:-postgres}@postgres:5432/${POSTGRES_DB:-pdf_converter}
