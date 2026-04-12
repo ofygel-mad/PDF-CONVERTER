@@ -8,7 +8,6 @@ from fastapi.middleware.cors import CORSMiddleware
 from app.api.router import api_router
 from app.core.config import settings
 from app.core.database import get_resolved_database_url, init_database
-from app.services.storage_service import ensure_storage_buckets
 
 log = logging.getLogger(__name__)
 
@@ -51,14 +50,6 @@ def _run_migrations() -> None:
 
 @asynccontextmanager
 async def lifespan(_: FastAPI):
-    log.info("Application startup, skipping migrations (will run separately)")
-    # Note: Migrations should be run separately or before deployment
-    # to avoid blocking application startup
-    try:
-        ensure_storage_buckets()
-        log.info("Storage buckets verified")
-    except Exception as exc:
-        log.warning("Storage bucket setup failed (non-fatal): %s: %s", type(exc).__name__, exc)
     log.info("Application startup complete")
     yield
 

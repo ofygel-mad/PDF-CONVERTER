@@ -1,28 +1,12 @@
-# ─────────────────────────────────────────────────────────────────────────────
-# Frontend — standalone compose (separate repo mode)
-#
-# Usage:
-#   cp .env.example .env
-#   # Set NEXT_PUBLIC_API_URL to your backend's public URL
-#   docker compose up -d
-#
-# The app will be available at http://localhost:${WEB_PORT:-3000}
-#
-# IMPORTANT: NEXT_PUBLIC_API_URL is baked into the JS bundle at build time.
-#   It must be the URL reachable from the END USER'S BROWSER — not from inside
-#   Docker. If you change this variable you must rebuild the image.
-# ─────────────────────────────────────────────────────────────────────────────
-
 services:
   web:
     build:
       context: .
       dockerfile: Dockerfile
-      args:
-        NEXT_PUBLIC_API_URL: ${NEXT_PUBLIC_API_URL:-http://localhost:8000}
     restart: unless-stopped
     environment:
-      PORT:     3000
+      API_URL: ${API_URL:-http://host.docker.internal:8000}
+      PORT: 3000
       HOSTNAME: 0.0.0.0
     ports:
       - "${WEB_PORT:-3000}:3000"

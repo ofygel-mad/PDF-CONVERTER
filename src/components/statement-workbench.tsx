@@ -9,33 +9,28 @@ import { HistoryPanel } from "@/components/workbench/history-panel";
 import { QualityPanel } from "@/components/workbench/quality-panel";
 import { VariantPreviewPanel } from "@/components/workbench/variant-preview-panel";
 import { OcrReviewPanel } from "@/components/workbench/ocr-review-panel";
-import { RuleManagerPanel } from "@/components/workbench/rule-manager-panel";
-import { OnboardingPanel } from "@/components/workbench/onboarding-panel";
-import { CorrectionMemoryPanel } from "@/components/workbench/correction-memory-panel";
-import { JobsPanel } from "@/components/workbench/jobs-panel";
 
-type Tab = "table" | "quality" | "ocr" | "rules";
+type Tab = "table" | "quality" | "ocr";
 
 const TABS: { key: Tab; label: string; shortLabel: string; icon: string }[] = [
-  { key: "table",    label: "Транзакции",   shortLabel: "Список",   icon: "≡" },
-  { key: "quality",  label: "Качество",     shortLabel: "Качество", icon: "◎" },
-  { key: "ocr",      label: "Распознавание",shortLabel: "Скан",     icon: "⬚" },
-  { key: "rules",    label: "Правила",      shortLabel: "Правила",  icon: "⚙" },
+  { key: "table", label: "РўСЂР°РЅР·Р°РєС†РёРё", shortLabel: "РЎРїРёСЃРѕРє", icon: "в‰Ў" },
+  { key: "quality", label: "РљР°С‡РµСЃС‚РІРѕ", shortLabel: "РљР°С‡РµСЃС‚РІРѕ", icon: "в—Ћ" },
+  { key: "ocr", label: "Р Р°СЃРїРѕР·РЅР°РІР°РЅРёРµ", shortLabel: "РЎРєР°РЅ", icon: "в¬љ" },
 ];
 
-/* ─── Theme toggle ─── */
 type Theme = "dark" | "light" | "system";
 
 function ThemeToggle() {
   const [theme, setTheme] = useState<Theme>("system");
 
-  /* Read theme from localStorage after hydration (valid use case in Next.js) */
   useEffect(() => {
     try {
       const stored = localStorage.getItem("theme") as Theme | null;
       // eslint-disable-next-line react-hooks/set-state-in-effect
       setTheme(stored === "dark" || stored === "light" ? stored : "system");
-    } catch { /* ignore */ }
+    } catch {
+      // ignore
+    }
   }, []);
 
   const cycle = () => {
@@ -50,26 +45,27 @@ function ThemeToggle() {
         localStorage.setItem("theme", next);
         document.documentElement.setAttribute("data-theme", next);
       }
-    } catch { /* ignore */ }
+    } catch {
+      // ignore
+    }
   };
 
-  const ICONS: Record<Theme, string> = { dark: "🌙", light: "☀️", system: "⚙" };
-  const LABELS: Record<Theme, string> = { dark: "Тёмная", light: "Светлая", system: "Авто" };
+  const icons: Record<Theme, string> = { dark: "рџЊ™", light: "вЂпёЏ", system: "вљ™" };
+  const labels: Record<Theme, string> = { dark: "РўС‘РјРЅР°СЏ", light: "РЎРІРµС‚Р»Р°СЏ", system: "РђРІС‚Рѕ" };
 
   return (
     <button
       onClick={cycle}
       className="btn-ghost text-xs px-2.5 py-1.5 flex items-center gap-1.5"
       type="button"
-      title={`Тема: ${LABELS[theme]}`}
+      title={`РўРµРјР°: ${labels[theme]}`}
     >
-      <span>{ICONS[theme]}</span>
-      <span className="hidden sm:inline">{LABELS[theme]}</span>
+      <span>{icons[theme]}</span>
+      <span className="hidden sm:inline">{labels[theme]}</span>
     </button>
   );
 }
 
-/* ─── Status dot ─── */
 function StatusDot({ ok }: { ok: boolean }) {
   return (
     <span
@@ -78,100 +74,103 @@ function StatusDot({ ok }: { ok: boolean }) {
   );
 }
 
-/* ─── Main inner ─── */
 function WorkbenchInner() {
   const {
-    deferredPreview, allVariants, history, parsers, visionStatus,
-    ruleManager, correctionMemory, jobs, projects,
-    error, isLoadingSession, loadSession,
-    handleToggleRule, handleRollbackRule, handleCompareRule,
-    handleCreateProject, handleAttachCurrentResult,
-    selectedReviewTableIndex, setSelectedReviewTableIndex,
-    selectedReviewHeaderRow, setSelectedReviewHeaderRow,
-    reviewTitle, setReviewTitle,
-    saveReviewTemplate, setSaveReviewTemplate,
-    reviewTemplateName, setReviewTemplateName,
-    reviewColumnMapping, setReviewColumnMappingField,
-    isMaterializingReview, handleMaterializeReview,
-    templateName, setTemplateName,
-    templateDescription, setTemplateDescription,
-    templateIsDefault, setTemplateIsDefault,
-    isCreatingTemplate, handleCreateTemplate,
+    deferredPreview,
+    allVariants,
+    history,
+    parsers,
+    error,
+    isLoadingSession,
+    loadSession,
+    selectedReviewTableIndex,
+    setSelectedReviewTableIndex,
+    selectedReviewHeaderRow,
+    setSelectedReviewHeaderRow,
+    reviewTitle,
+    setReviewTitle,
+    saveReviewTemplate,
+    setSaveReviewTemplate,
+    reviewTemplateName,
+    setReviewTemplateName,
+    reviewColumnMapping,
+    setReviewColumnMappingField,
+    isMaterializingReview,
+    handleMaterializeReview,
+    templateName,
+    setTemplateName,
+    templateDescription,
+    setTemplateDescription,
+    templateIsDefault,
+    setTemplateIsDefault,
+    isCreatingTemplate,
+    handleCreateTemplate,
   } = useWorkbench();
 
   const [tab, setTab] = useState<Tab>("table");
   const [localFile, setLocalFile] = useState<File | null>(null);
-  const [showDashboard, setShowDashboard] = useState(false);
+  const [showHistory, setShowHistory] = useState(false);
 
-  const hasPreview   = Boolean(deferredPreview?.session_id);
+  const hasPreview = Boolean(deferredPreview?.session_id);
   const hasOcrReview = Boolean(deferredPreview?.ocr_review);
-  const activeJobs   = jobs.filter((j) => j.status === "running" || j.status === "queued");
 
-  const visibleTabs = TABS.filter((t) => {
-    if (t.key === "quality" && !hasPreview)   return false;
-    if (t.key === "ocr"     && !hasOcrReview) return false;
+  const visibleTabs = TABS.filter((item) => {
+    if (item.key === "quality" && !hasPreview) return false;
+    if (item.key === "ocr" && !hasOcrReview) return false;
     return true;
   });
 
-  /* Badge helpers */
   const tabBadge = (key: Tab): string | null => {
-    if (key === "quality" && deferredPreview?.quality_summary.high_risk_count)
+    if (key === "quality" && deferredPreview?.quality_summary.high_risk_count) {
       return String(deferredPreview.quality_summary.high_risk_count);
+    }
     if (key === "ocr" && hasOcrReview) return "!";
     return null;
   };
 
   return (
-    <div
-      className="min-h-screen flex flex-col"
-      style={{ background: "var(--page-bg)" }}
-    >
-      {/* ── Header ── */}
+    <div className="min-h-screen flex flex-col" style={{ background: "var(--page-bg)" }}>
       <header
         className="sticky top-0 z-40 flex items-center justify-between gap-2 px-4 py-2.5 border-b backdrop-blur-md"
         style={{ background: "var(--header-bg)", borderColor: "var(--border-subtle)" }}
       >
         <div className="flex items-center gap-2 overflow-hidden">
           <span className="text-sm font-bold whitespace-nowrap" style={{ color: "var(--text-primary)" }}>
-            Анализатор выписок
+            РђРЅР°Р»РёР·Р°С‚РѕСЂ РІС‹РїРёСЃРѕРє
           </span>
           <span className="hidden sm:flex items-center gap-1.5 text-xs whitespace-nowrap" style={{ color: "var(--text-muted)" }}>
             <StatusDot ok={parsers.length > 0} />
-            {parsers.length > 0 ? `${parsers.length} форм.` : "офлайн"}
+            {parsers.length > 0 ? `${parsers.length} С„РѕСЂРј.` : "РѕС„Р»Р°Р№РЅ"}
           </span>
         </div>
         <div className="flex items-center gap-2 flex-shrink-0">
           <button
-            onClick={() => setShowDashboard((v) => !v)}
-            className="btn-ghost text-xs px-2.5 py-1.5 flex items-center gap-1.5 relative"
+            onClick={() => setShowHistory((value) => !value)}
+            className="btn-ghost text-xs px-2.5 py-1.5 flex items-center gap-1.5"
             type="button"
-            title="История, задачи и память исправлений"
+            title="РСЃС‚РѕСЂРёСЏ СЃРµСЃСЃРёР№"
           >
-            <span>↺</span>
-            <span className="hidden sm:inline">История</span>
-            {activeJobs.length > 0 && (
-              <span className="absolute -top-0.5 -right-0.5 h-2 w-2 rounded-full bg-amber-400 animate-pulse" />
-            )}
+            <span>в†є</span>
+            <span className="hidden sm:inline">РСЃС‚РѕСЂРёСЏ</span>
           </button>
           <ThemeToggle />
         </div>
       </header>
 
-      {/* ── Desktop tab bar (hidden on mobile) ── */}
       <div className="hidden sm:block max-w-6xl w-full mx-auto px-6">
         <nav className="flex" style={{ borderBottom: "1px solid var(--border-subtle)" }}>
-          {visibleTabs.map((t) => {
-            const badge = tabBadge(t.key);
+          {visibleTabs.map((item) => {
+            const badge = tabBadge(item.key);
             return (
               <button
-                key={t.key}
+                key={item.key}
                 className={`px-4 py-3 text-sm font-medium transition-colors border-b-2 -mb-px whitespace-nowrap flex items-center gap-1.5 ${
-                  tab === t.key ? "tab-active" : "tab-inactive"
+                  tab === item.key ? "tab-active" : "tab-inactive"
                 }`}
-                onClick={() => setTab(t.key)}
+                onClick={() => setTab(item.key)}
                 type="button"
               >
-                {t.label}
+                {item.label}
                 {badge && <span className="badge badge-rose text-[0.6rem]">{badge}</span>}
               </button>
             );
@@ -179,40 +178,30 @@ function WorkbenchInner() {
         </nav>
       </div>
 
-      {/* ── Upload zone ── */}
       <div className="px-4 pt-4 pb-2 max-w-6xl w-full mx-auto">
-        <UploadPanel
-          file={localFile}
-          parsers={parsers}
-          visionStatus={visionStatus}
-          onFileChange={setLocalFile}
-        />
+        <UploadPanel file={localFile} parsers={parsers} onFileChange={setLocalFile} />
       </div>
 
-      {/* ── Error banner ── */}
       {error && (
         <div className="mx-4 mb-2 max-w-6xl mx-auto rounded-2xl banner-rose px-4 py-3 text-sm">
           {error}
         </div>
       )}
 
-      {/* ── Tab content ── */}
-      {/* pb-24 on mobile leaves space for bottom nav */}
       <main className="flex-1 px-4 sm:px-6 py-4 sm:py-5 max-w-6xl w-full mx-auto space-y-4 pb-24 sm:pb-8">
-
         {tab === "table" && !hasPreview && (
           <div className="animate-fade-in flex flex-col items-center justify-center py-20 text-center">
-            <div className="text-5xl mb-4 opacity-20" style={{ color: "var(--text-muted)" }}>⬆</div>
-            <p className="text-sm" style={{ color: "var(--text-muted)" }}>Загрузите файл выписки для анализа</p>
+            <div className="text-5xl mb-4 opacity-20" style={{ color: "var(--text-muted)" }}>в¬†</div>
+            <p className="text-sm" style={{ color: "var(--text-muted)" }}>Р—Р°РіСЂСѓР·РёС‚Рµ С„Р°Р№Р» РІС‹РїРёСЃРєРё РґР»СЏ Р°РЅР°Р»РёР·Р°</p>
             <p className="text-xs mt-2" style={{ color: "var(--text-muted)", opacity: 0.7 }}>
-              Или{" "}
+              РР»Рё{" "}
               <button
                 className="underline underline-offset-2"
                 style={{ color: "var(--accent-blue)" }}
-                onClick={() => setShowDashboard(true)}
+                onClick={() => setShowHistory(true)}
                 type="button"
               >
-                откройте историю сессий
+                РѕС‚РєСЂРѕР№С‚Рµ РёСЃС‚РѕСЂРёСЋ СЃРµСЃСЃРёР№
               </button>
             </p>
           </div>
@@ -223,23 +212,19 @@ function WorkbenchInner() {
             <VariantPreviewPanel variants={allVariants} diagnostics={deferredPreview?.row_diagnostics ?? []} />
             <div className="card p-4 sm:p-5">
               <h3 className="text-sm font-semibold mb-3" style={{ color: "var(--text-primary)" }}>
-                Сохранить шаблон
+                РЎРѕС…СЂР°РЅРёС‚СЊ С€Р°Р±Р»РѕРЅ
               </h3>
               <div className="grid gap-2 sm:grid-cols-2 mb-3">
-                <input className="input-field" placeholder="Название" value={templateName}
-                  onChange={(e) => setTemplateName(e.target.value)} />
-                <input className="input-field" placeholder="Описание" value={templateDescription}
-                  onChange={(e) => setTemplateDescription(e.target.value)} />
+                <input className="input-field" placeholder="РќР°Р·РІР°РЅРёРµ" value={templateName} onChange={(e) => setTemplateName(e.target.value)} />
+                <input className="input-field" placeholder="РћРїРёСЃР°РЅРёРµ" value={templateDescription} onChange={(e) => setTemplateDescription(e.target.value)} />
               </div>
               <div className="flex items-center gap-4">
                 <label className="flex items-center gap-2 text-sm cursor-pointer" style={{ color: "var(--text-secondary)" }}>
-                  <input type="checkbox" checked={templateIsDefault}
-                    onChange={(e) => setTemplateIsDefault(e.target.checked)} className="accent-blue-500" />
-                  По умолчанию
+                  <input type="checkbox" checked={templateIsDefault} onChange={(e) => setTemplateIsDefault(e.target.checked)} className="accent-blue-500" />
+                  РџРѕ СѓРјРѕР»С‡Р°РЅРёСЋ
                 </label>
-                <button className="btn-ghost text-xs" disabled={isCreatingTemplate || !templateName.trim()}
-                  onClick={handleCreateTemplate} type="button">
-                  {isCreatingTemplate ? "Сохранение…" : "Сохранить"}
+                <button className="btn-ghost text-xs" disabled={isCreatingTemplate || !templateName.trim()} onClick={handleCreateTemplate} type="button">
+                  {isCreatingTemplate ? "РЎРѕС…СЂР°РЅРµРЅРёРµвЂ¦" : "РЎРѕС…СЂР°РЅРёС‚СЊ"}
                 </button>
               </div>
             </div>
@@ -248,8 +233,7 @@ function WorkbenchInner() {
 
         {tab === "quality" && hasPreview && (
           <div className="animate-fade-in">
-            <QualityPanel summary={deferredPreview?.quality_summary ?? null}
-              diagnostics={deferredPreview?.row_diagnostics ?? []} />
+            <QualityPanel summary={deferredPreview?.quality_summary ?? null} diagnostics={deferredPreview?.row_diagnostics ?? []} />
           </div>
         )}
 
@@ -257,7 +241,8 @@ function WorkbenchInner() {
           <div className="animate-fade-in">
             {hasOcrReview ? (
               <OcrReviewPanel
-                busy={isMaterializingReview} columnMapping={reviewColumnMapping}
+                busy={isMaterializingReview}
+                columnMapping={reviewColumnMapping}
                 onColumnMappingChange={setReviewColumnMappingField}
                 onHeaderRowChange={setSelectedReviewHeaderRow}
                 onMaterialize={handleMaterializeReview}
@@ -266,41 +251,27 @@ function WorkbenchInner() {
                 onSaveTemplateChange={setSaveReviewTemplate}
                 onTableChange={setSelectedReviewTableIndex}
                 review={deferredPreview?.ocr_review ?? null}
-                reviewTemplateName={reviewTemplateName} reviewTitle={reviewTitle}
-                saveTemplate={saveReviewTemplate} selectedHeaderRow={selectedReviewHeaderRow}
+                reviewTemplateName={reviewTemplateName}
+                reviewTitle={reviewTitle}
+                saveTemplate={saveReviewTemplate}
+                selectedHeaderRow={selectedReviewHeaderRow}
                 selectedTableIndex={selectedReviewTableIndex}
               />
             ) : (
               <div className="card p-10 text-center text-sm" style={{ color: "var(--text-muted)" }}>
-                Распознавание не требуется для этого документа.
+                Р Р°СЃРїРѕР·РЅР°РІР°РЅРёРµ РЅРµ С‚СЂРµР±СѓРµС‚СЃСЏ РґР»СЏ СЌС‚РѕРіРѕ РґРѕРєСѓРјРµРЅС‚Р°.
               </div>
             )}
           </div>
         )}
-
-        {tab === "rules" && (
-          <div className="grid gap-4 xl:grid-cols-[1.1fr_0.9fr] animate-fade-in">
-            <RuleManagerPanel loading={false}
-              onCompare={(t) => handleCompareRule(t.template_id)}
-              onRollback={(t) => void handleRollbackRule(t.template_id)}
-              onToggle={(t, active) => void handleToggleRule(t.template_id, active)}
-              snapshot={ruleManager} />
-            <OnboardingPanel
-              onAttachCurrentResult={(id) => void handleAttachCurrentResult(id)}
-              onCreateProject={(name, bank, notes) => void handleCreateProject(name, bank, notes)}
-              projects={projects} />
-          </div>
-        )}
-
       </main>
 
-      {/* ── Dashboard drawer ── */}
-      {showDashboard && (
+      {showHistory && (
         <>
           <div
             className="fixed inset-0 z-40"
             style={{ background: "rgba(0,0,0,0.45)", backdropFilter: "blur(3px)" }}
-            onClick={() => setShowDashboard(false)}
+            onClick={() => setShowHistory(false)}
           />
           <aside
             className="fixed top-0 right-0 bottom-0 z-50 w-full max-w-md flex flex-col overflow-hidden"
@@ -311,34 +282,28 @@ function WorkbenchInner() {
               style={{ background: "var(--header-bg)", borderColor: "var(--border-subtle)" }}
             >
               <span className="text-sm font-semibold" style={{ color: "var(--text-primary)" }}>
-                История и задачи
+                РСЃС‚РѕСЂРёСЏ СЃРµСЃСЃРёР№
               </span>
               <button
                 className="btn-ghost text-base px-2 py-1"
-                onClick={() => setShowDashboard(false)}
+                onClick={() => setShowHistory(false)}
                 type="button"
-                aria-label="Закрыть"
+                aria-label="Р—Р°РєСЂС‹С‚СЊ"
               >
-                ✕
+                вњ•
               </button>
             </div>
             <div className="flex-1 overflow-y-auto p-4 space-y-4 pb-8">
               <HistoryPanel
                 history={history}
                 loading={isLoadingSession}
-                onOpen={(id) => { loadSession(id); setTab("table"); setShowDashboard(false); }}
+                onOpen={(id) => { loadSession(id); setTab("table"); setShowHistory(false); }}
               />
-              <JobsPanel
-                jobs={jobs}
-                onOpenSession={(id) => { loadSession(id); setTab("table"); setShowDashboard(false); }}
-              />
-              <CorrectionMemoryPanel entries={correctionMemory} />
             </div>
           </aside>
         </>
       )}
 
-      {/* ── Mobile bottom navigation ── */}
       <nav
         className="sm:hidden fixed bottom-0 inset-x-0 z-50 flex border-t"
         style={{
@@ -348,26 +313,24 @@ function WorkbenchInner() {
           paddingBottom: "env(safe-area-inset-bottom)",
         }}
       >
-        {visibleTabs.map((t) => {
-          const badge = tabBadge(t.key);
-          const active = tab === t.key;
+        {visibleTabs.map((item) => {
+          const badge = tabBadge(item.key);
+          const active = tab === item.key;
           return (
             <button
-              key={t.key}
+              key={item.key}
               className="flex-1 flex flex-col items-center justify-center gap-0.5 py-2 relative"
               style={{
                 color: active ? "var(--accent-blue)" : "var(--text-muted)",
                 minHeight: "56px",
               }}
-              onClick={() => setTab(t.key)}
+              onClick={() => setTab(item.key)}
               type="button"
             >
-              <span className="text-lg leading-none">{t.icon}</span>
-              <span className="text-[10px] leading-tight">{t.shortLabel}</span>
+              <span className="text-lg leading-none">{item.icon}</span>
+              <span className="text-[10px] leading-tight">{item.shortLabel}</span>
               {badge && (
-                <span
-                  className="absolute top-1.5 right-1/4 h-4 w-4 rounded-full bg-rose-500 text-white text-[9px] flex items-center justify-center font-bold"
-                >
+                <span className="absolute top-1.5 right-1/4 h-4 w-4 rounded-full bg-rose-500 text-white text-[9px] flex items-center justify-center font-bold">
                   {badge}
                 </span>
               )}

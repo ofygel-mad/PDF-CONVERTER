@@ -1,113 +1,82 @@
 # PDF Converter
 
-`PDF Converter` is a financial statement transformation workbench. It ingests bank PDFs, Excel statements, and scanned images, normalizes them into a structured domain model, runs quality heuristics, applies saved OCR mapping rules, and exports explainable Excel/CSV output.
+`PDF Converter` is a statement conversion tool for finance workflows. Upload a bank PDF, Excel statement, or scan, inspect the normalized preview, and export the result to Excel or CSV.
 
 ## Stack
 
-- **backend**: `FastAPI`, `SQLAlchemy` + Alembic, `Celery`, `Redis`, `PostgreSQL`, `MinIO`
-- **document pipeline**: `PyMuPDF`, `openpyxl`, `RapidOCR`, optional `Azure Document Intelligence`
-- **frontend**: `Next.js 16`, `React 19`, `TypeScript`, `Tailwind CSS 4`
-- **infra**: Docker Compose, separate `api`, `worker`, `web`, `postgres`, `redis`, `minio`
+- backend: `FastAPI`, `SQLAlchemy` + Alembic, `PostgreSQL`
+- document pipeline: `PyMuPDF`, `openpyxl`, `RapidOCR`, optional `Azure Document Intelligence`
+- frontend: `Next.js 16`, `React 19`, `TypeScript`, `Tailwind CSS 4`
+- infra: Docker Compose, separate `api`, `web`, `postgres`
 
-## Quick start — local Docker Desktop
-
-One command starts the entire stack (backend + worker + frontend + all infra):
+## Quick start
 
 ```powershell
 Copy-Item .env.example .env
 docker compose -f docker-compose.local.yml up --build -d
 ```
 
-| Service       | URL                             |
-|---------------|---------------------------------|
-| Frontend      | http://localhost:3000           |
-| Backend API   | http://localhost:8000           |
-| API Docs      | http://localhost:8000/docs      |
-| MinIO console | http://localhost:9001           |
+| Service | URL |
+|---|---|
+| Frontend | http://localhost:3000 |
+| Backend API | http://localhost:8000 |
+| API Docs | http://localhost:8000/docs |
 
-Follow logs:
+Logs:
+
 ```powershell
 docker compose -f docker-compose.local.yml logs -f
 ```
 
-Stop everything:
+Stop:
+
 ```powershell
 docker compose -f docker-compose.local.yml down
 ```
 
-## Separate repo deployment
+## Deployment split
 
-The `backend/` and `web/` directories are designed to live in **independent repositories** and be deployed separately. Each has its own `docker-compose.yml` and `.env.example`.
+The frontend and backend are designed to be deployed as separate repositories/services.
 
-### Backend repo
+### Frontend env
 
-```powershell
-cd backend
-Copy-Item .env.example .env   # set ALLOWED_ORIGINS to your frontend URL
-docker compose up -d
+```env
+API_URL=https://your-backend.up.railway.app
 ```
 
-The API starts at `http://localhost:8000`. Runs postgres, redis, minio, api, and worker.
+### Backend env
 
-### Frontend repo
-
-```powershell
-cd web
-Copy-Item .env.example .env   # set NEXT_PUBLIC_API_URL to your backend URL
-docker compose up -d --build
+```env
+APP_NAME=PDF Converter API
+ENVIRONMENT=production
+LOG_LEVEL=INFO
+APP_HOST=0.0.0.0
+APP_PORT=8000
+API_V1_PREFIX=/api/v1
+ALLOWED_ORIGINS=https://your-frontend.up.railway.app
+DATABASE_URL=postgresql+psycopg://user:pass@host:5432/dbname
 ```
 
-The frontend starts at `http://localhost:3000`.
+Optional OCR env:
 
-**Key variable**: the frontend resolves `NEXT_PUBLIC_API_URL` at runtime on the page server and passes it into the client app. `API_URL` is also accepted as a fallback. The value must be the backend URL reachable from the user's browser.
-
-## Development (local processes, Docker infra only)
-
-```powershell
-# Start only postgres / redis / minio:
-Copy-Item .env.example .env
-docker compose up -d
-
-# Backend:
-cd backend
-uv run python main.py
-
-# Worker:
-cd backend
-uv run celery -A app.core.celery_app:celery_app worker --loglevel=info --pool=solo
-
-# Frontend:
-cd web
-npm install
-npm run dev
+```env
+AZURE_DOCUMENT_INTELLIGENCE_ENDPOINT=
+AZURE_DOCUMENT_INTELLIGENCE_KEY=
 ```
-
-## Implemented features
-
-- Parser auto-detection (Kaspi Gold PDF/Excel, generic bank statements, OCR fallback)
-- Async preview/OCR jobs with Celery, job status API and toast notifications
-- OCR raw review with reusable versioned mapping rules
-- Rule manager with enable/disable, version diff, rollback
-- Fuzzy + exact correction memory — auto-applied to future sessions
-- Quality engine: confidence scoring, duplicate detection, round-number flags, anomaly score
-- Multi-bank onboarding projects
-- Explainable Excel export with `Audit Trail` sheet + CSV export
-- Tabbed workbench UI: Overview · Transactions · Quality · OCR · Rules · History
 
 ## Main API endpoints
 
-| Method | Path                                              | Purpose                          |
-|--------|---------------------------------------------------|----------------------------------|
-| POST   | `/api/v1/transforms/preview`                      | Synchronous parse                |
-| POST   | `/api/v1/transforms/jobs/preview`                 | Async job submission             |
-| GET    | `/api/v1/transforms/jobs/{job_id}`                | Job status                       |
-| GET    | `/api/v1/transforms/sessions/{session_id}`        | Reload saved session             |
-| PATCH  | `/api/v1/transforms/sessions/{id}/rows/{n}`       | Manual row correction            |
-| POST   | `/api/v1/transforms/export`                       | Excel export                     |
-| POST   | `/api/v1/transforms/export/csv`                   | CSV export                       |
-| POST   | `/api/v1/transforms/ocr-reviews/{id}/materialize` | OCR review → statement           |
-| GET    | `/api/v1/transforms/ocr-rule-manager`             | OCR template versions            |
-| GET    | `/api/v1/health`                                  | Health + dependency status       |
+| Method | Path | Purpose |
+|---|---|---|
+| POST | `/api/v1/transforms/preview` | Parse and build preview |
+| GET | `/api/v1/transforms/sessions/{session_id}` | Reload saved session |
+| PATCH | `/api/v1/transforms/sessions/{id}/rows/{n}` | Manual row correction |
+| POST | `/api/v1/transforms/export` | Excel export |
+| POST | `/api/v1/transforms/export/csv` | CSV export |
+| POST | `/api/v1/transforms/ocr-reviews/{id}/materialize` | Confirm OCR mapping |
+| GET | `/api/v1/transforms/history` | Recent sessions |
+| GET | `/api/v1/transforms/parsers` | Supported input formats |
+| GET | `/api/v1/health/ready` | Database readiness |
 
 ## Tests
 

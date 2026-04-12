@@ -8,54 +8,35 @@ import {
   useDeferredValue,
   useEffect,
   useMemo,
-  useRef,
   useState,
   useTransition,
   type PropsWithChildren,
 } from "react";
 
 import type {
-  CorrectionMemoryEntry,
-  JobSummary,
-  OCRRuleManagerSnapshot,
   OCRRuleVersionDiff,
-  OnboardingProject,
   ParserDescriptor,
   PreviewResponse,
   SessionSummary,
   TemplateColumnConfig,
-  VisionStatus,
 } from "@/components/workbench/types";
 
-
-/* ─── Toast types ─────────────────────────────────────────────── */
 export type Toast = {
   id: string;
   kind: "info" | "success" | "error";
   message: string;
 };
 
-/* ─── Context shape ───────────────────────────────────────────── */
 export type WorkbenchCtx = {
-  /* ── data ── */
   preview: PreviewResponse | null;
   deferredPreview: PreviewResponse | null;
   allVariants: PreviewResponse["variants"];
   history: SessionSummary[];
   parsers: ParserDescriptor[];
-  visionStatus: VisionStatus | null;
-  ruleManager: OCRRuleManagerSnapshot | null;
-  correctionMemory: CorrectionMemoryEntry[];
-  jobs: JobSummary[];
-  projects: OnboardingProject[];
-
-  /* ── selection state ── */
   selectedVariantKey: string | null;
   setSelectedVariantKey: (k: string) => void;
   selectedDiagnosticRow: number | null;
   setSelectedDiagnosticRow: (n: number | null) => void;
-
-  /* ── row editor state ── */
   rowEditorDate: string;
   setRowEditorDate: (v: string) => void;
   rowEditorAmount: string;
@@ -68,8 +49,6 @@ export type WorkbenchCtx = {
   setRowEditorDirection: (v: "inflow" | "outflow") => void;
   rowEditorNote: string;
   setRowEditorNote: (v: string) => void;
-
-  /* ── OCR review state ── */
   selectedReviewTableIndex: number;
   setSelectedReviewTableIndex: (i: number) => void;
   selectedReviewHeaderRow: number;
@@ -82,16 +61,12 @@ export type WorkbenchCtx = {
   setReviewTemplateName: (v: string) => void;
   reviewColumnMapping: Record<string, string>;
   setReviewColumnMappingField: (field: string, value: string) => void;
-
-  /* ── template editor state ── */
   templateName: string;
   setTemplateName: (v: string) => void;
   templateDescription: string;
   setTemplateDescription: (v: string) => void;
   templateIsDefault: boolean;
   setTemplateIsDefault: (v: boolean) => void;
-
-  /* ── loading flags ── */
   isPending: boolean;
   isSavingRowCorrection: boolean;
   isMaterializingReview: boolean;
@@ -99,25 +74,16 @@ export type WorkbenchCtx = {
   isExportingCsv: boolean;
   isLoadingSession: boolean;
   isCreatingTemplate: boolean;
-
-  /* ── errors / toasts ── */
   error: string | null;
   toasts: Toast[];
   dismissToast: (id: string) => void;
-
-  /* ── actions ── */
   handlePreviewNow: (file: File) => void;
-  handleQueueJob: (file: File) => void;
   handleExport: () => void;
   handleExportCsv: () => void;
   handleSaveRowCorrection: () => void;
   handleMaterializeReview: () => void;
   handleCreateTemplate: () => void;
-  handleToggleRule: (templateId: string, isActive: boolean) => void;
-  handleRollbackRule: (templateId: string) => void;
-  handleCompareRule: (templateId: string) => Promise<OCRRuleVersionDiff | null>;
-  handleCreateProject: (name: string, bankName: string, notes: string) => void;
-  handleAttachCurrentResult: (projectId: string) => void;
+  handleCompareRule: (_templateId: string) => Promise<OCRRuleVersionDiff | null>;
   loadSession: (sessionId: string) => void;
 };
 
@@ -164,46 +130,29 @@ type WorkbenchProviderProps = PropsWithChildren<{
   apiBaseUrl: string;
 }>;
 
-/* ─── Provider ────────────────────────────────────────────────── */
 export function WorkbenchProvider({ children, apiBaseUrl }: WorkbenchProviderProps) {
   const api = apiBaseUrl.replace(/\/$/, "");
 
-  /* ── server data ── */
   const [preview, setPreview] = useState<PreviewResponse | null>(null);
   const [history, setHistory] = useState<SessionSummary[]>([]);
   const [parsers, setParsers] = useState<ParserDescriptor[]>([]);
-  const [visionStatus, setVisionStatus] = useState<VisionStatus | null>(null);
-  const [ruleManager, setRuleManager] = useState<OCRRuleManagerSnapshot | null>(null);
-  const [correctionMemory, setCorrectionMemory] = useState<CorrectionMemoryEntry[]>([]);
-  const [jobs, setJobs] = useState<JobSummary[]>([]);
-  const [projects, setProjects] = useState<OnboardingProject[]>([]);
-
-  /* ── selection ── */
   const [selectedVariantKey, setSelectedVariantKey] = useState<string | null>(null);
   const [selectedDiagnosticRow, setSelectedDiagnosticRow] = useState<number | null>(null);
-
-  /* ── row editor ── */
   const [rowEditorDate, setRowEditorDate] = useState("");
   const [rowEditorAmount, setRowEditorAmount] = useState("");
   const [rowEditorOperation, setRowEditorOperation] = useState("");
   const [rowEditorDetail, setRowEditorDetail] = useState("");
   const [rowEditorDirection, setRowEditorDirection] = useState<"inflow" | "outflow">("outflow");
   const [rowEditorNote, setRowEditorNote] = useState("");
-
-  /* ── OCR review ── */
   const [selectedReviewTableIndex, setSelectedReviewTableIndex] = useState(0);
   const [selectedReviewHeaderRow, setSelectedReviewHeaderRow] = useState(0);
   const [reviewTitle, setReviewTitle] = useState("");
   const [saveReviewTemplate, setSaveReviewTemplate] = useState(true);
   const [reviewTemplateName, setReviewTemplateName] = useState("");
   const [reviewColumnMapping, setReviewColumnMapping] = useState<Record<string, string>>({});
-
-  /* ── template editor ── */
   const [templateName, setTemplateName] = useState("");
   const [templateDescription, setTemplateDescription] = useState("");
   const [templateIsDefault, setTemplateIsDefault] = useState(true);
-
-  /* ── loading flags ── */
   const [isPending, startUpload] = useTransition();
   const [isSavingRowCorrection, setIsSavingRowCorrection] = useState(false);
   const [isMaterializingReview, setIsMaterializingReview] = useState(false);
@@ -211,37 +160,25 @@ export function WorkbenchProvider({ children, apiBaseUrl }: WorkbenchProviderPro
   const [isExportingCsv, setIsExportingCsv] = useState(false);
   const [isLoadingSession, setIsLoadingSession] = useState(false);
   const [isCreatingTemplate, setIsCreatingTemplate] = useState(false);
-
-  /* ── errors / toasts ── */
   const [error, setError] = useState<string | null>(null);
   const [toasts, setToasts] = useState<Toast[]>([]);
-  const prevJobsRef = useRef<JobSummary[]>([]);
 
   const deferredPreview = useDeferredValue(preview);
-
   const allVariants = useMemo(
     () => [...(deferredPreview?.saved_variants ?? []), ...(deferredPreview?.variants ?? [])],
     [deferredPreview],
   );
 
-  /* ─── Toast helpers ─── */
-  const pushToast = useCallback((kind: Toast["kind"], message: string) => {
-    const id = Math.random().toString(36).slice(2);
-    setToasts((prev) => [...prev, { id, kind, message }]);
-    setTimeout(() => setToasts((prev) => prev.filter((t) => t.id !== id)), 5000);
-  }, []);
-
   const dismissToast = useCallback((id: string) => {
-    setToasts((prev) => prev.filter((t) => t.id !== id));
+    setToasts((prev) => prev.filter((toast) => toast.id !== id));
   }, []);
 
-  /* ─── Data loaders ─── */
   const loadHistory = useCallback(async () => {
     try {
       const payload = await fetchJson<unknown>(`${api}/api/v1/transforms/history`);
       setHistory(ensureArray<SessionSummary>(payload));
     } catch {
-      // Backend unreachable — keep empty state
+      setHistory([]);
     }
   }, [api]);
 
@@ -250,96 +187,16 @@ export function WorkbenchProvider({ children, apiBaseUrl }: WorkbenchProviderPro
       const payload = await fetchJson<unknown>(`${api}/api/v1/transforms/parsers`);
       setParsers(ensureArray<ParserDescriptor>(payload));
     } catch {
-      // Backend unreachable — keep empty state
+      setParsers([]);
     }
   }, [api]);
 
-  const loadVisionStatus = useCallback(async () => {
-    try {
-      setVisionStatus(await fetchJson<VisionStatus>(`${api}/api/v1/transforms/vision-status`));
-    } catch {
-      // Backend unreachable — keep empty state
-    }
-  }, [api]);
-
-  const loadRuleManager = useCallback(async () => {
-    try {
-      setRuleManager(await fetchJson<OCRRuleManagerSnapshot>(`${api}/api/v1/transforms/ocr-rule-manager`));
-    } catch {
-      // Backend unreachable — keep empty state
-    }
-  }, [api]);
-
-  const loadCorrectionMemory = useCallback(async () => {
-    try {
-      const payload = await fetchJson<unknown>(`${api}/api/v1/transforms/correction-memory`);
-      setCorrectionMemory(ensureArray<CorrectionMemoryEntry>(payload));
-    } catch {
-      // Backend unreachable — keep empty state
-    }
-  }, [api]);
-
-  const loadJobs = useCallback(async () => {
-    try {
-      const payload = await fetchJson<unknown>(`${api}/api/v1/transforms/jobs`);
-      const next = ensureArray<JobSummary>(payload);
-      setJobs((prev) => {
-        // Notify on newly-completed jobs
-        const prevMap = new Map(prev.map((j) => [j.job_id, j]));
-        for (const job of next) {
-          const was = prevMap.get(job.job_id);
-          if (was && was.status !== "completed" && job.status === "completed") {
-            pushToast("success", `Задача выполнена: ${job.source_filename ?? job.job_id}`);
-          }
-          if (was && was.status !== "failed" && job.status === "failed") {
-            pushToast("error", `Ошибка задачи: ${job.source_filename ?? job.job_id}`);
-          }
-        }
-        return next;
-      });
-      prevJobsRef.current = next;
-    } catch {
-      // Backend unreachable — skip update
-    }
-  }, [api, pushToast]);
-
-  const loadProjects = useCallback(async () => {
-    try {
-      const payload = await fetchJson<unknown>(`${api}/api/v1/transforms/onboarding/projects`);
-      setProjects(ensureArray<OnboardingProject>(payload));
-    } catch {
-      // Backend unreachable — keep empty state
-    }
-  }, [api]);
-
-  /* ─── Initial load ─── */
   useEffect(() => {
     startTransition(() => {
-      void Promise.all([
-        loadHistory(),
-        loadParsers(),
-        loadVisionStatus(),
-        loadRuleManager(),
-        loadCorrectionMemory(),
-        loadJobs(),
-        loadProjects(),
-      ]).catch(() => {
-        // Backend unreachable on startup — app continues with empty state
-      });
+      void Promise.all([loadHistory(), loadParsers()]);
     });
-  }, [loadHistory, loadParsers, loadVisionStatus, loadRuleManager, loadCorrectionMemory, loadJobs, loadProjects]);
+  }, [loadHistory, loadParsers]);
 
-  /* ─── Job polling ─── */
-  useEffect(() => {
-    const id = window.setInterval(() => {
-      void loadJobs().catch(() => {
-        // Backend unreachable — skip this poll cycle
-      });
-    }, 8000);
-    return () => window.clearInterval(id);
-  }, [loadJobs]);
-
-  /* ─── Auto-select variant ─── */
   useEffect(() => {
     if (!deferredPreview) return;
     const next =
@@ -350,10 +207,9 @@ export function WorkbenchProvider({ children, apiBaseUrl }: WorkbenchProviderPro
     setSelectedVariantKey(next);
   }, [allVariants, deferredPreview]);
 
-  /* ─── Sync row editor on diagnostic row change ─── */
   useEffect(() => {
     if (!selectedDiagnosticRow || !deferredPreview) return;
-    const row = deferredPreview.row_diagnostics.find((r) => r.row_number === selectedDiagnosticRow);
+    const row = deferredPreview.row_diagnostics.find((item) => item.row_number === selectedDiagnosticRow);
     if (!row) return;
     setRowEditorDate(row.date);
     setRowEditorAmount(String(Math.abs(row.amount)));
@@ -363,7 +219,6 @@ export function WorkbenchProvider({ children, apiBaseUrl }: WorkbenchProviderPro
     setRowEditorNote("");
   }, [selectedDiagnosticRow, deferredPreview]);
 
-  /* ─── Sync OCR review state ─── */
   useEffect(() => {
     const review = deferredPreview?.ocr_review;
     if (!review) return;
@@ -372,11 +227,10 @@ export function WorkbenchProvider({ children, apiBaseUrl }: WorkbenchProviderPro
     setReviewTitle(review.source_filename);
     setReviewTemplateName(review.source_filename.replace(/\.[^.]+$/, ""));
     setReviewColumnMapping(
-      Object.fromEntries(review.available_fields.map((f) => [f.key, ""])),
+      Object.fromEntries(review.available_fields.map((field) => [field.key, ""])),
     );
   }, [deferredPreview?.ocr_review]);
 
-  /* ─── Actions ─── */
   const loadSession = useCallback(
     async (sessionId: string) => {
       setIsLoadingSession(true);
@@ -400,29 +254,13 @@ export function WorkbenchProvider({ children, apiBaseUrl }: WorkbenchProviderPro
           const fd = new FormData();
           fd.append("file", file);
           setPreview(await fetchJson<PreviewResponse>(`${api}/api/v1/transforms/preview`, { method: "POST", body: fd }));
-          await Promise.all([loadHistory(), loadCorrectionMemory(), loadJobs()]);
+          await loadHistory();
         } catch (e) {
           setError(e instanceof Error ? e.message : "Ошибка обработки.");
         }
       });
     },
-    [api, loadHistory, loadCorrectionMemory, loadJobs],
-  );
-
-  const handleQueueJob = useCallback(
-    async (file: File) => {
-      setError(null);
-      try {
-        const fd = new FormData();
-        fd.append("file", file);
-        await fetchJson(`${api}/api/v1/transforms/jobs/preview`, { method: "POST", body: fd });
-        pushToast("info", `В очередь: ${file.name}`);
-        await loadJobs();
-      } catch (e) {
-        setError(e instanceof Error ? e.message : "Ошибка добавления в очередь.");
-      }
-    },
-    [api, loadJobs, pushToast],
+    [api, loadHistory],
   );
 
   const handleExport = useCallback(async () => {
@@ -498,13 +336,12 @@ export function WorkbenchProvider({ children, apiBaseUrl }: WorkbenchProviderPro
       if (!res.ok) throw new Error(await readErrorMessage(res));
       setPreview((await res.json()) as PreviewResponse);
       setSelectedDiagnosticRow(null);
-      await loadCorrectionMemory();
     } catch (e) {
       setError(e instanceof Error ? e.message : "Ошибка сохранения исправления.");
     } finally {
       setIsSavingRowCorrection(false);
     }
-  }, [api, preview, selectedDiagnosticRow, rowEditorDate, rowEditorAmount, rowEditorOperation, rowEditorDetail, rowEditorDirection, rowEditorNote, loadCorrectionMemory]);
+  }, [api, preview, selectedDiagnosticRow, rowEditorDate, rowEditorAmount, rowEditorOperation, rowEditorDetail, rowEditorDirection, rowEditorNote]);
 
   const handleMaterializeReview = useCallback(async () => {
     const review = preview?.ocr_review;
@@ -522,29 +359,36 @@ export function WorkbenchProvider({ children, apiBaseUrl }: WorkbenchProviderPro
           save_mapping_template: saveReviewTemplate,
           mapping_template_name: reviewTemplateName,
           column_mapping: Object.fromEntries(
-            Object.entries(reviewColumnMapping).map(([k, v]) => [k, v === "" ? null : Number(v)]),
+            Object.entries(reviewColumnMapping).map(([key, value]) => [key, value === "" ? null : Number(value)]),
           ),
         }),
       });
       if (!res.ok) throw new Error(await readErrorMessage(res));
       setPreview((await res.json()) as PreviewResponse);
-      await Promise.all([loadHistory(), loadRuleManager(), loadJobs()]);
+      await loadHistory();
     } catch (e) {
       setError(e instanceof Error ? e.message : "Ошибка применения OCR проверки.");
     } finally {
       setIsMaterializingReview(false);
     }
-  }, [api, preview, selectedReviewTableIndex, selectedReviewHeaderRow, reviewTitle, saveReviewTemplate, reviewTemplateName, reviewColumnMapping, loadHistory, loadRuleManager, loadJobs]);
+  }, [api, preview, selectedReviewTableIndex, selectedReviewHeaderRow, reviewTitle, saveReviewTemplate, reviewTemplateName, reviewColumnMapping, loadHistory]);
 
   const handleCreateTemplate = useCallback(async () => {
     if (!preview || !selectedVariantKey || !templateName.trim()) return;
-    const baseVariant = preview.variants.find((v) => v.key === selectedVariantKey);
-    if (!baseVariant) { setError("Шаблоны можно создавать только из базовых вариантов."); return; }
+    const baseVariant = preview.variants.find((variant) => variant.key === selectedVariantKey);
+    if (!baseVariant) {
+      setError("Шаблоны можно создавать только из базовых вариантов.");
+      return;
+    }
+
     setIsCreatingTemplate(true);
     setError(null);
     try {
-      const columns: TemplateColumnConfig[] = baseVariant.columns.map((c) => ({
-        key: c.key, label: c.label, kind: c.kind, enabled: true,
+      const columns: TemplateColumnConfig[] = baseVariant.columns.map((column) => ({
+        key: column.key,
+        label: column.label,
+        kind: column.kind,
+        enabled: true,
       }));
       const res = await fetch(`${api}/api/v1/transforms/templates`, {
         method: "POST",
@@ -570,55 +414,7 @@ export function WorkbenchProvider({ children, apiBaseUrl }: WorkbenchProviderPro
     }
   }, [api, preview, selectedVariantKey, templateName, templateDescription, templateIsDefault, loadSession]);
 
-  const handleToggleRule = useCallback(async (templateId: string, isActive: boolean) => {
-    const res = await fetch(`${api}/api/v1/transforms/ocr-mapping-templates/${templateId}/status`, {
-      method: "PATCH",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ is_active: isActive }),
-    });
-    if (!res.ok) throw new Error(await readErrorMessage(res));
-    await loadRuleManager();
-  }, [api, loadRuleManager]);
-
-  const handleRollbackRule = useCallback(async (templateId: string) => {
-    const res = await fetch(`${api}/api/v1/transforms/ocr-mapping-templates/${templateId}/rollback`, { method: "POST" });
-    if (!res.ok) throw new Error(await readErrorMessage(res));
-    await loadRuleManager();
-  }, [api, loadRuleManager]);
-
-  const handleCompareRule = useCallback(async (templateId: string): Promise<OCRRuleVersionDiff | null> => {
-    const res = await fetch(`${api}/api/v1/transforms/ocr-mapping-templates/${templateId}/compare`);
-    if (!res.ok) return null;
-    return (await res.json()) as OCRRuleVersionDiff;
-  }, [api]);
-
-  const handleCreateProject = useCallback(async (name: string, bankName: string, notes: string) => {
-    if (!name.trim() || !bankName.trim()) return;
-    const res = await fetch(`${api}/api/v1/transforms/onboarding/projects`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ name, bank_name: bankName, notes }),
-    });
-    if (!res.ok) throw new Error(await readErrorMessage(res));
-    await loadProjects();
-  }, [api, loadProjects]);
-
-  const handleAttachCurrentResult = useCallback(async (projectId: string) => {
-    if (!preview) return;
-    const res = await fetch(`${api}/api/v1/transforms/onboarding/projects/${projectId}/samples`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        source_filename: preview.document.source_filename,
-        review_id: preview.ocr_review?.review_id ?? null,
-        session_id: preview.session_id || null,
-        status: preview.ocr_review ? "mapping" : "validated",
-        payload: { parser_key: preview.document.parser_key, applied_rule: preview.applied_rule },
-      }),
-    });
-    if (!res.ok) throw new Error(await readErrorMessage(res));
-    await loadProjects();
-  }, [api, preview, loadProjects]);
+  const handleCompareRule = useCallback(async (): Promise<OCRRuleVersionDiff | null> => null, []);
 
   const setReviewColumnMappingField = useCallback((field: string, value: string) => {
     setReviewColumnMapping((prev) => ({ ...prev, [field]: value }));
@@ -630,11 +426,6 @@ export function WorkbenchProvider({ children, apiBaseUrl }: WorkbenchProviderPro
     allVariants,
     history,
     parsers,
-    visionStatus,
-    ruleManager,
-    correctionMemory,
-    jobs,
-    projects,
     selectedVariantKey,
     setSelectedVariantKey,
     selectedDiagnosticRow,
@@ -680,17 +471,12 @@ export function WorkbenchProvider({ children, apiBaseUrl }: WorkbenchProviderPro
     toasts,
     dismissToast,
     handlePreviewNow,
-    handleQueueJob,
     handleExport,
     handleExportCsv,
     handleSaveRowCorrection,
     handleMaterializeReview,
     handleCreateTemplate,
-    handleToggleRule,
-    handleRollbackRule,
     handleCompareRule,
-    handleCreateProject,
-    handleAttachCurrentResult,
     loadSession,
   };
 

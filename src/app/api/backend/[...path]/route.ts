@@ -22,18 +22,11 @@ function stripWrappingQuotes(value: string): string {
 }
 
 function getBackendBaseUrl(): string {
-  // In production (Railway), API_URL should be set by the environment
-  // In development, falls back to NEXT_PUBLIC_API_URL or localhost
-  const baseUrl =
-    process.env.API_URL ||
-    process.env.NEXT_PUBLIC_API_URL ||
-    "http://localhost:8000";
-
+  const baseUrl = process.env.API_URL || "http://localhost:8000";
   const cleanUrl = stripWrappingQuotes(baseUrl).replace(/\/$/, "");
 
-  // Log for debugging
-  if (!process.env.API_URL && !process.env.NEXT_PUBLIC_API_URL) {
-    console.warn("⚠️ Neither API_URL nor NEXT_PUBLIC_API_URL set, using fallback:", cleanUrl);
+  if (!process.env.API_URL) {
+    console.warn("API_URL is not set, using fallback:", cleanUrl);
   }
 
   return cleanUrl;
@@ -93,9 +86,9 @@ async function proxyRequest(
 
     return NextResponse.json(
       {
-        detail: "Backend proxy request failed. Check that API_URL environment variable points to a running backend service.",
+        detail: "Backend proxy request failed. Check that API_URL points to a running backend service.",
         error: errorMsg,
-        targetUrl: targetUrl, // For debugging
+        targetUrl,
       },
       { status: 502 },
     );
