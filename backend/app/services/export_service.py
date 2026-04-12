@@ -13,15 +13,17 @@ from app.services.variant_service import apply_template_to_variant, build_varian
 
 HEADER_FILL = PatternFill(fill_type="solid", fgColor="1F4E79")
 HEADER_FONT = Font(color="FFFFFF", bold=True)
-INFLOW_FILL = PatternFill(fill_type="solid", fgColor="E2EFDA")
-OUTFLOW_FILL = PatternFill(fill_type="solid", fgColor="FCE4D6")
+ROW_FILL_ODD = PatternFill(fill_type="solid", fgColor="FFFFFF")
+ROW_FILL_EVEN = PatternFill(fill_type="solid", fgColor="F6F9FC")
+INFLOW_FILL = PatternFill(fill_type="solid", fgColor="DDF0E4")
+OUTFLOW_FILL = PatternFill(fill_type="solid", fgColor="FBE3DE")
 TITLE_FONT = Font(bold=True, size=14)
 LABEL_FONT = Font(bold=True)
 SUBTLE_BORDER = Border(
-    left=Side(style="thin", color="D7E0EA"),
-    right=Side(style="thin", color="D7E0EA"),
-    top=Side(style="thin", color="D7E0EA"),
-    bottom=Side(style="thin", color="D7E0EA"),
+    left=Side(style="thin", color="CAD5E2"),
+    right=Side(style="thin", color="CAD5E2"),
+    top=Side(style="thin", color="CAD5E2"),
+    bottom=Side(style="thin", color="CAD5E2"),
 )
 TEXT_WRAP_ALIGNMENT = Alignment(vertical="top", wrap_text=True)
 HEADER_ALIGNMENT = Alignment(horizontal="center", vertical="center", wrap_text=True)
@@ -60,13 +62,11 @@ def export_statement(statement: ParsedStatement, variant_key: str) -> bytes:
         cell.alignment = HEADER_ALIGNMENT
 
     for row_index, row in enumerate(variant.rows, start=header_row + 1):
+        base_fill = _base_row_fill(row_index - header_row)
         for column_index, column in enumerate(variant.columns, start=1):
             value = row.get(column.key)
             cell = sheet.cell(row=row_index, column=column_index, value=value)
-            if row.get("direction") == "inflow":
-                cell.fill = INFLOW_FILL
-            elif row.get("direction") == "outflow":
-                cell.fill = OUTFLOW_FILL
+            cell.fill = _cell_fill(column.key, column.kind, value, row.get("direction"), base_fill)
             cell.border = SUBTLE_BORDER
             cell.alignment = _alignment_for_column(column.key, column.kind)
 
@@ -235,6 +235,34 @@ def _alignment_for_column(column_key: str, kind: str) -> Alignment:
     if column_key in {"date", "document_number", "self_transfer"}:
         return CENTER_ALIGNMENT
     return TEXT_WRAP_ALIGNMENT
+
+
+def _base_row_fill(display_row_number: int) -> PatternFill:
+    return ROW_FILL_EVEN if display_row_number % 2 == 0 else ROW_FILL_ODD
+
+
+def _cell_fill(
+    column_key: str,
+    kind: str,
+    value: object,
+    direction: str | None,
+    base_fill: PatternFill,
+) -> PatternFill:
+    if value in (None, "", "-"):
+        return base_fill
+
+    if kind == "currency":
+        if column_key == "income":
+            return INFLOW_FILL
+        if column_key == "expense":
+            return OUTFLOW_FILL
+        if column_key == "amount":
+            if direction == "inflow":
+                return INFLOW_FILL
+            if direction == "outflow":
+                return OUTFLOW_FILL
+
+    return base_fill
 
 
 def _freeze_panes_for_variant(variant_key: str, header_row: int) -> str | None:
