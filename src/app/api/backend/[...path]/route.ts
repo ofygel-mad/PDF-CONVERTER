@@ -11,12 +11,21 @@ const HOP_BY_HOP_HEADERS = new Set([
 ]);
 
 function getBackendBaseUrl(): string {
+  // In production (Railway), API_URL should be set by the environment
+  // In development, falls back to NEXT_PUBLIC_API_URL or localhost
   const baseUrl =
-    process.env.API_URL ??
-    process.env.NEXT_PUBLIC_API_URL ??
+    process.env.API_URL ||
+    process.env.NEXT_PUBLIC_API_URL ||
     "http://localhost:8000";
 
-  return baseUrl.replace(/\/$/, "");
+  const cleanUrl = baseUrl.replace(/\/$/, "");
+
+  // Log for debugging
+  if (!process.env.API_URL && !process.env.NEXT_PUBLIC_API_URL) {
+    console.warn("⚠️ Neither API_URL nor NEXT_PUBLIC_API_URL set, using fallback:", cleanUrl);
+  }
+
+  return cleanUrl;
 }
 
 function buildTargetUrl(request: NextRequest, path: string[]): string {
@@ -68,10 +77,14 @@ async function proxyRequest(
       headers: responseHeaders,
     });
   } catch (error) {
+    const errorMsg = error instanceof Error ? error.message : "Unknown proxy error";
+    console.error(`Proxy error calling ${targetUrl}:`, errorMsg);
+
     return NextResponse.json(
       {
-        detail: "Backend proxy request failed.",
-        error: error instanceof Error ? error.message : "Unknown proxy error",
+        detail: "Backend proxy request failed. Check that API_URL environment variable points to a running backend service.",
+        error: errorMsg,
+        targetUrl: targetUrl, // For debugging
       },
       { status: 502 },
     );
