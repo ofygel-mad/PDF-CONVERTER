@@ -10,6 +10,17 @@ const HOP_BY_HOP_HEADERS = new Set([
   "transfer-encoding",
 ]);
 
+function stripWrappingQuotes(value: string): string {
+  const trimmed = value.trim();
+  if (
+    (trimmed.startsWith('"') && trimmed.endsWith('"')) ||
+    (trimmed.startsWith("'") && trimmed.endsWith("'"))
+  ) {
+    return trimmed.slice(1, -1).trim();
+  }
+  return trimmed;
+}
+
 function getBackendBaseUrl(): string {
   // In production (Railway), API_URL should be set by the environment
   // In development, falls back to NEXT_PUBLIC_API_URL or localhost
@@ -18,7 +29,7 @@ function getBackendBaseUrl(): string {
     process.env.NEXT_PUBLIC_API_URL ||
     "http://localhost:8000";
 
-  const cleanUrl = baseUrl.replace(/\/$/, "");
+  const cleanUrl = stripWrappingQuotes(baseUrl).replace(/\/$/, "");
 
   // Log for debugging
   if (!process.env.API_URL && !process.env.NEXT_PUBLIC_API_URL) {
