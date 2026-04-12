@@ -52,6 +52,7 @@ export default function RootLayout({
       className={`${manrope.variable} ${plexMono.variable} antialiased`}
     >
       <head>
+        <meta charSet="utf-8" />
         <script dangerouslySetInnerHTML={{ __html: themeScript }} />
       </head>
       <body>{children}</body>
