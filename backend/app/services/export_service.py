@@ -72,7 +72,7 @@ def export_statement(statement: ParsedStatement, variant_key: str) -> bytes:
 
     _apply_column_widths(sheet, variant.columns, variant.rows)
     _apply_row_heights(sheet, variant.columns, variant.rows, header_row)
-    sheet.freeze_panes = f"A{header_row + 1}"
+    sheet.freeze_panes = _freeze_panes_for_variant(variant.key, header_row)
     sheet.auto_filter.ref = (
         f"A{header_row}:{get_column_letter(len(variant.columns))}{max(header_row, len(variant.rows) + header_row)}"
     )
@@ -235,3 +235,9 @@ def _alignment_for_column(column_key: str, kind: str) -> Alignment:
     if column_key in {"date", "document_number", "self_transfer"}:
         return CENTER_ALIGNMENT
     return TEXT_WRAP_ALIGNMENT
+
+
+def _freeze_panes_for_variant(variant_key: str, header_row: int) -> str | None:
+    if variant_key.startswith("business_"):
+        return None
+    return f"A{header_row + 1}"
