@@ -62,6 +62,10 @@ export type WorkbenchCtx = {
   setReviewColumnMappingField: (field: string, value: string) => void;
   excludedExportRows: number[];
   setExcludedExportRows: (rows: number[]) => void;
+  customExportColumns: Array<{key: string; label: string; kind: string}> | null;
+  setCustomExportColumns: (cols: Array<{key: string; label: string; kind: string}> | null) => void;
+  customExportRows: Array<Record<string, unknown>> | null;
+  setCustomExportRows: (rows: Array<Record<string, unknown>> | null) => void;
   isPending: boolean;
   isSavingRowCorrection: boolean;
   isMaterializingReview: boolean;
@@ -148,6 +152,8 @@ export function WorkbenchProvider({ children, apiBaseUrl }: WorkbenchProviderPro
   const [isSavingRowCorrection, setIsSavingRowCorrection] = useState(false);
   const [isMaterializingReview, setIsMaterializingReview] = useState(false);
   const [excludedExportRows, setExcludedExportRows] = useState<number[]>([]);
+  const [customExportColumns, setCustomExportColumns] = useState<Array<{key: string; label: string; kind: string}> | null>(null);
+  const [customExportRows, setCustomExportRows] = useState<Array<Record<string, unknown>> | null>(null);
   const [isExporting, setIsExporting] = useState(false);
   const [isExportingCsv, setIsExportingCsv] = useState(false);
   const [isLoadingSession, setIsLoadingSession] = useState(false);
@@ -274,7 +280,13 @@ export function WorkbenchProvider({ children, apiBaseUrl }: WorkbenchProviderPro
       const res = await fetch(`${api}/api/v1/transforms/export`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ session_id: preview.session_id, variant_key: selectedVariantKey, excluded_rows: excludedExportRows }),
+        body: JSON.stringify({
+          session_id: preview.session_id,
+          variant_key: selectedVariantKey,
+          excluded_rows: excludedExportRows,
+          custom_columns: customExportColumns ?? undefined,
+          custom_rows: customExportRows ?? undefined,
+        }),
       });
       if (!res.ok) throw new Error(await readErrorMessage(res));
       const blob = await res.blob();
@@ -445,6 +457,10 @@ export function WorkbenchProvider({ children, apiBaseUrl }: WorkbenchProviderPro
     setReviewColumnMappingField,
     excludedExportRows,
     setExcludedExportRows,
+    customExportColumns,
+    setCustomExportColumns,
+    customExportRows,
+    setCustomExportRows,
     isPending,
     isSavingRowCorrection,
     isMaterializingReview,

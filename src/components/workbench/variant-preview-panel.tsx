@@ -10,24 +10,32 @@ import { formatValue } from "@/components/workbench/utils";
 const PAGE_SIZE = 50;
 const PRIMARY_GROUP = "primary";
 
+type EditableRow = Record<string, string | number | null>;
+
 type Props = {
   variants: PreviewVariant[];
   diagnostics: RowDiagnostic[];
 };
 
-function confidenceColor(confidence: number): string {
-  if (confidence >= 0.9) return "badge-emerald";
-  if (confidence >= 0.7) return "badge-amber";
+function confidenceColor(c: number) {
+  if (c >= 0.9) return "badge-emerald";
+  if (c >= 0.7) return "badge-amber";
   return "badge-rose";
 }
 
-function variantGroupKey(variant: PreviewVariant): string {
-  return variant.group ?? PRIMARY_GROUP;
+function variantGroupKey(v: PreviewVariant) {
+  return v.group ?? PRIMARY_GROUP;
 }
 
-function isWideTextColumn(columnKey: string, kind: string): boolean {
+function isWideTextColumn(key: string, kind: string) {
   if (kind === "currency") return false;
-  return ["detail", "comment", "details_operation"].includes(columnKey);
+  return ["detail", "comment", "details_operation"].includes(key);
+}
+
+function emptyRow(columns: PreviewColumn[]): EditableRow {
+  const r: EditableRow = {};
+  for (const c of columns) r[c.key] = "";
+  return r;
 }
 
 export function VariantPreviewPanel({ variants, diagnostics }: Props) {
@@ -37,37 +45,45 @@ export function VariantPreviewPanel({ variants, diagnostics }: Props) {
     handleExport,
     isExporting,
     setExcludedExportRows,
+    setCustomExportColumns,
+    setCustomExportRows,
     deferredPreview,
   } = useWorkbench();
 
   const [page, setPage] = useState(0);
 
-  // --- edit mode state ---
+  // ── edit mode ──────────────────────────────────────────────
   const [editMode, setEditMode] = useState(false);
-  const [editColumns, setEditColumnsRaw] = useState<PreviewColumn[]>([]);
-  const [hiddenRows, setHiddenRows] = useState<Set<number>>(new Set());
+  const [editColumns, setEditColumnsState] = useState<PreviewColumn[]>([]);
+  // rows: copy of original rows merged with per-cell overrides + added rows
+  const [editRows, setEditRowsState] = useState<EditableRow[]>([]);
   const [isDirty, setIsDirty] = useState(false);
   const [showSaveModal, setShowSaveModal] = useState(false);
+
+  // cell editing
+  const [editingCell, setEditingCell] = useState<{ rowIdx: number; colKey: string } | null>(null);
+  const [cellDraft, setCellDraft] = useState("");
+  const cellInputRef = useRef<HTMLInputElement>(null);
+
+  // column rename
   const [editingColIdx, setEditingColIdx] = useState<number | null>(null);
   const [colLabelDraft, setColLabelDraft] = useState("");
   const colLabelRef = useRef<HTMLInputElement>(null);
 
+  // ── variant navigation ─────────────────────────────────────
   const groupedVariants = useMemo(() => {
     const order: string[] = [];
     const groups = new Map<string, PreviewVariant[]>();
-    for (const variant of variants) {
-      const groupKey = variantGroupKey(variant);
-      if (!groups.has(groupKey)) {
-        groups.set(groupKey, []);
-        order.push(groupKey);
-      }
-      groups.get(groupKey)?.push(variant);
+    for (const v of variants) {
+      const g = variantGroupKey(v);
+      if (!groups.has(g)) { groups.set(g, []); order.push(g); }
+      groups.get(g)!.push(v);
     }
     return { groups, order };
   }, [variants]);
 
   const selectedVariant =
-    variants.find((variant) => variant.key === selectedVariantKey) ?? variants[0] ?? null;
+    variants.find((v) => v.key === selectedVariantKey) ?? variants[0] ?? null;
 
   if (!selectedVariant) return null;
 
@@ -75,7 +91,7 @@ export function VariantPreviewPanel({ variants, diagnostics }: Props) {
   const pageVariants = groupedVariants.groups.get(activeGroup) ?? [selectedVariant];
   const alternateGroup =
     activeGroup === PRIMARY_GROUP
-      ? groupedVariants.order.find((groupKey) => groupKey !== PRIMARY_GROUP) ?? null
+      ? groupedVariants.order.find((g) => g !== PRIMARY_GROUP) ?? null
       : PRIMARY_GROUP;
   const showVariantSwitcher = groupedVariants.order.length > 1 && alternateGroup !== null;
 
@@ -87,48 +103,59 @@ export function VariantPreviewPanel({ variants, diagnostics }: Props) {
 
   const swapVariantGroup = () => {
     if (!alternateGroup) return;
-    const targetVariants = groupedVariants.groups.get(alternateGroup);
-    const nextVariant =
-      targetVariants?.find((variant) => !variant.template_id) ??
-      targetVariants?.[0];
-    if (!nextVariant) return;
-    setSelectedVariantKey(nextVariant.key);
+    const tv = groupedVariants.groups.get(alternateGroup);
+    const nv = tv?.find((v) => !v.template_id) ?? tv?.[0];
+    if (!nv) return;
+    setSelectedVariantKey(nv.key);
     setPage(0);
     exitEditMode(false);
   };
 
-  // ---- edit mode helpers ----
+  // ── edit mode helpers ──────────────────────────────────────
 
   const enterEditMode = () => {
-    setEditColumnsRaw(selectedVariant.columns.map((c) => ({ ...c })));
-    setHiddenRows(new Set());
+    setEditColumnsState(selectedVariant.columns.map((c) => ({ ...c })));
+    setEditRowsState(selectedVariant.rows.map((r) => ({ ...r }) as EditableRow));
     setIsDirty(false);
     setEditMode(true);
   };
 
-  const exitEditMode = (confirm = true) => {
-    if (confirm && isDirty && !window.confirm("Выйти из режима редактирования? Несохранённые изменения будут потеряны.")) return;
+  const exitEditMode = (withConfirm = true) => {
+    if (withConfirm && isDirty &&
+      !window.confirm("Выйти из режима редактирования? Несохранённые изменения будут потеряны.")) return;
     setEditMode(false);
     setIsDirty(false);
-    setHiddenRows(new Set());
+    setEditingCell(null);
+    setEditingColIdx(null);
+    setCustomExportColumns(null);
+    setCustomExportRows(null);
     setExcludedExportRows([]);
   };
 
-  const setEditColumns = (cols: PreviewColumn[]) => {
-    setEditColumnsRaw(cols);
-    setIsDirty(true);
+  const markDirty = () => setIsDirty(true);
+
+  // ── column ops ─────────────────────────────────────────────
+  const setEditColumns = (cols: PreviewColumn[]) => { setEditColumnsState(cols); markDirty(); };
+
+  const startColRename = (idx: number, label: string) => {
+    setEditingColIdx(idx);
+    setColLabelDraft(label);
+    setTimeout(() => colLabelRef.current?.select(), 0);
   };
 
-  const renameColumn = (idx: number, label: string) => {
-    const next = editColumns.map((c, i) => (i === idx ? { ...c, label } : c));
-    setEditColumns(next);
+  const commitColRename = () => {
+    if (editingColIdx !== null && colLabelDraft.trim()) {
+      const next = editColumns.map((c, i) => i === editingColIdx ? { ...c, label: colLabelDraft.trim() } : c);
+      setEditColumns(next);
+    }
+    setEditingColIdx(null);
   };
 
   const moveColumn = (idx: number, dir: -1 | 1) => {
     const next = [...editColumns];
-    const target = idx + dir;
-    if (target < 0 || target >= next.length) return;
-    [next[idx], next[target]] = [next[target], next[idx]];
+    const t = idx + dir;
+    if (t < 0 || t >= next.length) return;
+    [next[idx], next[t]] = [next[t], next[idx]];
     setEditColumns(next);
   };
 
@@ -137,77 +164,77 @@ export function VariantPreviewPanel({ variants, diagnostics }: Props) {
   };
 
   const addColumn = () => {
-    setEditColumns([
-      ...editColumns,
-      { key: `custom_${Date.now()}`, label: "Новый столбец", kind: "text" },
-    ]);
+    setEditColumns([...editColumns, { key: `custom_${Date.now()}`, label: "Новый столбец", kind: "text" }]);
   };
 
-  const deleteRow = (rowNumber: number) => {
-    const next = new Set(hiddenRows);
-    next.add(rowNumber);
-    setHiddenRows(next);
-    setIsDirty(true);
+  // ── row ops ────────────────────────────────────────────────
+  const deleteRow = (idx: number) => {
+    setEditRowsState((prev) => { const n = [...prev]; n.splice(idx, 1); return n; });
+    markDirty();
   };
 
-  const restoreRow = (rowNumber: number) => {
-    const next = new Set(hiddenRows);
-    next.delete(rowNumber);
-    setHiddenRows(next);
-    setIsDirty(true);
+  const addRow = () => {
+    setEditRowsState((prev) => [...prev, emptyRow(editColumns)]);
+    markDirty();
   };
 
+  // ── cell editing ───────────────────────────────────────────
+  const startCellEdit = (rowIdx: number, colKey: string, currentVal: unknown) => {
+    setEditingCell({ rowIdx, colKey });
+    setCellDraft(currentVal != null && currentVal !== "" ? String(currentVal) : "");
+    setTimeout(() => { cellInputRef.current?.focus(); cellInputRef.current?.select(); }, 0);
+  };
+
+  const commitCellEdit = () => {
+    if (!editingCell) return;
+    const { rowIdx, colKey } = editingCell;
+    setEditRowsState((prev) => {
+      const next = [...prev];
+      next[rowIdx] = { ...next[rowIdx], [colKey]: cellDraft };
+      return next;
+    });
+    markDirty();
+    setEditingCell(null);
+  };
+
+  // ── reset ──────────────────────────────────────────────────
   const resetToDefault = () => {
     if (!window.confirm("Сбросить все изменения и вернуться к стандартному формату? Сохранённый шаблон для этого банка также будет удалён.")) return;
-    const parserKey = deferredPreview?.document.parser_key;
-    if (parserKey) {
-      try { localStorage.removeItem(`template_id_${parserKey}`); } catch { /* ignore */ }
-    }
-    setEditColumnsRaw(selectedVariant.columns.map((c) => ({ ...c })));
-    setHiddenRows(new Set());
+    const pk = deferredPreview?.document.parser_key;
+    if (pk) { try { localStorage.removeItem(`template_id_${pk}`); } catch { /* ignore */ } }
+    setEditColumnsState(selectedVariant.columns.map((c) => ({ ...c })));
+    setEditRowsState(selectedVariant.rows.map((r) => ({ ...r }) as EditableRow));
     setIsDirty(false);
+    setCustomExportColumns(null);
+    setCustomExportRows(null);
     setExcludedExportRows([]);
   };
 
+  // ── export ─────────────────────────────────────────────────
   const handleExportWithEdits = () => {
-    if (editMode) {
-      setExcludedExportRows([...hiddenRows]);
+    if (editMode && isDirty) {
+      setCustomExportColumns(editColumns.map((c) => ({ key: c.key, label: c.label, kind: c.kind })));
+      setCustomExportRows(editRows as Array<Record<string, unknown>>);
     }
     void handleExport();
   };
 
-  const startColRename = (idx: number, currentLabel: string) => {
-    setEditingColIdx(idx);
-    setColLabelDraft(currentLabel);
-    setTimeout(() => colLabelRef.current?.select(), 0);
-  };
-
-  const commitColRename = () => {
-    if (editingColIdx !== null && colLabelDraft.trim()) {
-      renameColumn(editingColIdx, colLabelDraft.trim());
-    }
-    setEditingColIdx(null);
-  };
-
-  // ---- render data ----
+  // ── render data ────────────────────────────────────────────
   const displayColumns = editMode ? editColumns : selectedVariant.columns;
-  const diagnosticsMap = new Map(diagnostics.map((item) => [item.row_number, item]));
-  const totalRows = selectedVariant.rows.length;
-
-  // in edit mode, filter hidden rows before paging
-  const visibleRows = editMode
-    ? selectedVariant.rows.filter((_, i) => !hiddenRows.has(i + 1))
-    : selectedVariant.rows;
-  const totalPages = Math.ceil(visibleRows.length / PAGE_SIZE);
-  const pageRows = visibleRows.slice(page * PAGE_SIZE, (page + 1) * PAGE_SIZE);
+  const diagnosticsMap = new Map(diagnostics.map((d) => [d.row_number, d]));
+  const displayRows: EditableRow[] = editMode ? editRows : (selectedVariant.rows as EditableRow[]);
+  const totalPages = Math.ceil(displayRows.length / PAGE_SIZE);
+  const pageRows = displayRows.slice(page * PAGE_SIZE, (page + 1) * PAGE_SIZE);
+  const pageOffset = page * PAGE_SIZE;
 
   return (
     <section className="card p-4 sm:p-5 animate-fade-in">
-      {/* header */}
+
+      {/* ── header ── */}
       <div className="mb-4 flex flex-wrap items-start justify-between gap-3">
         <div>
           <h2 className="text-base sm:text-lg font-semibold" style={{ color: "var(--text-primary)" }}>
-            {"Предпросмотр"}
+            Предпросмотр
           </h2>
           <p className="mt-0.5 text-sm" style={{ color: "var(--text-secondary)" }}>
             {selectedVariant.description}
@@ -215,238 +242,194 @@ export function VariantPreviewPanel({ variants, diagnostics }: Props) {
         </div>
         <div className="flex gap-2 flex-wrap">
           {!editMode && (
-            <button
-              className="btn-ghost px-3 py-1.5 text-xs"
-              onClick={enterEditMode}
-              type="button"
-            >
-              {"Редактировать"}
+            <button className="btn-ghost px-3 py-1.5 text-xs" onClick={enterEditMode} type="button">
+              Редактировать
             </button>
           )}
           {editMode && (
-            <button
-              className="btn-ghost px-3 py-1.5 text-xs"
-              onClick={() => exitEditMode(true)}
-              type="button"
-            >
-              {"Выйти"}
+            <button className="btn-ghost px-3 py-1.5 text-xs" onClick={() => exitEditMode(true)} type="button">
+              Выйти
             </button>
           )}
-          <button
-            className="btn-primary"
-            disabled={isExporting}
-            onClick={handleExportWithEdits}
-            type="button"
-          >
+          <button className="btn-primary" disabled={isExporting} onClick={handleExportWithEdits} type="button">
             {isExporting ? "Экспорт..." : "Excel"}
           </button>
         </div>
       </div>
 
-      {/* variant group switcher */}
+      {/* ── variant switcher ── */}
       <div className="mb-4 flex flex-col gap-3 lg:flex-row lg:items-start">
         {showVariantSwitcher && (
           <button
             className={`variant-group-toggle ${activeGroup === PRIMARY_GROUP ? "variant-group-toggle-pulse" : "variant-group-toggle-return"}`}
-            onClick={swapVariantGroup}
-            type="button"
+            onClick={swapVariantGroup} type="button"
           >
             <span className="variant-group-toggle__pulse" aria-hidden="true" />
             <span className="variant-group-toggle__label">
-              {activeGroup === PRIMARY_GROUP
-                ? "Доступны другие варианты"
-                : "Вернуться к стандартным видам"}
+              {activeGroup === PRIMARY_GROUP ? "Доступны другие варианты" : "Вернуться к стандартным видам"}
             </span>
           </button>
         )}
-
-        <div key={`variant-group-${activeGroup}`} className="flex flex-wrap gap-2 animate-variant-swap">
-          {pageVariants.map((variant) => (
+        <div key={`vg-${activeGroup}`} className="flex flex-wrap gap-2 animate-variant-swap">
+          {pageVariants.map((v) => (
             <button
-              key={variant.key}
+              key={v.key}
               className="rounded-full px-3 py-1.5 text-xs font-medium transition-all"
               style={{
-                background:
-                  variant.key === selectedVariant.key ? "var(--text-primary)" : "transparent",
-                color: variant.key === selectedVariant.key ? "var(--bg-base)" : "var(--text-secondary)",
-                border:
-                  variant.key === selectedVariant.key
-                    ? "none"
-                    : "1px solid var(--border-base)",
+                background: v.key === selectedVariant.key ? "var(--text-primary)" : "transparent",
+                color: v.key === selectedVariant.key ? "var(--bg-base)" : "var(--text-secondary)",
+                border: v.key === selectedVariant.key ? "none" : "1px solid var(--border-base)",
               }}
-              onClick={() => selectVariant(variant.key)}
-              type="button"
+              onClick={() => selectVariant(v.key)} type="button"
             >
-              {variant.name}
-              <span className="ml-1.5" style={{ opacity: 0.5 }}>
-                {variant.rows.length}
-              </span>
+              {v.name}
+              <span className="ml-1.5" style={{ opacity: 0.5 }}>{v.rows.length}</span>
             </button>
           ))}
         </div>
       </div>
 
-      {/* edit mode info bar */}
+      {/* ── edit mode hint ── */}
       {editMode && (
-        <div
-          className="mb-3 flex flex-wrap items-center gap-2 rounded-lg px-3 py-2 text-xs"
-          style={{ background: "var(--bg-hover)", border: "1px solid var(--border-base)", color: "var(--text-secondary)" }}
-        >
-          <span>{"Режим редактирования — переименовывайте, перемещайте и удаляйте столбцы и строки"}</span>
-          {hiddenRows.size > 0 && (
-            <span className="badge badge-amber">{hiddenRows.size} {hiddenRows.size === 1 ? "строка скрыта" : "строк скрыто"}</span>
-          )}
+        <div className="mb-3 flex flex-wrap items-center gap-2 rounded-lg px-3 py-2 text-xs"
+          style={{ background: "var(--bg-hover)", border: "1px solid var(--border-base)", color: "var(--text-secondary)" }}>
+          <span>
+            <b>Заголовок колонки</b> — клик для переименования &nbsp;·&nbsp;
+            <b>Ячейка</b> — двойной клик для редактирования &nbsp;·&nbsp;
+            <b>←→</b> перемещение &nbsp;·&nbsp;
+            <b>✕</b> удаление
+          </span>
         </div>
       )}
 
-      {/* table */}
+      {/* ── table ── */}
       <div
-        key={`variant-table-${activeGroup}-${selectedVariant.key}`}
+        key={`vt-${activeGroup}-${selectedVariant.key}`}
         className="overflow-hidden rounded-[var(--radius-inner)] animate-variant-swap"
         style={{ border: "1px solid var(--border-base)" }}
       >
         <div className="overflow-x-auto">
           <table className="min-w-full text-sm">
+
+            {/* thead */}
             <thead style={{ background: "var(--bg-hover)" }}>
               <tr>
-                <th
-                  className="w-8 px-3 py-2.5 text-left text-xs font-medium"
-                  style={{ color: "var(--text-muted)" }}
-                >
-                  #
-                </th>
-                {displayColumns.map((column, colIdx) => (
+                <th className="w-8 px-3 py-2.5 text-left text-xs font-medium" style={{ color: "var(--text-muted)" }}>#</th>
+                {displayColumns.map((col, ci) => (
                   <th
-                    key={column.key}
-                    className={`px-2 py-2 text-left text-xs font-medium ${isWideTextColumn(column.key, column.kind) ? "min-w-[15rem] whitespace-normal" : "whitespace-nowrap"}`}
+                    key={col.key}
+                    className={`px-2 py-2 text-left text-xs font-medium ${isWideTextColumn(col.key, col.kind) ? "min-w-[15rem] whitespace-normal" : "whitespace-nowrap"}`}
                     style={{ color: "var(--text-secondary)" }}
                   >
                     {editMode ? (
                       <div className="flex items-center gap-1">
-                        {editingColIdx === colIdx ? (
+                        {editingColIdx === ci ? (
                           <input
                             ref={colLabelRef}
                             aria-label="Название столбца"
                             className="rounded px-1 py-0.5 text-xs w-28"
-                            style={{
-                              background: "var(--surface)",
-                              border: "1px solid var(--accent-blue, #3b82f6)",
-                              color: "var(--text-primary)",
-                              outline: "none",
-                            }}
+                            style={{ background: "var(--surface)", border: "1px solid var(--accent-blue,#3b82f6)", color: "var(--text-primary)", outline: "none" }}
                             value={colLabelDraft}
                             onChange={(e) => setColLabelDraft(e.target.value)}
                             onBlur={commitColRename}
-                            onKeyDown={(e) => {
-                              if (e.key === "Enter") commitColRename();
-                              if (e.key === "Escape") setEditingColIdx(null);
-                            }}
+                            onKeyDown={(e) => { if (e.key === "Enter") commitColRename(); if (e.key === "Escape") setEditingColIdx(null); }}
                           />
                         ) : (
                           <button
-                            className="text-left hover:underline"
+                            className="text-left hover:underline cursor-pointer"
                             style={{ color: "var(--text-primary)" }}
-                            onClick={() => startColRename(colIdx, column.label)}
-                            title="Нажмите для переименования"
-                            type="button"
-                          >
-                            {column.label}
-                          </button>
+                            onClick={() => startColRename(ci, col.label)}
+                            title="Нажмите для переименования" type="button"
+                          >{col.label}</button>
                         )}
-                        <div className="flex items-center gap-0.5 ml-1 opacity-60 hover:opacity-100">
-                          <button
-                            type="button"
-                            title="Переместить влево"
-                            disabled={colIdx === 0}
+                        <span className="flex items-center gap-0.5 ml-1 opacity-50 hover:opacity-100">
+                          <button type="button" title="Влево" disabled={ci === 0}
                             className="text-[10px] px-0.5 hover:text-blue-500 disabled:opacity-20"
-                            onClick={() => moveColumn(colIdx, -1)}
-                          >←</button>
-                          <button
-                            type="button"
-                            title="Переместить вправо"
-                            disabled={colIdx === displayColumns.length - 1}
+                            onClick={() => moveColumn(ci, -1)}>←</button>
+                          <button type="button" title="Вправо" disabled={ci === displayColumns.length - 1}
                             className="text-[10px] px-0.5 hover:text-blue-500 disabled:opacity-20"
-                            onClick={() => moveColumn(colIdx, 1)}
-                          >→</button>
-                          <button
-                            type="button"
-                            title="Удалить столбец"
+                            onClick={() => moveColumn(ci, 1)}>→</button>
+                          <button type="button" title="Удалить столбец"
                             className="text-[10px] px-0.5 hover:text-rose-500"
-                            onClick={() => deleteColumn(colIdx)}
-                          >✕</button>
-                        </div>
+                            onClick={() => deleteColumn(ci)}>✕</button>
+                        </span>
                       </div>
-                    ) : (
-                      column.label
-                    )}
+                    ) : col.label}
                   </th>
                 ))}
                 {editMode && (
-                  <th className="px-2 py-2">
-                    <button
-                      type="button"
-                      title="Добавить столбец"
+                  <th className="px-2 py-2 w-8">
+                    <button type="button" title="Добавить столбец"
                       className="text-xs px-1.5 py-0.5 rounded"
                       style={{ background: "var(--bg-hover)", border: "1px dashed var(--border-base)", color: "var(--text-muted)" }}
-                      onClick={addColumn}
-                    >+</button>
+                      onClick={addColumn}>+</button>
                   </th>
                 )}
                 {!editMode && (
-                  <th
-                    className="w-12 px-3 py-2.5 text-left text-xs font-medium"
-                    style={{ color: "var(--text-muted)" }}
-                  >
-                    {"Увер."}
-                  </th>
+                  <th className="w-12 px-3 py-2.5 text-left text-xs font-medium" style={{ color: "var(--text-muted)" }}>Увер.</th>
                 )}
               </tr>
             </thead>
+
+            {/* tbody */}
             <tbody>
-              {pageRows.map((row, index) => {
-                const originalIndex = editMode
-                  ? selectedVariant.rows.indexOf(row)
-                  : index;
-                const rowNumber = editMode ? originalIndex + 1 : page * PAGE_SIZE + index + 1;
-                const displayNumber = page * PAGE_SIZE + index + 1;
+              {pageRows.map((row, localIdx) => {
+                const absIdx = pageOffset + localIdx;
+                const rowNumber = absIdx + 1;
                 const diagnostic = diagnosticsMap.get(rowNumber);
                 const direction = row.direction as string | undefined;
-                const rowClass =
-                  direction === "inflow"
-                    ? "row-inflow"
-                    : direction === "outflow"
-                      ? "row-outflow"
-                      : "";
+                const rowClass = direction === "inflow" ? "row-inflow" : direction === "outflow" ? "row-outflow" : "";
 
                 return (
-                  <tr
-                    key={`${selectedVariant.key}-${rowNumber}`}
+                  <tr key={`${selectedVariant.key}-${absIdx}`}
                     className={`${rowClass} transition-colors`}
-                    style={{ borderTop: "1px solid var(--border-subtle)" }}
-                  >
-                    <td className="px-3 py-2.5 text-xs" style={{ color: "var(--text-muted)" }}>
-                      {displayNumber}
-                    </td>
-                    {displayColumns.map((column) => (
-                      <td
-                        key={column.key}
-                        className={`px-3 py-2.5 ${isWideTextColumn(column.key, column.kind) ? "min-w-[15rem] whitespace-normal break-words align-top" : "whitespace-nowrap"}`}
-                        style={{ color: "var(--text-primary)" }}
-                      >
-                        {formatValue(
-                          row[column.key] as string | number | null | undefined,
-                          column.kind,
-                        )}
-                      </td>
-                    ))}
+                    style={{ borderTop: "1px solid var(--border-subtle)" }}>
+
+                    {/* row # */}
+                    <td className="px-3 py-2.5 text-xs" style={{ color: "var(--text-muted)" }}>{rowNumber}</td>
+
+                    {/* data cells */}
+                    {displayColumns.map((col) => {
+                      const rawVal = row[col.key];
+                      const isEditing = editMode && editingCell?.rowIdx === absIdx && editingCell?.colKey === col.key;
+                      return (
+                        <td
+                          key={col.key}
+                          className={`px-3 py-2 ${isWideTextColumn(col.key, col.kind) ? "min-w-[15rem] whitespace-normal break-words align-top" : "whitespace-nowrap"}`}
+                          style={{ color: "var(--text-primary)" }}
+                          onDoubleClick={() => editMode && startCellEdit(absIdx, col.key, rawVal)}
+                          title={editMode ? "Двойной клик для редактирования" : undefined}
+                        >
+                          {isEditing ? (
+                            <input
+                              ref={cellInputRef}
+                              aria-label={col.label}
+                              className="w-full rounded px-1 py-0.5 text-xs"
+                              style={{ background: "var(--surface)", border: "1px solid var(--accent-blue,#3b82f6)", color: "var(--text-primary)", outline: "none", minWidth: "6rem" }}
+                              value={cellDraft}
+                              onChange={(e) => setCellDraft(e.target.value)}
+                              onBlur={commitCellEdit}
+                              onKeyDown={(e) => {
+                                if (e.key === "Enter") { commitCellEdit(); }
+                                if (e.key === "Escape") setEditingCell(null);
+                                if (e.key === "Tab") { e.preventDefault(); commitCellEdit(); }
+                              }}
+                            />
+                          ) : (
+                            <span style={editMode ? { cursor: "text", minWidth: "2rem", display: "inline-block" } : undefined}>
+                              {formatValue(rawVal as string | number | null | undefined, col.kind)}
+                            </span>
+                          )}
+                        </td>
+                      );
+                    })}
+
+                    {/* edit actions */}
                     {editMode && (
-                      <td className="px-2 py-2.5">
-                        <button
-                          type="button"
-                          title="Скрыть строку"
-                          className="text-xs opacity-40 hover:opacity-100 hover:text-rose-500"
-                          onClick={() => deleteRow(rowNumber)}
-                        >✕</button>
+                      <td className="px-2 py-2.5 text-center">
+                        <button type="button" title="Удалить строку"
+                          className="text-xs opacity-30 hover:opacity-100 hover:text-rose-500"
+                          onClick={() => deleteRow(absIdx)}>✕</button>
                       </td>
                     )}
                     {!editMode && (
@@ -463,97 +446,60 @@ export function VariantPreviewPanel({ variants, diagnostics }: Props) {
                   </tr>
                 );
               })}
+
+              {/* add row button */}
+              {editMode && (
+                <tr style={{ borderTop: "1px solid var(--border-subtle)" }}>
+                  <td colSpan={displayColumns.length + 2} className="px-3 py-2">
+                    <button type="button" onClick={addRow}
+                      className="text-xs flex items-center gap-1.5 opacity-50 hover:opacity-100"
+                      style={{ color: "var(--text-secondary)" }}>
+                      <span className="text-base leading-none">+</span> Добавить строку
+                    </button>
+                  </td>
+                </tr>
+              )}
             </tbody>
           </table>
         </div>
       </div>
 
-      {/* pagination */}
+      {/* ── pagination ── */}
       {totalPages > 1 && (
         <div className="mt-3 flex flex-wrap items-center justify-between gap-3">
           <p className="text-xs" style={{ color: "var(--text-muted)" }}>
-            {"Строки"} {page * PAGE_SIZE + 1}-
-            {Math.min((page + 1) * PAGE_SIZE, visibleRows.length)} {"из"} {visibleRows.length}
-            {editMode && hiddenRows.size > 0 && (
-              <span className="ml-1" style={{ color: "var(--text-muted)" }}>
-                {"(скрыто "}{hiddenRows.size}{")"}{" "}
-                <button
-                  type="button"
-                  className="underline text-xs"
-                  onClick={() => { setHiddenRows(new Set()); setIsDirty(true); }}
-                >
-                  восстановить все
-                </button>
-              </span>
-            )}
+            Строки {pageOffset + 1}–{Math.min((page + 1) * PAGE_SIZE, displayRows.length)} из {displayRows.length}
           </p>
           <div className="flex gap-2">
-            <button
-              className="btn-ghost px-3 py-1.5 text-xs"
-              disabled={page === 0}
-              onClick={() => setPage((current) => current - 1)}
-              type="button"
-            >
-              {"<- Назад"}
-            </button>
-            <button
-              className="btn-ghost px-3 py-1.5 text-xs"
-              disabled={page >= totalPages - 1}
-              onClick={() => setPage((current) => current + 1)}
-              type="button"
-            >
-              {"Вперёд ->"}
-            </button>
+            <button className="btn-ghost px-3 py-1.5 text-xs" disabled={page === 0}
+              onClick={() => setPage((p) => p - 1)} type="button">&larr; Назад</button>
+            <button className="btn-ghost px-3 py-1.5 text-xs" disabled={page >= totalPages - 1}
+              onClick={() => setPage((p) => p + 1)} type="button">Вперёд &rarr;</button>
           </div>
         </div>
       )}
 
-      {/* dirty bar */}
+      {/* ── dirty bar ── */}
       {editMode && isDirty && (
-        <div
-          className="mt-4 flex flex-wrap items-center justify-between gap-2 rounded-xl px-4 py-3"
-          style={{ background: "var(--bg-hover)", border: "1px solid var(--border-base)" }}
-        >
+        <div className="mt-4 flex flex-wrap items-center justify-between gap-2 rounded-xl px-4 py-3"
+          style={{ background: "var(--bg-hover)", border: "1px solid var(--border-base)" }}>
           <p className="text-xs" style={{ color: "var(--text-secondary)" }}>
-            {"Есть несохранённые изменения"}
+            Есть несохранённые изменения — <span style={{ color: "var(--text-muted)" }}>строк: {displayRows.length}, столбцов: {displayColumns.length}</span>
           </p>
           <div className="flex gap-2">
-            <button
-              className="btn-ghost px-3 py-1.5 text-xs"
-              onClick={resetToDefault}
-              type="button"
-            >
-              {"Сбросить к стандарту"}
+            <button className="btn-ghost px-3 py-1.5 text-xs" onClick={resetToDefault} type="button">
+              Сбросить к стандарту
             </button>
-            <button
-              className="btn-primary px-3 py-1.5 text-xs"
-              onClick={() => {
-                setExcludedExportRows([...hiddenRows]);
-                setShowSaveModal(true);
-              }}
-              type="button"
-            >
-              {"Сохранить шаблон"}
+            <button className="btn-primary px-3 py-1.5 text-xs"
+              onClick={() => { setCustomExportColumns(editColumns); setCustomExportRows(editRows as Array<Record<string, unknown>>); setShowSaveModal(true); }}
+              type="button">
+              Сохранить шаблон
             </button>
           </div>
         </div>
       )}
 
-      {/* total rows info for non-paginated */}
-      {totalPages <= 1 && editMode && hiddenRows.size > 0 && (
-        <div className="mt-2 text-xs" style={{ color: "var(--text-muted)" }}>
-          {"Скрыто строк: "}{hiddenRows.size}{" "}
-          <button
-            type="button"
-            className="underline"
-            onClick={() => { setHiddenRows(new Set()); setIsDirty(editColumns !== selectedVariant.columns); }}
-          >
-            восстановить все
-          </button>
-        </div>
-      )}
-
-      {/* save modal */}
+      {/* ── save modal ── */}
       {showSaveModal && (
         <SaveTemplateModal
           parserKey={deferredPreview?.document.parser_key ?? "unknown"}
@@ -564,8 +510,8 @@ export function VariantPreviewPanel({ variants, diagnostics }: Props) {
             setShowSaveModal(false);
             setIsDirty(false);
             setEditMode(false);
-            setExcludedExportRows([...hiddenRows]);
-            // auto-select the new template variant if it appears in allVariants
+            setCustomExportColumns(editColumns);
+            setCustomExportRows(editRows as Array<Record<string, unknown>>);
             setSelectedVariantKey(`template::${templateId}`);
           }}
         />
