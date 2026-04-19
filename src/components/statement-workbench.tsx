@@ -97,14 +97,6 @@ function WorkbenchInner() {
     setReviewColumnMappingField,
     isMaterializingReview,
     handleMaterializeReview,
-    templateName,
-    setTemplateName,
-    templateDescription,
-    setTemplateDescription,
-    templateIsDefault,
-    setTemplateIsDefault,
-    isCreatingTemplate,
-    handleCreateTemplate,
   } = useWorkbench();
 
   const [tab, setTab] = useState<Tab>("table");
@@ -190,26 +182,8 @@ function WorkbenchInner() {
 
       <main className="flex-1 px-4 sm:px-6 py-4 sm:py-5 max-w-6xl w-full mx-auto space-y-4 pb-24 sm:pb-8">
         {tab === "table" && hasPreview && (
-          <div className="space-y-4 animate-fade-in">
+          <div className="animate-fade-in">
             <VariantPreviewPanel variants={allVariants} diagnostics={deferredPreview?.row_diagnostics ?? []} />
-            <div className="card p-4 sm:p-5">
-              <h3 className="text-sm font-semibold mb-3" style={{ color: "var(--text-primary)" }}>
-                Сохранить шаблон
-              </h3>
-              <div className="grid gap-2 sm:grid-cols-2 mb-3">
-                <input className="input-field" placeholder="Название" value={templateName} onChange={(e) => setTemplateName(e.target.value)} />
-                <input className="input-field" placeholder="Описание" value={templateDescription} onChange={(e) => setTemplateDescription(e.target.value)} />
-              </div>
-              <div className="flex items-center gap-4">
-                <label className="flex items-center gap-2 text-sm cursor-pointer" style={{ color: "var(--text-secondary)" }}>
-                  <input type="checkbox" checked={templateIsDefault} onChange={(e) => setTemplateIsDefault(e.target.checked)} className="accent-blue-500" />
-                  По умолчанию
-                </label>
-                <button className="btn-ghost text-xs" disabled={isCreatingTemplate || !templateName.trim()} onClick={handleCreateTemplate} type="button">
-                  {isCreatingTemplate ? "Сохранение…" : "Сохранить"}
-                </button>
-              </div>
-            </div>
           </div>
         )}
 

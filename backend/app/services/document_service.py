@@ -117,6 +117,11 @@ def _parse_workbook_statement(filename: str, content: bytes) -> ParsedStatement:
 
 
 def _registered_parsers() -> list[ParserDefinition]:
+    from app.services.halyk_fiz_statement_service import (
+        detect_halyk_fiz_statement,
+        parse_halyk_fiz_statement,
+    )
+
     return [
         ParserDefinition(
             key="kaspi_gold_statement",
@@ -133,6 +138,14 @@ def _registered_parsers() -> list[ParserDefinition]:
             accepted_extensions=(".xlsx", ".xlsm"),
             detect=_detect_kaspi_business_statement,
             parse=_parse_kaspi_business_statement,
+        ),
+        ParserDefinition(
+            key="halyk_fiz_statement",
+            label="Halyk Bank FIZ Statement",
+            description="Выписки физ. лиц АО Народный Банк Казахстана (Halyk) в PDF-формате.",
+            accepted_extensions=(".pdf",),
+            detect=detect_halyk_fiz_statement,
+            parse=parse_halyk_fiz_statement,
         ),
         ParserDefinition(
             key="ocr_scanned_statement",

@@ -18,7 +18,6 @@ import type {
   ParserDescriptor,
   PreviewResponse,
   SessionSummary,
-  TemplateColumnConfig,
 } from "@/components/workbench/types";
 
 export type Toast = {
@@ -61,19 +60,12 @@ export type WorkbenchCtx = {
   setReviewTemplateName: (v: string) => void;
   reviewColumnMapping: Record<string, string>;
   setReviewColumnMappingField: (field: string, value: string) => void;
-  templateName: string;
-  setTemplateName: (v: string) => void;
-  templateDescription: string;
-  setTemplateDescription: (v: string) => void;
-  templateIsDefault: boolean;
-  setTemplateIsDefault: (v: boolean) => void;
   isPending: boolean;
   isSavingRowCorrection: boolean;
   isMaterializingReview: boolean;
   isExporting: boolean;
   isExportingCsv: boolean;
   isLoadingSession: boolean;
-  isCreatingTemplate: boolean;
   error: string | null;
   toasts: Toast[];
   dismissToast: (id: string) => void;
@@ -82,7 +74,6 @@ export type WorkbenchCtx = {
   handleExportCsv: () => void;
   handleSaveRowCorrection: () => void;
   handleMaterializeReview: () => void;
-  handleCreateTemplate: () => void;
   handleCompareRule: (_templateId: string) => Promise<OCRRuleVersionDiff | null>;
   loadSession: (sessionId: string) => void;
 };
@@ -150,16 +141,12 @@ export function WorkbenchProvider({ children, apiBaseUrl }: WorkbenchProviderPro
   const [saveReviewTemplate, setSaveReviewTemplate] = useState(true);
   const [reviewTemplateName, setReviewTemplateName] = useState("");
   const [reviewColumnMapping, setReviewColumnMapping] = useState<Record<string, string>>({});
-  const [templateName, setTemplateName] = useState("");
-  const [templateDescription, setTemplateDescription] = useState("");
-  const [templateIsDefault, setTemplateIsDefault] = useState(true);
   const [isPending, startUpload] = useTransition();
   const [isSavingRowCorrection, setIsSavingRowCorrection] = useState(false);
   const [isMaterializingReview, setIsMaterializingReview] = useState(false);
   const [isExporting, setIsExporting] = useState(false);
   const [isExportingCsv, setIsExportingCsv] = useState(false);
   const [isLoadingSession, setIsLoadingSession] = useState(false);
-  const [isCreatingTemplate, setIsCreatingTemplate] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [toasts, setToasts] = useState<Toast[]>([]);
 
@@ -373,47 +360,6 @@ export function WorkbenchProvider({ children, apiBaseUrl }: WorkbenchProviderPro
     }
   }, [api, preview, selectedReviewTableIndex, selectedReviewHeaderRow, reviewTitle, saveReviewTemplate, reviewTemplateName, reviewColumnMapping, loadHistory]);
 
-  const handleCreateTemplate = useCallback(async () => {
-    if (!preview || !selectedVariantKey || !templateName.trim()) return;
-    const baseVariant = preview.variants.find((variant) => variant.key === selectedVariantKey);
-    if (!baseVariant) {
-      setError("Шаблоны можно создавать только из базовых вариантов.");
-      return;
-    }
-
-    setIsCreatingTemplate(true);
-    setError(null);
-    try {
-      const columns: TemplateColumnConfig[] = baseVariant.columns.map((column) => ({
-        key: column.key,
-        label: column.label,
-        kind: column.kind,
-        enabled: true,
-      }));
-      const res = await fetch(`${api}/api/v1/transforms/templates`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          parser_key: preview.document.parser_key,
-          name: templateName,
-          description: templateDescription,
-          base_variant_key: baseVariant.key,
-          is_default: templateIsDefault,
-          columns,
-        }),
-      });
-      if (!res.ok) throw new Error(await readErrorMessage(res));
-      await loadSession(preview.session_id);
-      setTemplateName("");
-      setTemplateDescription("");
-      setTemplateIsDefault(true);
-    } catch (e) {
-      setError(e instanceof Error ? e.message : "Ошибка создания шаблона.");
-    } finally {
-      setIsCreatingTemplate(false);
-    }
-  }, [api, preview, selectedVariantKey, templateName, templateDescription, templateIsDefault, loadSession]);
-
   const handleCompareRule = useCallback(async (): Promise<OCRRuleVersionDiff | null> => null, []);
 
   const setReviewColumnMappingField = useCallback((field: string, value: string) => {
@@ -454,19 +400,12 @@ export function WorkbenchProvider({ children, apiBaseUrl }: WorkbenchProviderPro
     setReviewTemplateName,
     reviewColumnMapping,
     setReviewColumnMappingField,
-    templateName,
-    setTemplateName,
-    templateDescription,
-    setTemplateDescription,
-    templateIsDefault,
-    setTemplateIsDefault,
     isPending,
     isSavingRowCorrection,
     isMaterializingReview,
     isExporting,
     isExportingCsv,
     isLoadingSession,
-    isCreatingTemplate,
     error,
     toasts,
     dismissToast,
@@ -475,7 +414,6 @@ export function WorkbenchProvider({ children, apiBaseUrl }: WorkbenchProviderPro
     handleExportCsv,
     handleSaveRowCorrection,
     handleMaterializeReview,
-    handleCreateTemplate,
     handleCompareRule,
     loadSession,
   };

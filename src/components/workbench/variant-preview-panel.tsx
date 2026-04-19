@@ -34,9 +34,7 @@ export function VariantPreviewPanel({ variants, diagnostics }: Props) {
     selectedVariantKey,
     setSelectedVariantKey,
     handleExport,
-    handleExportCsv,
     isExporting,
-    isExportingCsv,
   } = useWorkbench();
 
   const [page, setPage] = useState(0);
@@ -101,14 +99,6 @@ export function VariantPreviewPanel({ variants, diagnostics }: Props) {
           </p>
         </div>
         <div className="flex gap-2">
-          <button
-            className="btn-ghost"
-            disabled={isExportingCsv}
-            onClick={handleExportCsv}
-            type="button"
-          >
-            {isExportingCsv ? "\u042d\u043a\u0441\u043f\u043e\u0440\u0442..." : "CSV"}
-          </button>
           <button
             className="btn-primary"
             disabled={isExporting}
