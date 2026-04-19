@@ -1,9 +1,10 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useMemo, useRef, useState } from "react";
 
 import { useWorkbench } from "@/components/workbench/context";
-import type { PreviewVariant, RowDiagnostic } from "@/components/workbench/types";
+import { SaveTemplateModal } from "@/components/workbench/save-template-modal";
+import type { PreviewColumn, PreviewVariant, RowDiagnostic } from "@/components/workbench/types";
 import { formatValue } from "@/components/workbench/utils";
 
 const PAGE_SIZE = 50;
@@ -35,9 +36,21 @@ export function VariantPreviewPanel({ variants, diagnostics }: Props) {
     setSelectedVariantKey,
     handleExport,
     isExporting,
+    setExcludedExportRows,
+    deferredPreview,
   } = useWorkbench();
 
   const [page, setPage] = useState(0);
+
+  // --- edit mode state ---
+  const [editMode, setEditMode] = useState(false);
+  const [editColumns, setEditColumnsRaw] = useState<PreviewColumn[]>([]);
+  const [hiddenRows, setHiddenRows] = useState<Set<number>>(new Set());
+  const [isDirty, setIsDirty] = useState(false);
+  const [showSaveModal, setShowSaveModal] = useState(false);
+  const [editingColIdx, setEditingColIdx] = useState<number | null>(null);
+  const [colLabelDraft, setColLabelDraft] = useState("");
+  const colLabelRef = useRef<HTMLInputElement>(null);
 
   const groupedVariants = useMemo(() => {
     const order: string[] = [];
@@ -69,6 +82,7 @@ export function VariantPreviewPanel({ variants, diagnostics }: Props) {
   const selectVariant = (key: string) => {
     setSelectedVariantKey(key);
     setPage(0);
+    exitEditMode(false);
   };
 
   const swapVariantGroup = () => {
@@ -80,36 +94,156 @@ export function VariantPreviewPanel({ variants, diagnostics }: Props) {
     if (!nextVariant) return;
     setSelectedVariantKey(nextVariant.key);
     setPage(0);
+    exitEditMode(false);
   };
 
+  // ---- edit mode helpers ----
+
+  const enterEditMode = () => {
+    setEditColumnsRaw(selectedVariant.columns.map((c) => ({ ...c })));
+    setHiddenRows(new Set());
+    setIsDirty(false);
+    setEditMode(true);
+  };
+
+  const exitEditMode = (confirm = true) => {
+    if (confirm && isDirty && !window.confirm("Выйти из режима редактирования? Несохранённые изменения будут потеряны.")) return;
+    setEditMode(false);
+    setIsDirty(false);
+    setHiddenRows(new Set());
+    setExcludedExportRows([]);
+  };
+
+  const setEditColumns = (cols: PreviewColumn[]) => {
+    setEditColumnsRaw(cols);
+    setIsDirty(true);
+  };
+
+  const renameColumn = (idx: number, label: string) => {
+    const next = editColumns.map((c, i) => (i === idx ? { ...c, label } : c));
+    setEditColumns(next);
+  };
+
+  const moveColumn = (idx: number, dir: -1 | 1) => {
+    const next = [...editColumns];
+    const target = idx + dir;
+    if (target < 0 || target >= next.length) return;
+    [next[idx], next[target]] = [next[target], next[idx]];
+    setEditColumns(next);
+  };
+
+  const deleteColumn = (idx: number) => {
+    setEditColumns(editColumns.filter((_, i) => i !== idx));
+  };
+
+  const addColumn = () => {
+    setEditColumns([
+      ...editColumns,
+      { key: `custom_${Date.now()}`, label: "Новый столбец", kind: "text" },
+    ]);
+  };
+
+  const deleteRow = (rowNumber: number) => {
+    const next = new Set(hiddenRows);
+    next.add(rowNumber);
+    setHiddenRows(next);
+    setIsDirty(true);
+  };
+
+  const restoreRow = (rowNumber: number) => {
+    const next = new Set(hiddenRows);
+    next.delete(rowNumber);
+    setHiddenRows(next);
+    setIsDirty(true);
+  };
+
+  const resetToDefault = () => {
+    if (!window.confirm("Сбросить все изменения и вернуться к стандартному формату? Сохранённый шаблон для этого банка также будет удалён.")) return;
+    const parserKey = deferredPreview?.document.parser_key;
+    if (parserKey) {
+      try { localStorage.removeItem(`template_id_${parserKey}`); } catch { /* ignore */ }
+    }
+    setEditColumnsRaw(selectedVariant.columns.map((c) => ({ ...c })));
+    setHiddenRows(new Set());
+    setIsDirty(false);
+    setExcludedExportRows([]);
+  };
+
+  const handleExportWithEdits = () => {
+    if (editMode) {
+      setExcludedExportRows([...hiddenRows]);
+    }
+    void handleExport();
+  };
+
+  const startColRename = (idx: number, currentLabel: string) => {
+    setEditingColIdx(idx);
+    setColLabelDraft(currentLabel);
+    setTimeout(() => colLabelRef.current?.select(), 0);
+  };
+
+  const commitColRename = () => {
+    if (editingColIdx !== null && colLabelDraft.trim()) {
+      renameColumn(editingColIdx, colLabelDraft.trim());
+    }
+    setEditingColIdx(null);
+  };
+
+  // ---- render data ----
+  const displayColumns = editMode ? editColumns : selectedVariant.columns;
   const diagnosticsMap = new Map(diagnostics.map((item) => [item.row_number, item]));
   const totalRows = selectedVariant.rows.length;
-  const totalPages = Math.ceil(totalRows / PAGE_SIZE);
-  const pageRows = selectedVariant.rows.slice(page * PAGE_SIZE, (page + 1) * PAGE_SIZE);
+
+  // in edit mode, filter hidden rows before paging
+  const visibleRows = editMode
+    ? selectedVariant.rows.filter((_, i) => !hiddenRows.has(i + 1))
+    : selectedVariant.rows;
+  const totalPages = Math.ceil(visibleRows.length / PAGE_SIZE);
+  const pageRows = visibleRows.slice(page * PAGE_SIZE, (page + 1) * PAGE_SIZE);
 
   return (
     <section className="card p-4 sm:p-5 animate-fade-in">
+      {/* header */}
       <div className="mb-4 flex flex-wrap items-start justify-between gap-3">
         <div>
           <h2 className="text-base sm:text-lg font-semibold" style={{ color: "var(--text-primary)" }}>
-            {"\u041f\u0440\u0435\u0434\u043f\u0440\u043e\u0441\u043c\u043e\u0442\u0440"}
+            {"Предпросмотр"}
           </h2>
           <p className="mt-0.5 text-sm" style={{ color: "var(--text-secondary)" }}>
             {selectedVariant.description}
           </p>
         </div>
-        <div className="flex gap-2">
+        <div className="flex gap-2 flex-wrap">
+          {!editMode && (
+            <button
+              className="btn-ghost px-3 py-1.5 text-xs"
+              onClick={enterEditMode}
+              type="button"
+            >
+              {"Редактировать"}
+            </button>
+          )}
+          {editMode && (
+            <button
+              className="btn-ghost px-3 py-1.5 text-xs"
+              onClick={() => exitEditMode(true)}
+              type="button"
+            >
+              {"Выйти"}
+            </button>
+          )}
           <button
             className="btn-primary"
             disabled={isExporting}
-            onClick={handleExport}
+            onClick={handleExportWithEdits}
             type="button"
           >
-            {isExporting ? "\u042d\u043a\u0441\u043f\u043e\u0440\u0442..." : "Excel"}
+            {isExporting ? "Экспорт..." : "Excel"}
           </button>
         </div>
       </div>
 
+      {/* variant group switcher */}
       <div className="mb-4 flex flex-col gap-3 lg:flex-row lg:items-start">
         {showVariantSwitcher && (
           <button
@@ -120,8 +254,8 @@ export function VariantPreviewPanel({ variants, diagnostics }: Props) {
             <span className="variant-group-toggle__pulse" aria-hidden="true" />
             <span className="variant-group-toggle__label">
               {activeGroup === PRIMARY_GROUP
-                ? "\u0414\u043e\u0441\u0442\u0443\u043f\u043d\u044b \u0434\u0440\u0443\u0433\u0438\u0435 \u0432\u0430\u0440\u0438\u0430\u043d\u0442\u044b"
-                : "\u0412\u0435\u0440\u043d\u0443\u0442\u044c\u0441\u044f \u043a \u0441\u0442\u0430\u043d\u0434\u0430\u0440\u0442\u043d\u044b\u043c \u0432\u0438\u0434\u0430\u043c"}
+                ? "Доступны другие варианты"
+                : "Вернуться к стандартным видам"}
             </span>
           </button>
         )}
@@ -152,6 +286,20 @@ export function VariantPreviewPanel({ variants, diagnostics }: Props) {
         </div>
       </div>
 
+      {/* edit mode info bar */}
+      {editMode && (
+        <div
+          className="mb-3 flex flex-wrap items-center gap-2 rounded-lg px-3 py-2 text-xs"
+          style={{ background: "var(--bg-hover)", border: "1px solid var(--border-base)", color: "var(--text-secondary)" }}
+        >
+          <span>{"Режим редактирования — переименовывайте, перемещайте и удаляйте столбцы и строки"}</span>
+          {hiddenRows.size > 0 && (
+            <span className="badge badge-amber">{hiddenRows.size} {hiddenRows.size === 1 ? "строка скрыта" : "строк скрыто"}</span>
+          )}
+        </div>
+      )}
+
+      {/* table */}
       <div
         key={`variant-table-${activeGroup}-${selectedVariant.key}`}
         className="overflow-hidden rounded-[var(--radius-inner)] animate-variant-swap"
@@ -167,26 +315,100 @@ export function VariantPreviewPanel({ variants, diagnostics }: Props) {
                 >
                   #
                 </th>
-                {selectedVariant.columns.map((column) => (
+                {displayColumns.map((column, colIdx) => (
                   <th
                     key={column.key}
-                    className={`px-3 py-2.5 text-left text-xs font-medium ${isWideTextColumn(column.key, column.kind) ? "min-w-[15rem] whitespace-normal" : "whitespace-nowrap"}`}
+                    className={`px-2 py-2 text-left text-xs font-medium ${isWideTextColumn(column.key, column.kind) ? "min-w-[15rem] whitespace-normal" : "whitespace-nowrap"}`}
                     style={{ color: "var(--text-secondary)" }}
                   >
-                    {column.label}
+                    {editMode ? (
+                      <div className="flex items-center gap-1">
+                        {editingColIdx === colIdx ? (
+                          <input
+                            ref={colLabelRef}
+                            aria-label="Название столбца"
+                            className="rounded px-1 py-0.5 text-xs w-28"
+                            style={{
+                              background: "var(--surface)",
+                              border: "1px solid var(--accent-blue, #3b82f6)",
+                              color: "var(--text-primary)",
+                              outline: "none",
+                            }}
+                            value={colLabelDraft}
+                            onChange={(e) => setColLabelDraft(e.target.value)}
+                            onBlur={commitColRename}
+                            onKeyDown={(e) => {
+                              if (e.key === "Enter") commitColRename();
+                              if (e.key === "Escape") setEditingColIdx(null);
+                            }}
+                          />
+                        ) : (
+                          <button
+                            className="text-left hover:underline"
+                            style={{ color: "var(--text-primary)" }}
+                            onClick={() => startColRename(colIdx, column.label)}
+                            title="Нажмите для переименования"
+                            type="button"
+                          >
+                            {column.label}
+                          </button>
+                        )}
+                        <div className="flex items-center gap-0.5 ml-1 opacity-60 hover:opacity-100">
+                          <button
+                            type="button"
+                            title="Переместить влево"
+                            disabled={colIdx === 0}
+                            className="text-[10px] px-0.5 hover:text-blue-500 disabled:opacity-20"
+                            onClick={() => moveColumn(colIdx, -1)}
+                          >←</button>
+                          <button
+                            type="button"
+                            title="Переместить вправо"
+                            disabled={colIdx === displayColumns.length - 1}
+                            className="text-[10px] px-0.5 hover:text-blue-500 disabled:opacity-20"
+                            onClick={() => moveColumn(colIdx, 1)}
+                          >→</button>
+                          <button
+                            type="button"
+                            title="Удалить столбец"
+                            className="text-[10px] px-0.5 hover:text-rose-500"
+                            onClick={() => deleteColumn(colIdx)}
+                          >✕</button>
+                        </div>
+                      </div>
+                    ) : (
+                      column.label
+                    )}
                   </th>
                 ))}
-                <th
-                  className="w-12 px-3 py-2.5 text-left text-xs font-medium"
-                  style={{ color: "var(--text-muted)" }}
-                >
-                  {"\u0423\u0432\u0435\u0440."}
-                </th>
+                {editMode && (
+                  <th className="px-2 py-2">
+                    <button
+                      type="button"
+                      title="Добавить столбец"
+                      className="text-xs px-1.5 py-0.5 rounded"
+                      style={{ background: "var(--bg-hover)", border: "1px dashed var(--border-base)", color: "var(--text-muted)" }}
+                      onClick={addColumn}
+                    >+</button>
+                  </th>
+                )}
+                {!editMode && (
+                  <th
+                    className="w-12 px-3 py-2.5 text-left text-xs font-medium"
+                    style={{ color: "var(--text-muted)" }}
+                  >
+                    {"Увер."}
+                  </th>
+                )}
               </tr>
             </thead>
             <tbody>
               {pageRows.map((row, index) => {
-                const rowNumber = page * PAGE_SIZE + index + 1;
+                const originalIndex = editMode
+                  ? selectedVariant.rows.indexOf(row)
+                  : index;
+                const rowNumber = editMode ? originalIndex + 1 : page * PAGE_SIZE + index + 1;
+                const displayNumber = page * PAGE_SIZE + index + 1;
                 const diagnostic = diagnosticsMap.get(rowNumber);
                 const direction = row.direction as string | undefined;
                 const rowClass =
@@ -203,9 +425,9 @@ export function VariantPreviewPanel({ variants, diagnostics }: Props) {
                     style={{ borderTop: "1px solid var(--border-subtle)" }}
                   >
                     <td className="px-3 py-2.5 text-xs" style={{ color: "var(--text-muted)" }}>
-                      {rowNumber}
+                      {displayNumber}
                     </td>
-                    {selectedVariant.columns.map((column) => (
+                    {displayColumns.map((column) => (
                       <td
                         key={column.key}
                         className={`px-3 py-2.5 ${isWideTextColumn(column.key, column.kind) ? "min-w-[15rem] whitespace-normal break-words align-top" : "whitespace-nowrap"}`}
@@ -217,15 +439,27 @@ export function VariantPreviewPanel({ variants, diagnostics }: Props) {
                         )}
                       </td>
                     ))}
-                    <td className="px-3 py-2.5">
-                      {diagnostic ? (
-                        <span className={`badge text-[0.65rem] ${confidenceColor(diagnostic.confidence)}`}>
-                          {Math.round(diagnostic.confidence * 100)}%
-                        </span>
-                      ) : (
-                        <span className="badge badge-slate text-[0.65rem]">-</span>
-                      )}
-                    </td>
+                    {editMode && (
+                      <td className="px-2 py-2.5">
+                        <button
+                          type="button"
+                          title="Скрыть строку"
+                          className="text-xs opacity-40 hover:opacity-100 hover:text-rose-500"
+                          onClick={() => deleteRow(rowNumber)}
+                        >✕</button>
+                      </td>
+                    )}
+                    {!editMode && (
+                      <td className="px-3 py-2.5">
+                        {diagnostic ? (
+                          <span className={`badge text-[0.65rem] ${confidenceColor(diagnostic.confidence)}`}>
+                            {Math.round(diagnostic.confidence * 100)}%
+                          </span>
+                        ) : (
+                          <span className="badge badge-slate text-[0.65rem]">-</span>
+                        )}
+                      </td>
+                    )}
                   </tr>
                 );
               })}
@@ -234,11 +468,24 @@ export function VariantPreviewPanel({ variants, diagnostics }: Props) {
         </div>
       </div>
 
+      {/* pagination */}
       {totalPages > 1 && (
         <div className="mt-3 flex flex-wrap items-center justify-between gap-3">
           <p className="text-xs" style={{ color: "var(--text-muted)" }}>
-            {"\u0421\u0442\u0440\u043e\u043a\u0438"} {page * PAGE_SIZE + 1}-
-            {Math.min((page + 1) * PAGE_SIZE, totalRows)} {"\u0438\u0437"} {totalRows}
+            {"Строки"} {page * PAGE_SIZE + 1}-
+            {Math.min((page + 1) * PAGE_SIZE, visibleRows.length)} {"из"} {visibleRows.length}
+            {editMode && hiddenRows.size > 0 && (
+              <span className="ml-1" style={{ color: "var(--text-muted)" }}>
+                {"(скрыто "}{hiddenRows.size}{")"}{" "}
+                <button
+                  type="button"
+                  className="underline text-xs"
+                  onClick={() => { setHiddenRows(new Set()); setIsDirty(true); }}
+                >
+                  восстановить все
+                </button>
+              </span>
+            )}
           </p>
           <div className="flex gap-2">
             <button
@@ -247,7 +494,7 @@ export function VariantPreviewPanel({ variants, diagnostics }: Props) {
               onClick={() => setPage((current) => current - 1)}
               type="button"
             >
-              {"<- \u041d\u0430\u0437\u0430\u0434"}
+              {"<- Назад"}
             </button>
             <button
               className="btn-ghost px-3 py-1.5 text-xs"
@@ -255,10 +502,73 @@ export function VariantPreviewPanel({ variants, diagnostics }: Props) {
               onClick={() => setPage((current) => current + 1)}
               type="button"
             >
-              {"\u0412\u043f\u0435\u0440\u0451\u0434 ->"}
+              {"Вперёд ->"}
             </button>
           </div>
         </div>
+      )}
+
+      {/* dirty bar */}
+      {editMode && isDirty && (
+        <div
+          className="mt-4 flex flex-wrap items-center justify-between gap-2 rounded-xl px-4 py-3"
+          style={{ background: "var(--bg-hover)", border: "1px solid var(--border-base)" }}
+        >
+          <p className="text-xs" style={{ color: "var(--text-secondary)" }}>
+            {"Есть несохранённые изменения"}
+          </p>
+          <div className="flex gap-2">
+            <button
+              className="btn-ghost px-3 py-1.5 text-xs"
+              onClick={resetToDefault}
+              type="button"
+            >
+              {"Сбросить к стандарту"}
+            </button>
+            <button
+              className="btn-primary px-3 py-1.5 text-xs"
+              onClick={() => {
+                setExcludedExportRows([...hiddenRows]);
+                setShowSaveModal(true);
+              }}
+              type="button"
+            >
+              {"Сохранить шаблон"}
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* total rows info for non-paginated */}
+      {totalPages <= 1 && editMode && hiddenRows.size > 0 && (
+        <div className="mt-2 text-xs" style={{ color: "var(--text-muted)" }}>
+          {"Скрыто строк: "}{hiddenRows.size}{" "}
+          <button
+            type="button"
+            className="underline"
+            onClick={() => { setHiddenRows(new Set()); setIsDirty(editColumns !== selectedVariant.columns); }}
+          >
+            восстановить все
+          </button>
+        </div>
+      )}
+
+      {/* save modal */}
+      {showSaveModal && (
+        <SaveTemplateModal
+          parserKey={deferredPreview?.document.parser_key ?? "unknown"}
+          variantKey={selectedVariant.key}
+          columns={editColumns}
+          onClose={() => setShowSaveModal(false)}
+          onSaved={(templateId) => {
+            setShowSaveModal(false);
+            setIsDirty(false);
+            setEditMode(false);
+            setExcludedExportRows([...hiddenRows]);
+            // auto-select the new template variant if it appears in allVariants
+            setSelectedVariantKey(`template::${templateId}`);
+          }}
+        />
       )}
     </section>
   );

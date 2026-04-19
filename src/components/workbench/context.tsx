@@ -60,6 +60,8 @@ export type WorkbenchCtx = {
   setReviewTemplateName: (v: string) => void;
   reviewColumnMapping: Record<string, string>;
   setReviewColumnMappingField: (field: string, value: string) => void;
+  excludedExportRows: number[];
+  setExcludedExportRows: (rows: number[]) => void;
   isPending: boolean;
   isSavingRowCorrection: boolean;
   isMaterializingReview: boolean;
@@ -75,6 +77,7 @@ export type WorkbenchCtx = {
   handleSaveRowCorrection: () => void;
   handleMaterializeReview: () => void;
   handleCompareRule: (_templateId: string) => Promise<OCRRuleVersionDiff | null>;
+  handleCreateTemplate: (name: string, parserKey: string, variantKey: string, columns: Array<{key: string; label: string; kind: string}>) => Promise<string | null>;
   loadSession: (sessionId: string) => void;
 };
 
@@ -144,6 +147,7 @@ export function WorkbenchProvider({ children, apiBaseUrl }: WorkbenchProviderPro
   const [isPending, startUpload] = useTransition();
   const [isSavingRowCorrection, setIsSavingRowCorrection] = useState(false);
   const [isMaterializingReview, setIsMaterializingReview] = useState(false);
+  const [excludedExportRows, setExcludedExportRows] = useState<number[]>([]);
   const [isExporting, setIsExporting] = useState(false);
   const [isExportingCsv, setIsExportingCsv] = useState(false);
   const [isLoadingSession, setIsLoadingSession] = useState(false);
@@ -186,11 +190,23 @@ export function WorkbenchProvider({ children, apiBaseUrl }: WorkbenchProviderPro
 
   useEffect(() => {
     if (!deferredPreview) return;
-    const next =
+    const parserKey = deferredPreview.document.parser_key;
+    let next =
       deferredPreview.default_variant_key ??
       deferredPreview.preference?.preferred_variant_key ??
       allVariants[0]?.key ??
       null;
+    try {
+      const savedTemplateId = localStorage.getItem(`template_id_${parserKey}`);
+      if (savedTemplateId) {
+        const templateKey = `template::${savedTemplateId}`;
+        if (allVariants.some((v) => v.key === templateKey)) {
+          next = templateKey;
+        }
+      }
+    } catch {
+      // ignore localStorage errors
+    }
     setSelectedVariantKey(next);
   }, [allVariants, deferredPreview]);
 
@@ -258,7 +274,7 @@ export function WorkbenchProvider({ children, apiBaseUrl }: WorkbenchProviderPro
       const res = await fetch(`${api}/api/v1/transforms/export`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ session_id: preview.session_id, variant_key: selectedVariantKey }),
+        body: JSON.stringify({ session_id: preview.session_id, variant_key: selectedVariantKey, excluded_rows: excludedExportRows }),
       });
       if (!res.ok) throw new Error(await readErrorMessage(res));
       const blob = await res.blob();
@@ -362,6 +378,33 @@ export function WorkbenchProvider({ children, apiBaseUrl }: WorkbenchProviderPro
 
   const handleCompareRule = useCallback(async (): Promise<OCRRuleVersionDiff | null> => null, []);
 
+  const handleCreateTemplate = useCallback(async (
+    name: string,
+    parserKey: string,
+    variantKey: string,
+    columns: Array<{key: string; label: string; kind: string}>,
+  ): Promise<string | null> => {
+    try {
+      const res = await fetch(`${api}/api/v1/transforms/templates`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          parser_key: parserKey,
+          name,
+          description: "",
+          base_variant_key: variantKey,
+          columns: columns.map((c) => ({ key: c.key, label: c.label, kind: c.kind, enabled: true })),
+          is_default: true,
+        }),
+      });
+      if (!res.ok) throw new Error(await readErrorMessage(res));
+      const data = (await res.json()) as { template_id: string };
+      return data.template_id;
+    } catch {
+      return null;
+    }
+  }, [api]);
+
   const setReviewColumnMappingField = useCallback((field: string, value: string) => {
     setReviewColumnMapping((prev) => ({ ...prev, [field]: value }));
   }, []);
@@ -400,6 +443,8 @@ export function WorkbenchProvider({ children, apiBaseUrl }: WorkbenchProviderPro
     setReviewTemplateName,
     reviewColumnMapping,
     setReviewColumnMappingField,
+    excludedExportRows,
+    setExcludedExportRows,
     isPending,
     isSavingRowCorrection,
     isMaterializingReview,
@@ -415,6 +460,7 @@ export function WorkbenchProvider({ children, apiBaseUrl }: WorkbenchProviderPro
     handleSaveRowCorrection,
     handleMaterializeReview,
     handleCompareRule,
+    handleCreateTemplate,
     loadSession,
   };
 
