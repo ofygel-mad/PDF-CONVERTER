@@ -16,6 +16,7 @@ import {
 import type {
   OCRRuleVersionDiff,
   ParserDescriptor,
+  PreviewVariant,
   PreviewResponse,
   SessionSummary,
 } from "@/components/workbench/types";
@@ -124,6 +125,34 @@ function ensureArray<T>(value: unknown): T[] {
   return Array.isArray(value) ? (value as T[]) : [];
 }
 
+function mergePreviewVariants(preview: PreviewResponse | null): PreviewVariant[] {
+  if (!preview) return [];
+
+  const savedVariants = preview.saved_variants ?? [];
+  const baseVariants = preview.variants ?? [];
+  const replacedBaseKeys = new Set(
+    savedVariants
+      .map((variant) => variant.base_variant_key)
+      .filter((key): key is string => Boolean(key)),
+  );
+  const seen = new Set<string>();
+  const merged: PreviewVariant[] = [];
+
+  for (const variant of savedVariants) {
+    if (seen.has(variant.key)) continue;
+    merged.push(variant);
+    seen.add(variant.key);
+  }
+
+  for (const variant of baseVariants) {
+    if (replacedBaseKeys.has(variant.key) || seen.has(variant.key)) continue;
+    merged.push(variant);
+    seen.add(variant.key);
+  }
+
+  return merged;
+}
+
 type WorkbenchProviderProps = PropsWithChildren<{
   apiBaseUrl: string;
 }>;
@@ -162,7 +191,7 @@ export function WorkbenchProvider({ children, apiBaseUrl }: WorkbenchProviderPro
 
   const deferredPreview = useDeferredValue(preview);
   const allVariants = useMemo(
-    () => [...(deferredPreview?.saved_variants ?? []), ...(deferredPreview?.variants ?? [])],
+    () => mergePreviewVariants(deferredPreview),
     [deferredPreview],
   );
 
