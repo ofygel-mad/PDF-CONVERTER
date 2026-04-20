@@ -27,6 +27,9 @@ export type TemplateColumnConfig = {
   label: string;
   kind: string;
   enabled: boolean;
+  formula?: string | null;        // e.g. "{amount} * 0.12"
+  source_field?: string | null;   // direct mapping to transaction field
+  ai_description?: string | null; // human-readable explanation
 };
 
 export type TransformationTemplate = {
@@ -252,4 +255,126 @@ export type OnboardingProject = {
   created_at: string;
   updated_at: string;
   samples: OnboardingSample[];
+};
+
+// ── Smart Brain types ──────────────────────────────────────────────────────────
+
+export type ColumnRecommendation = {
+  formula: string;
+  explanation: string;
+  confidence: number;
+  category: "formula" | "mapping" | "aggregate" | "warning";
+  source: string;
+};
+
+export type AdvisorColumnResponse = {
+  recommendations: ColumnRecommendation[];
+};
+
+export type DiffFinding = {
+  type:
+    | "label_change"
+    | "column_removed"
+    | "column_added"
+    | "cell_changed"
+    | "row_removed"
+    | "formula_detected"
+    | "filter_detected";
+  column_key?: string | null;
+  detected_formula?: string | null;
+  confidence: number;
+  explanation_ru: string;
+  intent?: string | null;
+  needs_clarification?: boolean;
+};
+
+export type AnalyzeDiffResponse = {
+  findings: DiffFinding[];
+  summary_ru: string;
+};
+
+export type ConsistencyWarning = {
+  type: string;
+  severity: "low" | "medium" | "high";
+  message_ru: string;
+  affected_rows: number[];
+  affected_column?: string | null;
+};
+
+export type ConsistencyReport = {
+  warnings: ConsistencyWarning[];
+  is_clean: boolean;
+};
+
+// ── Smart NLP Correction Engine types ─────────────────────────────────────────
+
+export type FormulaPatch = {
+  column_key: string;
+  formula?: string | null;
+  source_field?: string | null;
+  new_label?: string | null;
+  after_key?: string | null;
+  filter_direction?: string | null;
+  filter_threshold?: number | null;
+  filter_keyword?: string | null;
+};
+
+export type ClarifyQuestion = {
+  question_ru: string;
+  choices: string[];
+  choice_formulas: string[];
+  column_key?: string | null;
+};
+
+export type SmartRefineRequest = {
+  session_id: string;
+  original_variant_key: string;
+  edited_columns: Record<string, unknown>[];
+  edited_rows: Record<string, unknown>[];
+  user_hint: string;
+  target_column_key?: string | null;
+  existing_findings?: DiffFinding[] | null;
+};
+
+export type SmartRefineResponse = {
+  findings: DiffFinding[];
+  narrative_ru: string;
+  clarifications: ClarifyQuestion[];
+  confidence: number;
+  summary_ru: string;
+};
+
+export type ClarifyRequest = {
+  session_id: string;
+  original_variant_key: string;
+  edited_columns: Record<string, unknown>[];
+  edited_rows: Record<string, unknown>[];
+  user_hint: string;
+  target_column_key?: string | null;
+  existing_findings?: DiffFinding[] | null;
+  choice_index: number;
+  question_ru: string;
+};
+
+// ── Scanned document OCR types ─────────────────────────────────────────────────
+
+export type ScanResultMeta = {
+  scan_id: string;
+  source_filename: string;
+  page_count: number;
+  avg_confidence: number;
+  rotation_angles: number[];
+  warnings: string[];
+  tables_found: number;
+};
+
+export type ScanResponse = {
+  scan_id: string;
+  meta: ScanResultMeta;
+  preview_tables: Array<{
+    page: number;
+    headers: string[];
+    rows: string[][];
+    confidence: number;
+  }>;
 };

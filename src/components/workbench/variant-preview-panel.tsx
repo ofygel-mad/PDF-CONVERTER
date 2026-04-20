@@ -3,8 +3,9 @@
 import { useMemo, useRef, useState } from "react";
 
 import { useWorkbench } from "@/components/workbench/context";
+import { DiffAnalysisPanel } from "@/components/workbench/diff-analysis-panel";
 import { SaveTemplateModal } from "@/components/workbench/save-template-modal";
-import type { PreviewColumn, PreviewVariant, RowDiagnostic } from "@/components/workbench/types";
+import type { ColumnRecommendation, PreviewColumn, PreviewVariant, RowDiagnostic } from "@/components/workbench/types";
 import { formatValue } from "@/components/workbench/utils";
 
 const PAGE_SIZE = 50;
@@ -48,6 +49,8 @@ export function VariantPreviewPanel({ variants, diagnostics }: Props) {
     setCustomExportColumns,
     setCustomExportRows,
     deferredPreview,
+    handleAdvisorColumn,
+    handleValidateFormula,
   } = useWorkbench();
 
   const [page, setPage] = useState(0);
@@ -59,6 +62,17 @@ export function VariantPreviewPanel({ variants, diagnostics }: Props) {
   const [editRows, setEditRowsState] = useState<EditableRow[]>([]);
   const [isDirty, setIsDirty] = useState(false);
   const [showSaveModal, setShowSaveModal] = useState(false);
+  const [showDiffPanel, setShowDiffPanel] = useState(false);
+
+  // formula per column: key → formula string
+  const [columnFormulas, setColumnFormulas] = useState<Record<string, string>>({});
+  const [formulaDrafts, setFormulaDrafts] = useState<Record<string, string>>({});
+  const [formulaErrors, setFormulaErrors] = useState<Record<string, string | null>>({});
+
+  // advisor state
+  const [advisorColIdx, setAdvisorColIdx] = useState<number | null>(null);
+  const [advisorResults, setAdvisorResults] = useState<ColumnRecommendation[]>([]);
+  const [isAdvisorLoading, setIsAdvisorLoading] = useState(false);
 
   // cell editing
   const [editingCell, setEditingCell] = useState<{ rowIdx: number; colKey: string } | null>(null);
@@ -117,6 +131,11 @@ export function VariantPreviewPanel({ variants, diagnostics }: Props) {
     setEditColumnsState(selectedVariant.columns.map((c) => ({ ...c })));
     setEditRowsState(selectedVariant.rows.map((r) => ({ ...r }) as EditableRow));
     setIsDirty(false);
+    setColumnFormulas({});
+    setFormulaDrafts({});
+    setFormulaErrors({});
+    setAdvisorColIdx(null);
+    setAdvisorResults([]);
     setEditMode(true);
   };
 
@@ -127,6 +146,11 @@ export function VariantPreviewPanel({ variants, diagnostics }: Props) {
     setIsDirty(false);
     setEditingCell(null);
     setEditingColIdx(null);
+    setColumnFormulas({});
+    setFormulaDrafts({});
+    setFormulaErrors({});
+    setAdvisorColIdx(null);
+    setAdvisorResults([]);
     setCustomExportColumns(null);
     setCustomExportRows(null);
     setExcludedExportRows([]);
@@ -167,6 +191,49 @@ export function VariantPreviewPanel({ variants, diagnostics }: Props) {
     setEditColumns([...editColumns, { key: `custom_${Date.now()}`, label: "Новый столбец", kind: "text" }]);
   };
 
+  // ── formula helpers ────────────────────────────────────────
+  const openAdvisor = async (colIdx: number) => {
+    const col = editColumns[colIdx];
+    if (!col) return;
+    setAdvisorColIdx(colIdx);
+    setAdvisorResults([]);
+    setIsAdvisorLoading(true);
+    // collect sample numeric values from this column
+    const sampleVals = editRows
+      .slice(0, 50)
+      .map((r) => { const v = r[col.key]; return typeof v === "number" ? v : parseFloat(String(v ?? "")); })
+      .filter((v) => !isNaN(v));
+    const res = await handleAdvisorColumn(
+      col.label,
+      deferredPreview?.document.parser_key ?? "",
+      sampleVals,
+    );
+    setAdvisorResults(res?.recommendations ?? []);
+    setIsAdvisorLoading(false);
+  };
+
+  const applyFormulaToColumn = (colKey: string, formula: string) => {
+    setColumnFormulas((prev) => ({ ...prev, [colKey]: formula }));
+    setFormulaDrafts((prev) => ({ ...prev, [colKey]: formula }));
+    markDirty();
+  };
+
+  const commitFormulaEdit = async (colKey: string) => {
+    const formula = (formulaDrafts[colKey] ?? "").trim();
+    if (!formula) {
+      setColumnFormulas((prev) => { const n = { ...prev }; delete n[colKey]; return n; });
+      setFormulaErrors((prev) => { const n = { ...prev }; delete n[colKey]; return n; });
+      return;
+    }
+    const { valid, error } = await handleValidateFormula(formula);
+    if (!valid) {
+      setFormulaErrors((prev) => ({ ...prev, [colKey]: error ?? "Синтаксическая ошибка" }));
+      return;
+    }
+    setFormulaErrors((prev) => { const n = { ...prev }; delete n[colKey]; return n; });
+    applyFormulaToColumn(colKey, formula);
+  };
+
   // ── row ops ────────────────────────────────────────────────
   const deleteRow = (idx: number) => {
     setEditRowsState((prev) => { const n = [...prev]; n.splice(idx, 1); return n; });
@@ -188,6 +255,19 @@ export function VariantPreviewPanel({ variants, diagnostics }: Props) {
   const commitCellEdit = () => {
     if (!editingCell) return;
     const { rowIdx, colKey } = editingCell;
+
+    // Excel-style: if user typed "=..." → apply as formula to whole column
+    if (cellDraft.startsWith("=")) {
+      const formula = cellDraft.slice(1).trim();
+      if (formula) {
+        void commitFormulaEdit(colKey).then(() => {});
+        setFormulaDrafts((p) => ({ ...p, [colKey]: formula }));
+        applyFormulaToColumn(colKey, formula);
+        setEditingCell(null);
+        return;
+      }
+    }
+
     setEditRowsState((prev) => {
       const next = [...prev];
       next[rowIdx] = { ...next[rowIdx], [colKey]: cellDraft };
@@ -213,7 +293,12 @@ export function VariantPreviewPanel({ variants, diagnostics }: Props) {
   // ── export ─────────────────────────────────────────────────
   const handleExportWithEdits = () => {
     if (editMode && isDirty) {
-      setCustomExportColumns(editColumns.map((c) => ({ key: c.key, label: c.label, kind: c.kind })));
+      setCustomExportColumns(editColumns.map((c) => ({
+        key: c.key,
+        label: c.label,
+        kind: c.kind,
+        formula: columnFormulas[c.key] ?? null,
+      })));
       setCustomExportRows(editRows as Array<Record<string, unknown>>);
     }
     void handleExport();
@@ -294,8 +379,8 @@ export function VariantPreviewPanel({ variants, diagnostics }: Props) {
         <div className="mb-3 flex flex-wrap items-center gap-2 rounded-lg px-3 py-2 text-xs"
           style={{ background: "var(--bg-hover)", border: "1px solid var(--border-base)", color: "var(--text-secondary)" }}>
           <span>
-            <b>Заголовок колонки</b> — клик для переименования &nbsp;·&nbsp;
-            <b>Ячейка</b> — двойной клик для редактирования &nbsp;·&nbsp;
+            <b>Заголовок</b> — клик для переименования, кнопка <b>ƒ</b> для формулы &nbsp;·&nbsp;
+            <b>Ячейка</b> — двойной клик (начните с <b>=</b> для формулы по всей колонке) &nbsp;·&nbsp;
             <b>←→</b> перемещение &nbsp;·&nbsp;
             <b>✕</b> удаление
           </span>
@@ -322,37 +407,95 @@ export function VariantPreviewPanel({ variants, diagnostics }: Props) {
                     style={{ color: "var(--text-secondary)" }}
                   >
                     {editMode ? (
-                      <div className="flex items-center gap-1">
-                        {editingColIdx === ci ? (
-                          <input
-                            ref={colLabelRef}
-                            aria-label="Название столбца"
-                            className="rounded px-1 py-0.5 text-xs w-28"
-                            style={{ background: "var(--surface)", border: "1px solid var(--accent-blue,#3b82f6)", color: "var(--text-primary)", outline: "none" }}
-                            value={colLabelDraft}
-                            onChange={(e) => setColLabelDraft(e.target.value)}
-                            onBlur={commitColRename}
-                            onKeyDown={(e) => { if (e.key === "Enter") commitColRename(); if (e.key === "Escape") setEditingColIdx(null); }}
-                          />
-                        ) : (
-                          <button
-                            className="text-left hover:underline cursor-pointer"
-                            style={{ color: "var(--text-primary)" }}
-                            onClick={() => startColRename(ci, col.label)}
-                            title="Нажмите для переименования" type="button"
-                          >{col.label}</button>
+                      <div className="flex flex-col gap-1">
+                        <div className="flex items-center gap-1">
+                          {editingColIdx === ci ? (
+                            <input
+                              ref={colLabelRef}
+                              aria-label="Название столбца"
+                              className="rounded px-1 py-0.5 text-xs w-28"
+                              style={{ background: "var(--surface)", border: "1px solid var(--accent-blue,#3b82f6)", color: "var(--text-primary)", outline: "none" }}
+                              value={colLabelDraft}
+                              onChange={(e) => setColLabelDraft(e.target.value)}
+                              onBlur={commitColRename}
+                              onKeyDown={(e) => { if (e.key === "Enter") commitColRename(); if (e.key === "Escape") setEditingColIdx(null); }}
+                            />
+                          ) : (
+                            <button
+                              className="text-left hover:underline cursor-pointer"
+                              style={{ color: "var(--text-primary)" }}
+                              onClick={() => startColRename(ci, col.label)}
+                              title="Нажмите для переименования" type="button"
+                            >{col.label}</button>
+                          )}
+                          <span className="flex items-center gap-0.5 ml-1 opacity-50 hover:opacity-100">
+                            <button type="button" title="Влево" disabled={ci === 0}
+                              className="text-[10px] px-0.5 hover:text-blue-500 disabled:opacity-20"
+                              onClick={() => moveColumn(ci, -1)}>←</button>
+                            <button type="button" title="Вправо" disabled={ci === displayColumns.length - 1}
+                              className="text-[10px] px-0.5 hover:text-blue-500 disabled:opacity-20"
+                              onClick={() => moveColumn(ci, 1)}>→</button>
+                            <button type="button" title="Добавить формулу"
+                              className="text-[10px] px-0.5 hover:text-emerald-500"
+                              style={{ color: columnFormulas[col.key] ? "var(--green-500,#22c55e)" : undefined }}
+                              onClick={() => setAdvisorColIdx(advisorColIdx === ci ? null : ci)}>ƒ</button>
+                            <button type="button" title="Удалить столбец"
+                              className="text-[10px] px-0.5 hover:text-rose-500"
+                              onClick={() => deleteColumn(ci)}>✕</button>
+                          </span>
+                        </div>
+
+                        {/* ── formula editor for this column ── */}
+                        {advisorColIdx === ci && (
+                          <div className="rounded-lg p-2 space-y-1.5 min-w-[16rem]"
+                            style={{ background: "var(--surface)", border: "1px solid var(--border-base)" }}>
+                            <div className="flex items-center gap-1">
+                              <span className="text-[10px] font-mono opacity-50">=</span>
+                              <input
+                                className="flex-1 text-xs rounded px-1.5 py-0.5 font-mono"
+                                style={{
+                                  background: "var(--bg-hover)",
+                                  border: formulaErrors[col.key] ? "1px solid #f43f5e" : "1px solid var(--border-base)",
+                                  color: "var(--text-primary)", outline: "none",
+                                }}
+                                placeholder="{amount} * 0.12"
+                                value={formulaDrafts[col.key] ?? columnFormulas[col.key] ?? ""}
+                                onChange={(e) => setFormulaDrafts((p) => ({ ...p, [col.key]: e.target.value }))}
+                                onBlur={() => void commitFormulaEdit(col.key)}
+                                onKeyDown={(e) => { if (e.key === "Enter") void commitFormulaEdit(col.key); if (e.key === "Escape") setAdvisorColIdx(null); }}
+                              />
+                              <button type="button"
+                                className="text-[10px] px-1.5 py-0.5 rounded"
+                                style={{ background: "var(--bg-hover)", border: "1px solid var(--border-base)", color: "var(--text-secondary)" }}
+                                title="AI подобрать"
+                                onClick={() => void openAdvisor(ci)}
+                              >{isAdvisorLoading && advisorColIdx === ci ? "…" : "✦"}</button>
+                            </div>
+                            {formulaErrors[col.key] && (
+                              <p className="text-[10px]" style={{ color: "#f43f5e" }}>{formulaErrors[col.key]}</p>
+                            )}
+                            {/* Advisor recommendations */}
+                            {advisorResults.length > 0 && advisorColIdx === ci && (
+                              <div className="space-y-1 pt-1 border-t" style={{ borderColor: "var(--border-base)" }}>
+                                <p className="text-[10px] opacity-50">Предложения:</p>
+                                {advisorResults.slice(0, 3).map((rec, ri) => (
+                                  <button key={ri} type="button"
+                                    className="w-full text-left rounded px-2 py-1 space-y-0.5 hover:opacity-80"
+                                    style={{ background: "var(--bg-hover)", border: "1px solid var(--border-base)" }}
+                                    onClick={() => {
+                                      setFormulaDrafts((p) => ({ ...p, [col.key]: rec.formula }));
+                                      applyFormulaToColumn(col.key, rec.formula);
+                                      setAdvisorColIdx(null);
+                                    }}
+                                  >
+                                    <code className="text-[10px] block" style={{ color: "var(--blue-400,#60a5fa)" }}>{rec.formula}</code>
+                                    <span className="text-[10px] block opacity-70">{rec.explanation} ({Math.round(rec.confidence * 100)}%)</span>
+                                  </button>
+                                ))}
+                              </div>
+                            )}
+                          </div>
                         )}
-                        <span className="flex items-center gap-0.5 ml-1 opacity-50 hover:opacity-100">
-                          <button type="button" title="Влево" disabled={ci === 0}
-                            className="text-[10px] px-0.5 hover:text-blue-500 disabled:opacity-20"
-                            onClick={() => moveColumn(ci, -1)}>←</button>
-                          <button type="button" title="Вправо" disabled={ci === displayColumns.length - 1}
-                            className="text-[10px] px-0.5 hover:text-blue-500 disabled:opacity-20"
-                            onClick={() => moveColumn(ci, 1)}>→</button>
-                          <button type="button" title="Удалить столбец"
-                            className="text-[10px] px-0.5 hover:text-rose-500"
-                            onClick={() => deleteColumn(ci)}>✕</button>
-                        </span>
                       </div>
                     ) : col.label}
                   </th>
@@ -485,10 +628,23 @@ export function VariantPreviewPanel({ variants, diagnostics }: Props) {
           style={{ background: "var(--bg-hover)", border: "1px solid var(--border-base)" }}>
           <p className="text-xs" style={{ color: "var(--text-secondary)" }}>
             Есть несохранённые изменения — <span style={{ color: "var(--text-muted)" }}>строк: {displayRows.length}, столбцов: {displayColumns.length}</span>
+            {Object.keys(columnFormulas).length > 0 && (
+              <span className="ml-2" style={{ color: "var(--green-500,#22c55e)" }}>
+                · формул: {Object.keys(columnFormulas).length}
+              </span>
+            )}
           </p>
-          <div className="flex gap-2">
+          <div className="flex flex-wrap gap-2">
             <button className="btn-ghost px-3 py-1.5 text-xs" onClick={resetToDefault} type="button">
               Сбросить к стандарту
+            </button>
+            <button
+              className="btn-ghost px-3 py-1.5 text-xs"
+              onClick={() => setShowDiffPanel(true)}
+              type="button"
+              title="Анализировать что изменилось и понять логику расчётов"
+            >
+              ✦ Понять расчёт
             </button>
             <button className="btn-primary px-3 py-1.5 text-xs"
               onClick={() => { setCustomExportColumns(editColumns); setCustomExportRows(editRows as Array<Record<string, unknown>>); setShowSaveModal(true); }}
@@ -504,16 +660,42 @@ export function VariantPreviewPanel({ variants, diagnostics }: Props) {
         <SaveTemplateModal
           parserKey={deferredPreview?.document.parser_key ?? "unknown"}
           variantKey={selectedVariant.key}
-          columns={editColumns}
+          columns={editColumns.map((c) => ({
+            key: c.key,
+            label: c.label,
+            kind: c.kind,
+            enabled: true,
+            formula: columnFormulas[c.key] ?? null,
+            ai_description: null,
+          }))}
           onClose={() => setShowSaveModal(false)}
           onSaved={(templateId) => {
             setShowSaveModal(false);
             setIsDirty(false);
             setEditMode(false);
-            setCustomExportColumns(editColumns);
+            setCustomExportColumns(editColumns.map((c) => ({
+              key: c.key, label: c.label, kind: c.kind,
+              formula: columnFormulas[c.key] ?? null,
+            })));
             setCustomExportRows(editRows as Array<Record<string, unknown>>);
             setSelectedVariantKey(`template::${templateId}`);
           }}
+        />
+      )}
+
+      {/* ── diff analysis panel ── */}
+      {showDiffPanel && (
+        <DiffAnalysisPanel
+          originalVariantKey={selectedVariant.key}
+          editedColumns={editColumns.map((c) => ({ key: c.key, label: c.label, kind: c.kind }))}
+          editedRows={editRows as Array<Record<string, unknown>>}
+          onConfirm={(formulas) => {
+            setColumnFormulas((prev) => ({ ...prev, ...formulas }));
+            setFormulaDrafts((prev) => ({ ...prev, ...formulas }));
+            markDirty();
+            setShowDiffPanel(false);
+          }}
+          onClose={() => setShowDiffPanel(false)}
         />
       )}
     </section>

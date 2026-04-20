@@ -63,8 +63,8 @@ export type WorkbenchCtx = {
   setReviewColumnMappingField: (field: string, value: string) => void;
   excludedExportRows: number[];
   setExcludedExportRows: (rows: number[]) => void;
-  customExportColumns: Array<{key: string; label: string; kind: string}> | null;
-  setCustomExportColumns: (cols: Array<{key: string; label: string; kind: string}> | null) => void;
+  customExportColumns: Array<{key: string; label: string; kind: string; formula?: string | null}> | null;
+  setCustomExportColumns: (cols: Array<{key: string; label: string; kind: string; formula?: string | null}> | null) => void;
   customExportRows: Array<Record<string, unknown>> | null;
   setCustomExportRows: (rows: Array<Record<string, unknown>> | null) => void;
   isPending: boolean;
@@ -82,7 +82,16 @@ export type WorkbenchCtx = {
   handleSaveRowCorrection: () => void;
   handleMaterializeReview: () => void;
   handleCompareRule: (_templateId: string) => Promise<OCRRuleVersionDiff | null>;
-  handleCreateTemplate: (name: string, parserKey: string, variantKey: string, columns: Array<{key: string; label: string; kind: string}>) => Promise<string | null>;
+  handleCreateTemplate: (name: string, parserKey: string, variantKey: string, columns: Array<{key: string; label: string; kind: string; formula?: string | null; ai_description?: string | null}>) => Promise<string | null>;
+  handleAdvisorColumn: (columnName: string, parserKey: string, sampleValues?: number[], contextColumns?: Record<string, number[]>) => Promise<import("@/components/workbench/types").AdvisorColumnResponse | null>;
+  handleAnalyzeDiff: (originalVariantKey: string, editedColumns: Array<Record<string, unknown>>, editedRows: Array<Record<string, unknown>>) => Promise<import("@/components/workbench/types").AnalyzeDiffResponse | null>;
+  handleReAnalyze: (originalVariantKey: string, editedColumns: Array<Record<string, unknown>>, editedRows: Array<Record<string, unknown>>, userHint: string, targetColumnKey?: string | null) => Promise<import("@/components/workbench/types").AnalyzeDiffResponse | null>;
+  handleSmartRefine: (originalVariantKey: string, editedColumns: Array<Record<string, unknown>>, editedRows: Array<Record<string, unknown>>, userHint: string, targetColumnKey?: string | null, existingFindings?: import("@/components/workbench/types").DiffFinding[] | null) => Promise<import("@/components/workbench/types").SmartRefineResponse | null>;
+  handleClarify: (originalVariantKey: string, editedColumns: Array<Record<string, unknown>>, editedRows: Array<Record<string, unknown>>, userHint: string, questionRu: string, choiceIndex: number, targetColumnKey?: string | null, existingFindings?: import("@/components/workbench/types").DiffFinding[] | null) => Promise<import("@/components/workbench/types").SmartRefineResponse | null>;
+  handleValidateFormula: (formula: string) => Promise<{valid: boolean; error: string | null}>;
+  handleUploadScan: (file: File) => Promise<import("@/components/workbench/types").ScanResponse | null>;
+  handleDownloadScanDocx: (scanId: string) => void;
+  handleScanToReview: (scanId: string) => Promise<string | null>;
   loadSession: (sessionId: string) => void;
 };
 
@@ -423,7 +432,7 @@ export function WorkbenchProvider({ children, apiBaseUrl }: WorkbenchProviderPro
     name: string,
     parserKey: string,
     variantKey: string,
-    columns: Array<{key: string; label: string; kind: string}>,
+    columns: Array<{key: string; label: string; kind: string; formula?: string | null; ai_description?: string | null}>,
   ): Promise<string | null> => {
     try {
       const res = await fetch(`${api}/api/v1/transforms/templates`, {
@@ -434,7 +443,14 @@ export function WorkbenchProvider({ children, apiBaseUrl }: WorkbenchProviderPro
           name,
           description: "",
           base_variant_key: variantKey,
-          columns: columns.map((c) => ({ key: c.key, label: c.label, kind: c.kind, enabled: true })),
+          columns: columns.map((c) => ({
+            key: c.key,
+            label: c.label,
+            kind: c.kind,
+            enabled: true,
+            formula: c.formula ?? null,
+            ai_description: c.ai_description ?? null,
+          })),
           is_default: true,
         }),
       });
@@ -444,6 +460,175 @@ export function WorkbenchProvider({ children, apiBaseUrl }: WorkbenchProviderPro
     } catch {
       return null;
     }
+  }, [api]);
+
+  const handleAdvisorColumn = useCallback(async (
+    columnName: string,
+    parserKey: string,
+    sampleValues: number[] = [],
+    contextColumns: Record<string, number[]> = {},
+  ) => {
+    try {
+      const res = await fetch(`${api}/api/v1/transforms/advisor/column`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          column_name: columnName,
+          parser_key: parserKey,
+          sample_values: sampleValues,
+          context_columns: contextColumns,
+        }),
+      });
+      if (!res.ok) return null;
+      return (await res.json()) as import("@/components/workbench/types").AdvisorColumnResponse;
+    } catch { return null; }
+  }, [api]);
+
+  const handleAnalyzeDiff = useCallback(async (
+    originalVariantKey: string,
+    editedColumns: Array<Record<string, unknown>>,
+    editedRows: Array<Record<string, unknown>>,
+  ) => {
+    const sessionId = preview?.session_id;
+    if (!sessionId) return null;
+    try {
+      const res = await fetch(`${api}/api/v1/transforms/analyze-diff`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          session_id: sessionId,
+          original_variant_key: originalVariantKey,
+          edited_columns: editedColumns,
+          edited_rows: editedRows,
+        }),
+      });
+      if (!res.ok) return null;
+      return (await res.json()) as import("@/components/workbench/types").AnalyzeDiffResponse;
+    } catch { return null; }
+  }, [api, preview]);
+
+  const handleReAnalyze = useCallback(async (
+    originalVariantKey: string,
+    editedColumns: Array<Record<string, unknown>>,
+    editedRows: Array<Record<string, unknown>>,
+    userHint: string,
+    targetColumnKey?: string | null,
+  ) => {
+    const sessionId = preview?.session_id;
+    if (!sessionId) return null;
+    try {
+      const res = await fetch(`${api}/api/v1/transforms/re-analyze`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          session_id: sessionId,
+          original_variant_key: originalVariantKey,
+          edited_columns: editedColumns,
+          edited_rows: editedRows,
+          user_hint: userHint,
+          target_column_key: targetColumnKey ?? null,
+        }),
+      });
+      if (!res.ok) return null;
+      return (await res.json()) as import("@/components/workbench/types").AnalyzeDiffResponse;
+    } catch { return null; }
+  }, [api, preview]);
+
+  const handleSmartRefine = useCallback(async (
+    originalVariantKey: string,
+    editedColumns: Array<Record<string, unknown>>,
+    editedRows: Array<Record<string, unknown>>,
+    userHint: string,
+    targetColumnKey?: string | null,
+    existingFindings?: import("@/components/workbench/types").DiffFinding[] | null,
+  ) => {
+    const sessionId = preview?.session_id;
+    if (!sessionId) return null;
+    try {
+      const res = await fetch(`${api}/api/v1/transforms/smart-refine`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          session_id: sessionId,
+          original_variant_key: originalVariantKey,
+          edited_columns: editedColumns,
+          edited_rows: editedRows,
+          user_hint: userHint,
+          target_column_key: targetColumnKey ?? null,
+          existing_findings: existingFindings ?? null,
+        }),
+      });
+      if (!res.ok) return null;
+      return (await res.json()) as import("@/components/workbench/types").SmartRefineResponse;
+    } catch { return null; }
+  }, [api, preview]);
+
+  const handleUploadScan = useCallback(async (file: File) => {
+    const formData = new FormData();
+    formData.append("file", file);
+    try {
+      const res = await fetch(`${api}/api/v1/transforms/scan`, { method: "POST", body: formData });
+      if (!res.ok) return null;
+      return (await res.json()) as import("@/components/workbench/types").ScanResponse;
+    } catch { return null; }
+  }, [api]);
+
+  const handleDownloadScanDocx = useCallback((scanId: string) => {
+    window.open(`${api}/api/v1/transforms/scan/${scanId}/docx`, "_blank");
+  }, [api]);
+
+  const handleScanToReview = useCallback(async (scanId: string) => {
+    try {
+      const res = await fetch(`${api}/api/v1/transforms/scan/${scanId}/to-review`, { method: "POST" });
+      if (!res.ok) return null;
+      const data = await res.json();
+      return (data.review_id as string) ?? null;
+    } catch { return null; }
+  }, [api]);
+
+  const handleClarify = useCallback(async (
+    originalVariantKey: string,
+    editedColumns: Array<Record<string, unknown>>,
+    editedRows: Array<Record<string, unknown>>,
+    userHint: string,
+    questionRu: string,
+    choiceIndex: number,
+    targetColumnKey?: string | null,
+    existingFindings?: import("@/components/workbench/types").DiffFinding[] | null,
+  ) => {
+    const sessionId = preview?.session_id;
+    if (!sessionId) return null;
+    try {
+      const res = await fetch(`${api}/api/v1/transforms/clarify`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          session_id: sessionId,
+          original_variant_key: originalVariantKey,
+          edited_columns: editedColumns,
+          edited_rows: editedRows,
+          user_hint: userHint,
+          question_ru: questionRu,
+          choice_index: choiceIndex,
+          target_column_key: targetColumnKey ?? null,
+          existing_findings: existingFindings ?? null,
+        }),
+      });
+      if (!res.ok) return null;
+      return (await res.json()) as import("@/components/workbench/types").SmartRefineResponse;
+    } catch { return null; }
+  }, [api, preview]);
+
+  const handleValidateFormula = useCallback(async (formula: string) => {
+    try {
+      const res = await fetch(`${api}/api/v1/transforms/validate-formula`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ formula }),
+      });
+      if (!res.ok) return { valid: false, error: "Ошибка сервера" };
+      return (await res.json()) as { valid: boolean; error: string | null };
+    } catch { return { valid: false, error: "Нет соединения" }; }
   }, [api]);
 
   const setReviewColumnMappingField = useCallback((field: string, value: string) => {
@@ -506,6 +691,15 @@ export function WorkbenchProvider({ children, apiBaseUrl }: WorkbenchProviderPro
     handleMaterializeReview,
     handleCompareRule,
     handleCreateTemplate,
+    handleAdvisorColumn,
+    handleAnalyzeDiff,
+    handleReAnalyze,
+    handleSmartRefine,
+    handleClarify,
+    handleValidateFormula,
+    handleUploadScan,
+    handleDownloadScanDocx,
+    handleScanToReview,
     loadSession,
   };
 

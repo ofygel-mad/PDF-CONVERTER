@@ -3,12 +3,12 @@
 import { useState } from "react";
 
 import { useWorkbench } from "@/components/workbench/context";
-import type { PreviewColumn } from "@/components/workbench/types";
+import type { TemplateColumnConfig } from "@/components/workbench/types";
 
 type Props = {
   parserKey: string;
   variantKey: string;
-  columns: PreviewColumn[];
+  columns: TemplateColumnConfig[];
   onClose: () => void;
   onSaved: (templateId: string) => void;
 };
