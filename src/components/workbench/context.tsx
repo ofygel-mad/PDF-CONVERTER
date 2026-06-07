@@ -232,6 +232,23 @@ export function WorkbenchProvider({ children, apiBaseUrl }: WorkbenchProviderPro
     });
   }, [loadHistory, loadParsers]);
 
+  // Auto-recover from "offline": while no parsers are loaded (backend unreachable),
+  // keep retrying every 20s and also when the browser regains connectivity.
+  // The effect tears down its interval as soon as parsers load (length > 0).
+  useEffect(() => {
+    if (parsers.length > 0) return;
+    const retry = () => {
+      void loadParsers();
+      void loadHistory();
+    };
+    const id = window.setInterval(retry, 20_000);
+    window.addEventListener("online", retry);
+    return () => {
+      window.clearInterval(id);
+      window.removeEventListener("online", retry);
+    };
+  }, [parsers.length, loadParsers, loadHistory]);
+
   useEffect(() => {
     if (!deferredPreview) return;
     const parserKey = deferredPreview.document.parser_key;
@@ -339,7 +356,7 @@ export function WorkbenchProvider({ children, apiBaseUrl }: WorkbenchProviderPro
     } finally {
       setIsExporting(false);
     }
-  }, [api, preview, selectedVariantKey]);
+  }, [api, preview, selectedVariantKey, excludedExportRows, customExportColumns, customExportRows]);
 
   const handleExportCsv = useCallback(async () => {
     if (!preview || !selectedVariantKey) return;

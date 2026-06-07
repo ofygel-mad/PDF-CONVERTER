@@ -3,12 +3,31 @@ import { type NextRequest, NextResponse } from "next/server";
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
 
-const HOP_BY_HOP_HEADERS = new Set([
+// Headers we never forward from the client request to the backend.
+const REQUEST_STRIP_HEADERS = new Set([
   "connection",
   "content-length",
   "host",
   "transfer-encoding",
 ]);
+
+// Headers we never copy from the backend response back to the browser.
+// `content-encoding` / `content-length` MUST be stripped: Node's fetch (undici)
+// transparently decompresses the upstream body, so `response.body` is already
+// decoded — but the original `Content-Encoding: gzip` header is still present.
+// Forwarding it makes the browser try to gunzip plain bytes → ERR_CONTENT_DECODING_FAILED.
+// Dropping it lets the frontend edge re-compress correctly for the browser.
+const RESPONSE_STRIP_HEADERS = new Set([
+  "connection",
+  "content-encoding",
+  "content-length",
+  "content-range",
+  "host",
+  "transfer-encoding",
+]);
+
+// Upstream request timeout (ms). Generous to allow slow OCR / Azure parsing.
+const UPSTREAM_TIMEOUT_MS = 180_000;
 
 function stripWrappingQuotes(value: string): string {
   const trimmed = value.trim();
@@ -43,7 +62,7 @@ function buildForwardHeaders(request: NextRequest): Headers {
 
   request.headers.forEach((value, key) => {
     const normalizedKey = key.toLowerCase();
-    if (HOP_BY_HOP_HEADERS.has(normalizedKey)) {
+    if (REQUEST_STRIP_HEADERS.has(normalizedKey)) {
       return;
     }
     headers.set(key, value);
@@ -59,6 +78,9 @@ async function proxyRequest(
   const { path } = await context.params;
   const targetUrl = buildTargetUrl(request, path);
 
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), UPSTREAM_TIMEOUT_MS);
+
   try {
     const response = await fetch(targetUrl, {
       method: request.method,
@@ -66,11 +88,12 @@ async function proxyRequest(
       body: request.method === "GET" || request.method === "HEAD" ? undefined : await request.arrayBuffer(),
       redirect: "manual",
       cache: "no-store",
+      signal: controller.signal,
     });
 
     const responseHeaders = new Headers();
     response.headers.forEach((value, key) => {
-      if (HOP_BY_HOP_HEADERS.has(key.toLowerCase())) {
+      if (RESPONSE_STRIP_HEADERS.has(key.toLowerCase())) {
         return;
       }
       responseHeaders.set(key, value);
@@ -81,7 +104,12 @@ async function proxyRequest(
       headers: responseHeaders,
     });
   } catch (error) {
-    const errorMsg = error instanceof Error ? error.message : "Unknown proxy error";
+    const aborted = error instanceof Error && error.name === "AbortError";
+    const errorMsg = aborted
+      ? `Upstream request timed out after ${UPSTREAM_TIMEOUT_MS} ms`
+      : error instanceof Error
+        ? error.message
+        : "Unknown proxy error";
     console.error(`Proxy error calling ${targetUrl}:`, errorMsg);
 
     return NextResponse.json(
@@ -92,6 +120,8 @@ async function proxyRequest(
       },
       { status: 502 },
     );
+  } finally {
+    clearTimeout(timeout);
   }
 }
 
