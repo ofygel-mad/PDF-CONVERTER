@@ -89,6 +89,7 @@ export type WorkbenchCtx = {
   handleSmartRefine: (originalVariantKey: string, editedColumns: Array<Record<string, unknown>>, editedRows: Array<Record<string, unknown>>, userHint: string, targetColumnKey?: string | null, existingFindings?: import("@/components/workbench/types").DiffFinding[] | null) => Promise<import("@/components/workbench/types").SmartRefineResponse | null>;
   handleClarify: (originalVariantKey: string, editedColumns: Array<Record<string, unknown>>, editedRows: Array<Record<string, unknown>>, userHint: string, questionRu: string, choiceIndex: number, targetColumnKey?: string | null, existingFindings?: import("@/components/workbench/types").DiffFinding[] | null) => Promise<import("@/components/workbench/types").SmartRefineResponse | null>;
   handleValidateFormula: (formula: string) => Promise<{valid: boolean; error: string | null}>;
+  handleCompute: (variantKey: string, customColumns: Array<Record<string, unknown>>, customRows: Array<Record<string, unknown>>, excludedRows?: number[]) => Promise<{ columns: Array<{ key: string; label: string; kind: string }>; rows: Array<Record<string, unknown>> } | null>;
   handleUploadScan: (file: File) => Promise<import("@/components/workbench/types").ScanResponse | null>;
   handleDownloadScanDocx: (scanId: string) => void;
   handleScanToReview: (scanId: string) => Promise<string | null>;
@@ -648,6 +649,31 @@ export function WorkbenchProvider({ children, apiBaseUrl }: WorkbenchProviderPro
     } catch { return { valid: false, error: "Нет соединения" }; }
   }, [api]);
 
+  const handleCompute = useCallback(async (
+    variantKey: string,
+    customColumns: Array<Record<string, unknown>>,
+    customRows: Array<Record<string, unknown>>,
+    excludedRows: number[] = [],
+  ) => {
+    const sessionId = preview?.session_id;
+    if (!sessionId) return null;
+    try {
+      const res = await fetch(`${api}/api/v1/transforms/compute`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          session_id: sessionId,
+          variant_key: variantKey,
+          custom_columns: customColumns,
+          custom_rows: customRows,
+          excluded_rows: excludedRows,
+        }),
+      });
+      if (!res.ok) return null;
+      return (await res.json()) as { columns: Array<{ key: string; label: string; kind: string }>; rows: Array<Record<string, unknown>> };
+    } catch { return null; }
+  }, [api, preview]);
+
   const setReviewColumnMappingField = useCallback((field: string, value: string) => {
     setReviewColumnMapping((prev) => ({ ...prev, [field]: value }));
   }, []);
@@ -714,6 +740,7 @@ export function WorkbenchProvider({ children, apiBaseUrl }: WorkbenchProviderPro
     handleSmartRefine,
     handleClarify,
     handleValidateFormula,
+    handleCompute,
     handleUploadScan,
     handleDownloadScanDocx,
     handleScanToReview,

@@ -51,6 +51,7 @@ export function VariantPreviewPanel({ variants, diagnostics }: Props) {
     deferredPreview,
     handleAdvisorColumn,
     handleValidateFormula,
+    handleCompute,
   } = useWorkbench();
 
   const [page, setPage] = useState(0);
@@ -212,8 +213,27 @@ export function VariantPreviewPanel({ variants, diagnostics }: Props) {
     setIsAdvisorLoading(false);
   };
 
+  // Live recompute: ask the backend to evaluate formula columns over the current
+  // edited rows and reflect the computed values in the table immediately.
+  const recomputeLive = async (formulas: Record<string, string>) => {
+    if (!selectedVariant) return;
+    const customCols = editColumns.map((c) => ({
+      key: c.key, label: c.label, kind: c.kind, formula: formulas[c.key] ?? null,
+    }));
+    const result = await handleCompute(
+      selectedVariant.key,
+      customCols,
+      editRows as Array<Record<string, unknown>>,
+    );
+    if (result?.rows) setEditRowsState(result.rows as EditableRow[]);
+  };
+
   const applyFormulaToColumn = (colKey: string, formula: string) => {
-    setColumnFormulas((prev) => ({ ...prev, [colKey]: formula }));
+    setColumnFormulas((prev) => {
+      const next = { ...prev, [colKey]: formula };
+      void recomputeLive(next);
+      return next;
+    });
     setFormulaDrafts((prev) => ({ ...prev, [colKey]: formula }));
     markDirty();
   };
@@ -690,7 +710,11 @@ export function VariantPreviewPanel({ variants, diagnostics }: Props) {
           editedColumns={editColumns.map((c) => ({ key: c.key, label: c.label, kind: c.kind }))}
           editedRows={editRows as Array<Record<string, unknown>>}
           onConfirm={(formulas) => {
-            setColumnFormulas((prev) => ({ ...prev, ...formulas }));
+            setColumnFormulas((prev) => {
+              const next = { ...prev, ...formulas };
+              void recomputeLive(next);
+              return next;
+            });
             setFormulaDrafts((prev) => ({ ...prev, ...formulas }));
             markDirty();
             setShowDiffPanel(false);

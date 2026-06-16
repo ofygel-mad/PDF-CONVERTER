@@ -51,6 +51,31 @@ class Settings(BaseSettings):
     scan_max_pages: int = 50
     scan_min_quality_score: float = 0.25
 
+    # Currency rates — live from National Bank of Kazakhstan (auto-refreshed daily).
+    fx_rates_enabled: bool = True
+    fx_rates_url: str = Field(
+        default="https://nationalbank.kz/rss/rates_all.xml",
+        validation_alias=AliasChoices("FX_RATES_URL"),
+    )
+    fx_rates_timeout_seconds: float = 6.0
+
+    @property
+    def fx_fallback_rates(self) -> dict[str, float]:
+        """Used only when NB RK is unreachable and nothing is cached."""
+        return {"USD": 480.0, "EUR": 520.0, "RUB": 6.0}
+
+    # Telegram bot (optional). When token is set, the bot starts in the app lifespan.
+    telegram_bot_token: str | None = Field(
+        default=None,
+        validation_alias=AliasChoices("TELEGRAM_BOT_TOKEN"),
+    )
+    # Optional comma-separated Telegram user IDs allowed to use the bot.
+    # Empty (default) = open to everyone.
+    telegram_allowed_users: str = Field(
+        default="",
+        validation_alias=AliasChoices("TELEGRAM_ALLOWED_USERS"),
+    )
+
     @field_validator(
         "app_name",
         "environment",
@@ -62,6 +87,8 @@ class Settings(BaseSettings):
         "azure_document_intelligence_endpoint",
         "azure_document_intelligence_key",
         "smart_nlp_model_path",
+        "telegram_bot_token",
+        "telegram_allowed_users",
         mode="before",
     )
     @classmethod
@@ -69,6 +96,15 @@ class Settings(BaseSettings):
         if isinstance(v, str):
             return _strip_wrapping_quotes(v)
         return v
+
+    @property
+    def telegram_allowed_user_ids(self) -> set[int]:
+        ids: set[int] = set()
+        for item in self.telegram_allowed_users.split(","):
+            item = item.strip()
+            if item.isdigit():
+                ids.add(int(item))
+        return ids
 
     @field_validator("database_url", mode="before")
     @classmethod

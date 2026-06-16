@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import Link from "next/link";
 
 import { WorkbenchProvider, useWorkbench } from "@/components/workbench/context";
 import { ToastContainer } from "@/components/workbench/toast";
@@ -136,6 +137,14 @@ function WorkbenchInner() {
           </span>
         </div>
         <div className="flex items-center gap-2 flex-shrink-0">
+          <Link
+            href="/web-excel"
+            className="btn-ghost text-xs px-2.5 py-1.5 flex items-center gap-1.5"
+            title="Открыть полноценную таблицу Web-Excel"
+          >
+            <span>▦</span>
+            <span className="hidden sm:inline">Web-Excel</span>
+          </Link>
           <button
             onClick={() => setShowHistory((value) => !value)}
             className="btn-ghost text-xs px-2.5 py-1.5 flex items-center gap-1.5"
