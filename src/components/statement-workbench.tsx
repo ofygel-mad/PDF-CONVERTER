@@ -145,6 +145,14 @@ function WorkbenchInner() {
             <span>▦</span>
             <span className="hidden sm:inline">Web-Excel</span>
           </Link>
+          <Link
+            href="/services"
+            className="btn-ghost text-xs px-2.5 py-1.5 flex items-center gap-1.5"
+            title="Внешние сервисы и интеграции"
+          >
+            <span>🧩</span>
+            <span className="hidden sm:inline">Сервисы</span>
+          </Link>
           <button
             onClick={() => setShowHistory((value) => !value)}
             className="btn-ghost text-xs px-2.5 py-1.5 flex items-center gap-1.5"

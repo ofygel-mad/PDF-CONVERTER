@@ -2,6 +2,11 @@
 .env
 .env.local
 .env.*.local
+# Google service-account creds & AutoCall handoff (contains live keys)
+*.iam.gserviceaccount.com.json
+autocall-499823-*.json
+service-account*.json
+AUTOCALL_INTEGRATION_HANDOFF.md
 
 # ── OS / IDE ──────────────────────────────────
 .DS_Store
