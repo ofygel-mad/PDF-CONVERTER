@@ -2,14 +2,16 @@
 
 import { useState } from "react";
 import Link from "next/link";
+import type { ComponentType } from "react";
 
 import { AutocallModal } from "@/components/services/autocall-modal";
+import { ArrowLeftIcon, PhoneIcon, PuzzleIcon } from "@/components/icons";
 
 type ServiceTile = {
   key: string;
   title: string;
   description: string;
-  icon: string;
+  Icon: ComponentType<{ size?: number }>;
 };
 
 const TILES: ServiceTile[] = [
@@ -17,7 +19,7 @@ const TILES: ServiceTile[] = [
     key: "autocall",
     title: "Autocall.kz",
     description: "Фактическая стоимость и дата обзвонов → Google Sheets",
-    icon: "📞",
+    Icon: PhoneIcon,
   },
 ];
 
@@ -30,19 +32,26 @@ export function ServicesClient() {
         className="sticky top-0 z-40 flex items-center justify-between gap-2 px-4 py-2.5 border-b backdrop-blur-md"
         style={{ background: "var(--header-bg)", borderColor: "var(--border-subtle)" }}
       >
-        <div className="flex items-center gap-2">
-          <span className="text-sm font-bold" style={{ color: "var(--text-primary)" }}>
+        <div className="flex items-center gap-2.5">
+          <span className="logo-badge">
+            <PuzzleIcon size={16} />
+          </span>
+          <span className="text-sm font-semibold" style={{ color: "var(--text-primary)", letterSpacing: "-0.01em" }}>
             Сервисы
           </span>
         </div>
         <Link href="/" className="btn-ghost text-xs px-2.5 py-1.5 flex items-center gap-1.5" title="На главную">
-          <span>←</span>
+          <ArrowLeftIcon size={15} />
           <span className="hidden sm:inline">Назад</span>
         </Link>
       </header>
 
-      <main className="flex-1 max-w-5xl w-full mx-auto px-5 py-6">
-        <p className="text-sm mb-4" style={{ color: "var(--text-muted)" }}>
+      <main className="flex-1 max-w-5xl w-full mx-auto px-5 py-10">
+        <p className="eyebrow mb-2">Интеграции</p>
+        <h1 className="text-2xl font-semibold mb-2" style={{ color: "var(--text-primary)", letterSpacing: "-0.02em" }}>
+          Источники данных
+        </h1>
+        <p className="text-sm mb-8 max-w-xl" style={{ color: "var(--text-secondary)" }}>
           Внешние сервисы, из которых мы тянем данные для формирования таблиц.
         </p>
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
@@ -51,14 +60,18 @@ export function ServicesClient() {
               key={tile.key}
               type="button"
               onClick={() => setOpenService(tile.key)}
-              className="text-left rounded-2xl p-5 transition-colors flex flex-col gap-2 hover:opacity-90"
-              style={{ background: "var(--surface)", border: "1px solid var(--border-base)" }}
+              className="group text-left card p-5 transition-colors flex flex-col gap-3.5 hover:bg-[var(--bg-hover)]"
             >
-              <span className="text-2xl">{tile.icon}</span>
-              <span className="text-base font-semibold" style={{ color: "var(--text-primary)" }}>
+              <span
+                className="inline-flex items-center justify-center w-11 h-11 rounded-xl transition-colors"
+                style={{ background: "var(--accent-soft)", color: "var(--text-accent)" }}
+              >
+                <tile.Icon size={20} />
+              </span>
+              <span className="text-base font-semibold" style={{ color: "var(--text-primary)", letterSpacing: "-0.01em" }}>
                 {tile.title}
               </span>
-              <span className="text-xs" style={{ color: "var(--text-secondary)" }}>
+              <span className="text-xs leading-relaxed" style={{ color: "var(--text-secondary)" }}>
                 {tile.description}
               </span>
             </button>

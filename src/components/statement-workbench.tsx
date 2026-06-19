@@ -10,13 +10,26 @@ import { HistoryPanel } from "@/components/workbench/history-panel";
 import { QualityPanel } from "@/components/workbench/quality-panel";
 import { VariantPreviewPanel } from "@/components/workbench/variant-preview-panel";
 import { OcrReviewPanel } from "@/components/workbench/ocr-review-panel";
+import {
+  BrandMark,
+  GridIcon,
+  PuzzleIcon,
+  ClockIcon,
+  TableIcon,
+  AlertIcon,
+  ScanIcon,
+  MoonIcon,
+  SunIcon,
+  AutoThemeIcon,
+  CloseIcon,
+} from "@/components/icons";
 
 type Tab = "table" | "quality" | "ocr";
 
-const TABS: { key: Tab; label: string; shortLabel: string; icon: string }[] = [
-  { key: "table", label: "Транзакции", shortLabel: "Список", icon: "📊" },
-  { key: "quality", label: "Качество", shortLabel: "Качество", icon: "⚠️" },
-  { key: "ocr", label: "Распознавание", shortLabel: "Скан", icon: "📄" },
+const TABS: { key: Tab; label: string; shortLabel: string; Icon: typeof TableIcon }[] = [
+  { key: "table", label: "Транзакции", shortLabel: "Список", Icon: TableIcon },
+  { key: "quality", label: "Качество", shortLabel: "Качество", Icon: AlertIcon },
+  { key: "ocr", label: "Распознавание", shortLabel: "Скан", Icon: ScanIcon },
 ];
 
 type Theme = "dark" | "light" | "system";
@@ -51,7 +64,7 @@ function ThemeToggle() {
     }
   };
 
-  const icons: Record<Theme, string> = { dark: "🌙", light: "☀️", system: "⚙️" };
+  const Icon = theme === "dark" ? MoonIcon : theme === "light" ? SunIcon : AutoThemeIcon;
   const labels: Record<Theme, string> = { dark: "Тёмная", light: "Светлая", system: "Авто" };
 
   return (
@@ -61,18 +74,14 @@ function ThemeToggle() {
       type="button"
       title={`Тема: ${labels[theme]}`}
     >
-      <span>{icons[theme]}</span>
+      <Icon size={15} />
       <span className="hidden sm:inline">{labels[theme]}</span>
     </button>
   );
 }
 
 function StatusDot({ ok }: { ok: boolean }) {
-  return (
-    <span
-      className={`inline-block h-2 w-2 rounded-full flex-shrink-0 ${ok ? "bg-emerald-400" : "bg-slate-600"}`}
-    />
-  );
+  return <span className="status-dot" data-on={ok} />;
 }
 
 function WorkbenchInner() {
@@ -127,14 +136,19 @@ function WorkbenchInner() {
         className="sticky top-0 z-40 flex items-center justify-between gap-2 px-4 py-2.5 border-b backdrop-blur-md"
         style={{ background: "var(--header-bg)", borderColor: "var(--border-subtle)" }}
       >
-        <div className="flex items-center gap-2 overflow-hidden">
-          <span className="text-sm font-bold whitespace-nowrap" style={{ color: "var(--text-primary)" }}>
-            Анализатор выписок
+        <div className="flex items-center gap-2.5 overflow-hidden">
+          <span className="logo-badge">
+            <BrandMark size={16} />
           </span>
-          <span className="hidden sm:flex items-center gap-1.5 text-xs whitespace-nowrap" style={{ color: "var(--text-muted)" }}>
-            <StatusDot ok={parsers.length > 0} />
-            {parsers.length > 0 ? `${parsers.length} форм.` : "офлайн"}
-          </span>
+          <div className="flex flex-col leading-none overflow-hidden">
+            <span className="text-sm font-semibold whitespace-nowrap" style={{ color: "var(--text-primary)", letterSpacing: "-0.01em" }}>
+              Анализатор выписок
+            </span>
+            <span className="hidden sm:flex items-center gap-1.5 mt-1 text-[0.66rem] whitespace-nowrap eyebrow">
+              <StatusDot ok={parsers.length > 0} />
+              {parsers.length > 0 ? `${parsers.length} форматов` : "офлайн"}
+            </span>
+          </div>
         </div>
         <div className="flex items-center gap-2 flex-shrink-0">
           <Link
@@ -142,7 +156,7 @@ function WorkbenchInner() {
             className="btn-ghost text-xs px-2.5 py-1.5 flex items-center gap-1.5"
             title="Открыть полноценную таблицу Web-Excel"
           >
-            <span>▦</span>
+            <GridIcon size={15} />
             <span className="hidden sm:inline">Web-Excel</span>
           </Link>
           <Link
@@ -150,7 +164,7 @@ function WorkbenchInner() {
             className="btn-ghost text-xs px-2.5 py-1.5 flex items-center gap-1.5"
             title="Внешние сервисы и интеграции"
           >
-            <span>🧩</span>
+            <PuzzleIcon size={15} />
             <span className="hidden sm:inline">Сервисы</span>
           </Link>
           <button
@@ -159,7 +173,7 @@ function WorkbenchInner() {
             type="button"
             title="История сессий"
           >
-            <span>⏱</span>
+            <ClockIcon size={15} />
             <span className="hidden sm:inline">История</span>
           </button>
           <ThemeToggle />
@@ -179,6 +193,7 @@ function WorkbenchInner() {
                 onClick={() => setTab(item.key)}
                 type="button"
               >
+                <item.Icon size={15} />
                 {item.label}
                 {badge && <span className="badge badge-rose text-[0.6rem]">{badge}</span>}
               </button>
@@ -258,12 +273,12 @@ function WorkbenchInner() {
                 История сессий
               </span>
               <button
-                className="btn-ghost text-base px-2 py-1"
+                className="btn-ghost px-2 py-2"
                 onClick={() => setShowHistory(false)}
                 type="button"
                 aria-label="Закрыть"
               >
-                ✕
+                <CloseIcon size={16} />
               </button>
             </div>
             <div className="flex-1 overflow-y-auto p-4 space-y-4 pb-8">
@@ -300,7 +315,7 @@ function WorkbenchInner() {
               onClick={() => setTab(item.key)}
               type="button"
             >
-              <span className="text-lg leading-none">{item.icon}</span>
+              <item.Icon size={19} />
               <span className="text-[10px] leading-tight">{item.shortLabel}</span>
               {badge && (
                 <span className="absolute top-1.5 right-1/4 h-4 w-4 rounded-full bg-rose-500 text-white text-[9px] flex items-center justify-center font-bold">

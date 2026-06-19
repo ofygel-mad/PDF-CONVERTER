@@ -2,8 +2,11 @@
 
 import { useCallback, useEffect, useState } from "react";
 
+import { CloseIcon, PhoneIcon, RefreshIcon } from "@/components/icons";
+
 const API = "/api/backend";
-const TIFFANY = "#0abab5";
+/* Accent for autocall metrics — pulled from the design system's sapphire */
+const ACCENT = "var(--accent)";
 
 type LatestInfo = {
   name: string | null;
@@ -114,9 +117,11 @@ export function AutocallModal({ onClose }: { onClose: () => void }) {
         className="flex items-center justify-between gap-3 px-5 py-3 border-b"
         style={{ background: "var(--header-bg)", borderColor: "var(--border-subtle)" }}
       >
-        <div className="flex items-center gap-2">
-          <span className="text-lg">📞</span>
-          <h2 className="text-base font-bold" style={{ color: "var(--text-primary)" }}>
+        <div className="flex items-center gap-2.5">
+          <span className="logo-badge">
+            <PhoneIcon size={16} />
+          </span>
+          <h2 className="text-base font-semibold" style={{ color: "var(--text-primary)", letterSpacing: "-0.01em" }}>
             Autocall.kz
           </h2>
         </div>
@@ -125,19 +130,19 @@ export function AutocallModal({ onClose }: { onClose: () => void }) {
             onClick={() => void handleSync()}
             type="button"
             disabled={syncing}
-            className="text-sm font-semibold px-4 py-2 rounded-lg transition-opacity"
-            style={{ background: TIFFANY, color: "#fff", opacity: syncing ? 0.6 : 1 }}
+            className="btn-primary text-sm"
             title="Подтянуть новые обзвоны из Autocall и дописать в Google Sheets"
           >
+            <RefreshIcon size={15} className={syncing ? "animate-spin-slow" : undefined} />
             {syncing ? "Обновление…" : "Обновить таблицу"}
           </button>
           <button
             onClick={onClose}
             type="button"
-            className="btn-ghost text-sm px-3 py-2"
+            className="btn-ghost px-2.5 py-2"
             title="Закрыть"
           >
-            ✕
+            <CloseIcon size={16} />
           </button>
         </div>
       </div>
@@ -147,7 +152,7 @@ export function AutocallModal({ onClose }: { onClose: () => void }) {
         {syncMsg && (
           <div
             className="rounded-lg px-4 py-3 text-sm"
-            style={{ background: "var(--bg-hover)", border: `1px solid ${TIFFANY}`, color: "var(--text-primary)" }}
+            style={{ background: "var(--accent-soft)", border: `1px solid ${ACCENT}`, color: "var(--text-primary)" }}
           >
             {syncMsg}
           </div>
@@ -168,7 +173,7 @@ export function AutocallModal({ onClose }: { onClose: () => void }) {
             <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
               <MetricCard label="Всего обзвонов" value={String(metrics.total_autocalls)} />
               <MetricCard label={`С ${metrics.cutoff_date}`} value={String(metrics.eligible_count)} />
-              <MetricCard label="К заливке (новые)" value={String(metrics.pending_count)} accent={TIFFANY} />
+              <MetricCard label="К заливке (новые)" value={String(metrics.pending_count)} accent={ACCENT} />
               <MetricCard label="Уже в таблице" value={String(metrics.synced_count)} />
             </div>
 
