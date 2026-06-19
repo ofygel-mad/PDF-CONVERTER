@@ -33,6 +33,10 @@ export function ServicesClient() {
         style={{ background: "var(--header-bg)", borderColor: "var(--border-subtle)" }}
       >
         <div className="flex items-center gap-2.5">
+          <Link href="/" className="btn-ghost text-xs px-2.5 py-1.5 flex items-center gap-1.5" title="На главную">
+            <ArrowLeftIcon size={15} />
+            <span className="hidden sm:inline">Назад</span>
+          </Link>
           <span className="logo-badge">
             <PuzzleIcon size={16} />
           </span>
@@ -40,10 +44,6 @@ export function ServicesClient() {
             Сервисы
           </span>
         </div>
-        <Link href="/" className="btn-ghost text-xs px-2.5 py-1.5 flex items-center gap-1.5" title="На главную">
-          <ArrowLeftIcon size={15} />
-          <span className="hidden sm:inline">Назад</span>
-        </Link>
       </header>
 
       <main className="flex-1 max-w-5xl w-full mx-auto px-5 py-10">
