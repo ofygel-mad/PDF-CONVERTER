@@ -118,8 +118,8 @@ export function AutocallModal({ onClose }: { onClose: () => void }) {
       const result = (await res.json()) as SyncResult;
       setSyncMsg(
         result.added > 0
-          ? `Пополнения: добавлено ${result.added}, пропущено (уже есть) ${result.skipped}.`
-          : `Пополнения: новых нет. Всего записей: ${result.total_seen}.`,
+          ? `Операции: добавлено ${result.added}, пропущено (уже есть) ${result.skipped}.`
+          : `Операции: новых нет. Всего записей: ${result.total_seen}.`,
       );
     } catch (e) {
       setError(e instanceof Error ? e.message : "Ошибка обновления пополнений");
@@ -162,10 +162,10 @@ export function AutocallModal({ onClose }: { onClose: () => void }) {
             type="button"
             disabled={topupSyncing}
             className="btn-ghost text-sm"
-            title="Подтянуть новые пополнения баланса на лист «Пополнения»"
+            title="Подтянуть операции по балансу (пополнения, возвраты, расходы) на лист «Пополнения»"
           >
             <RefreshIcon size={15} className={topupSyncing ? "animate-spin-slow" : undefined} />
-            {topupSyncing ? "Пополнения…" : "Обновить пополнения"}
+            {topupSyncing ? "Операции…" : "Обновить операции"}
           </button>
           <button
             onClick={onClose}
@@ -241,8 +241,8 @@ export function AutocallModal({ onClose }: { onClose: () => void }) {
 
             <p className="text-xs" style={{ color: "var(--text-muted)" }}>
               «Обновить таблицу» дописывает обзвоны, созданные с {metrics.cutoff_date} (формат: Дата | Проект | Сумма).
-              «Обновить пополнения» дописывает новые пополнения баланса на лист «Пополнения»
-              (Дата и время | Сумма | Описание).
+              «Обновить операции» дописывает движение по балансу на лист «Пополнения»
+              (Дата и время | Пополнение | Возврат | Расход | Описание).
             </p>
           </>
         ) : null}
