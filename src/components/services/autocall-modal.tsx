@@ -61,6 +61,7 @@ export function AutocallModal({ onClose }: { onClose: () => void }) {
   const [error, setError] = useState<string | null>(null);
   const [syncing, setSyncing] = useState(false);
   const [syncMsg, setSyncMsg] = useState<string | null>(null);
+  const [topupSyncing, setTopupSyncing] = useState(false);
 
   const loadMetrics = useCallback(async () => {
     setLoading(true);
@@ -107,6 +108,26 @@ export function AutocallModal({ onClose }: { onClose: () => void }) {
     }
   };
 
+  const handleTopupSync = async () => {
+    setTopupSyncing(true);
+    setSyncMsg(null);
+    setError(null);
+    try {
+      const res = await fetch(`${API}/api/v1/autocall/topups/sync`, { method: "POST" });
+      if (!res.ok) throw new Error(await readError(res));
+      const result = (await res.json()) as SyncResult;
+      setSyncMsg(
+        result.added > 0
+          ? `Пополнения: добавлено ${result.added}, пропущено (уже есть) ${result.skipped}.`
+          : `Пополнения: новых нет. Всего записей: ${result.total_seen}.`,
+      );
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Ошибка обновления пополнений");
+    } finally {
+      setTopupSyncing(false);
+    }
+  };
+
   return (
     <div
       className="fixed inset-0 z-50 flex flex-col"
@@ -135,6 +156,16 @@ export function AutocallModal({ onClose }: { onClose: () => void }) {
           >
             <RefreshIcon size={15} className={syncing ? "animate-spin-slow" : undefined} />
             {syncing ? "Обновление…" : "Обновить таблицу"}
+          </button>
+          <button
+            onClick={() => void handleTopupSync()}
+            type="button"
+            disabled={topupSyncing}
+            className="btn-ghost text-sm"
+            title="Подтянуть новые пополнения баланса на лист «Пополнения»"
+          >
+            <RefreshIcon size={15} className={topupSyncing ? "animate-spin-slow" : undefined} />
+            {topupSyncing ? "Пополнения…" : "Обновить пополнения"}
           </button>
           <button
             onClick={onClose}
@@ -209,8 +240,9 @@ export function AutocallModal({ onClose }: { onClose: () => void }) {
             )}
 
             <p className="text-xs" style={{ color: "var(--text-muted)" }}>
-              Кнопка «Обновить таблицу» дописывает в Google Sheets обзвоны, созданные с {metrics.cutoff_date},
-              которых там ещё нет (формат: Дата | Проект | Сумма).
+              «Обновить таблицу» дописывает обзвоны, созданные с {metrics.cutoff_date} (формат: Дата | Проект | Сумма).
+              «Обновить пополнения» дописывает новые пополнения баланса на лист «Пополнения»
+              (Дата и время | Сумма | Описание).
             </p>
           </>
         ) : null}
