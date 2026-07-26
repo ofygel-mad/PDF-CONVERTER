@@ -200,6 +200,12 @@ export function useDataset() {
         return;
       }
 
+      // Личность подтверждена — уводим экран входа СРАЗУ, не дожидаясь данных.
+      // Иначе после успешного входа форма висит ещё несколько секунд, пока
+      // читается таблица, кнопка возвращается в «Войти», и человек жмёт снова.
+      setUnauthorized(false);
+      setLoading(true);
+
       const payload = await fetchDataset(refresh);
       setDataset(payload);
       setUnauthorized(false);

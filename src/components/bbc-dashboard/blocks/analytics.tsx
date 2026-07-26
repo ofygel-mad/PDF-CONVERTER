@@ -22,22 +22,37 @@ type Dimension = {
   filterKey?: "firms" | "departments" | "employees" | "serviceKinds";
 };
 
+/** Пустое значение — это не «—», а конкретный пробел в данных. Так строку
+    можно узнать в блоке «Предупреждения» и починить в таблице. */
+const UNSET = {
+  firm: "Юрлицо не указано",
+  department: "Отдел не задан",
+  employee: "Сотрудник не назначен",
+  service: "Вид услуги не указан",
+  client: "Клиент не указан",
+};
+
 const DIMENSIONS: Dimension[] = [
-  { key: "firm", title: "По юрлицам", pick: (row) => row.firm, filterKey: "firms" },
+  { key: "firm", title: "По юрлицам", pick: (row) => row.firm || UNSET.firm, filterKey: "firms" },
   {
     key: "department",
     title: "По отделам",
-    pick: (row) => row.departments[0] ?? "—",
+    pick: (row) => row.departments[0] ?? UNSET.department,
     filterKey: "departments",
   },
-  { key: "employee", title: "По сотрудникам", pick: (row) => row.employee, filterKey: "employees" },
+  {
+    key: "employee",
+    title: "По сотрудникам",
+    pick: (row) => row.employee || UNSET.employee,
+    filterKey: "employees",
+  },
   {
     key: "service",
     title: "По видам услуг",
-    pick: (row) => row.service_kind,
+    pick: (row) => row.service_kind || UNSET.service,
     filterKey: "serviceKinds",
   },
-  { key: "client", title: "По клиентам", pick: (row) => row.client },
+  { key: "client", title: "По клиентам", pick: (row) => row.client || UNSET.client },
 ];
 
 export function AnalyticsBlock({
@@ -68,12 +83,13 @@ export function AnalyticsBlock({
         };
       })
       .filter((item) => item.total)
+      .filter((item) => item.total > 0)
       .sort((a, b) => b.total - a.total);
   }, [rows, mode]);
 
   /** Net-profit-by-department placeholder: revenue only, expenses need the journal. */
   const departmentRevenue = useMemo(() => {
-    const byDepartment = groupBy(rows, (row) => row.departments[0] ?? "—");
+    const byDepartment = groupBy(rows, (row) => row.departments[0] ?? "Отдел не задан");
     return [...byDepartment.entries()]
       .map(([code, groupRows]) => ({
         code,
@@ -81,6 +97,7 @@ export function AnalyticsBlock({
         contracted: sumBy(groupRows, (row) => row.contract_amount),
         rows: groupRows,
       }))
+      .filter((item) => item.total > 0)
       .sort((a, b) => b.total - a.total);
   }, [rows, mode]);
 
@@ -128,9 +145,10 @@ export function AnalyticsBlock({
             {departmentRevenue.map((item, index) => (
               <BarRow
                 key={item.code}
-                label={item.code}
+                label={item.code || "Отдел не задан"}
                 value={item.total}
                 max={Math.max(...departmentRevenue.map((entry) => entry.total), 1)}
+                total={departmentRevenue.reduce((sum, entry) => sum + entry.total, 0)}
                 hint={money(item.total)}
                 index={index}
                 onClick={() => setDrill({ title: `Отдел ${item.code}`, rows: item.rows })}
@@ -139,7 +157,10 @@ export function AnalyticsBlock({
           </div>
         </SectionCard>
 
-        <SectionCard title="Структура выручки" subtitle="Доли видов услуг в признанной выручке.">
+        <SectionCard
+          title="Структура признанной выручки"
+          subtitle="Только то, что уже признано в текущем режиме. Разовые услуги «на исполнении» сюда не входят — поэтому доли отличаются от списка «По видам услуг» ниже, где взята сумма договоров."
+        >
           <ServiceMix rows={rows} mode={mode} />
         </SectionCard>
       </div>
@@ -286,15 +307,17 @@ function DimensionCard({
         contracted: sumBy(groupRows, (row) => row.contract_amount),
         rows: groupRows,
       }))
+      .filter((entry) => entry.contracted > 0)
       .sort((a, b) => b.contracted - a.contracted)
       .slice(0, 12);
   }, [rows, mode, dimension]);
 
   if (!entries.length) return null;
   const max = Math.max(...entries.map((entry) => entry.contracted), 1);
+  const total = entries.reduce((sum, entry) => sum + entry.contracted, 0);
 
   return (
-    <SectionCard title={dimension.title} subtitle="Клик по строке — детализация до договоров.">
+    <SectionCard title={dimension.title} subtitle="Длина полоски — относительно крупнейшего в списке; доля справа — от суммы списка.">
       <div className="flex flex-col gap-3">
         {entries.map((entry, index) => (
           <BarRow
@@ -302,6 +325,7 @@ function DimensionCard({
             label={entry.label || "—"}
             value={entry.contracted}
             max={max}
+            total={total}
             hint={money(entry.contracted)}
             index={index}
             onClick={() => {

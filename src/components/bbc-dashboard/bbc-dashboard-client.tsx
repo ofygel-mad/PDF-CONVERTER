@@ -142,8 +142,17 @@ export function BbcDashboardClient() {
 
   if (loading && !dataset) {
     return (
-      <div className="min-h-screen flex items-center justify-center" style={{ background: "var(--page-bg)" }}>
-        <p className="mono-meta">Загрузка данных…</p>
+      <div
+        className="min-h-screen flex flex-col items-center justify-center gap-3"
+        style={{ background: "var(--page-bg)" }}
+      >
+        <span className="logo-badge animate-spin-slow">
+          <BbcDashboardIcon size={16} />
+        </span>
+        <p className="mono-meta">Читаем таблицу…</p>
+        <p className="text-xs" style={{ color: "var(--text-muted)" }}>
+          Первая загрузка занимает несколько секунд
+        </p>
       </div>
     );
   }
@@ -239,7 +248,7 @@ export function BbcDashboardClient() {
                 key={item.key}
                 type="button"
                 onClick={() => setBlock(item.key)}
-                className={`flex items-center gap-1.5 px-3 py-2 text-xs whitespace-nowrap border-b-2 ${
+                className={`flex shrink-0 items-center gap-1.5 px-3 py-2 text-xs whitespace-nowrap border-b-2 ${
                   active ? "tab-active" : "tab-inactive"
                 }`}
                 style={{ transition: "color var(--dur-fast)" }}

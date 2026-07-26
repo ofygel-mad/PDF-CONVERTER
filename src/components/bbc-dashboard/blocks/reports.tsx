@@ -300,9 +300,25 @@ function CashflowSection() {
   }
 
   if (!byMonth || !byCategory) {
+    // Скелетон повторяет будущую раскладку, поэтому при появлении данных
+    // страница не прыгает — блок просто наполняется.
     return (
       <SectionCard title="ДДС — движение денежных средств" subtitle="Считаем обороты по журналу…">
-        <p className="mono-meta">Загрузка…</p>
+        <div className="flex flex-col gap-2" aria-hidden="true">
+          {[0, 1, 2, 3, 4].map((row) => (
+            <div
+              key={row}
+              className="h-6 rounded animate-fade-in"
+              style={{
+                background: "var(--bg-active)",
+                animationDuration: "var(--dur-base)",
+                animationDelay: `calc(${row} * var(--dur-stagger))`,
+                animationFillMode: "backwards",
+                opacity: 0.6,
+              }}
+            />
+          ))}
+        </div>
       </SectionCard>
     );
   }

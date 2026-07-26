@@ -21,6 +21,7 @@ export function BarRow({
   label,
   value,
   max,
+  total,
   hint,
   tone = "accent",
   index = 0,
@@ -28,7 +29,10 @@ export function BarRow({
 }: {
   label: string;
   value: number;
+  /** Длина полоски задаётся относительно этого значения — обычно это максимум в группе. */
   max: number;
+  /** Сумма по всей группе. Если передана, рядом показывается доля от целого. */
+  total?: number;
   hint?: string;
   tone?: "accent" | "emerald" | "amber" | "rose" | "muted";
   index?: number;
@@ -37,6 +41,9 @@ export function BarRow({
   const width = max > 0 ? Math.max(0, (value / max) * 100) : 0;
   const colour = toneColour(tone);
   const Wrapper = onClick ? "button" : "div";
+  // Полоска длиной во всю строку означает «крупнейший в группе», а не «100%».
+  // Без явной доли это читается неверно — поэтому доля выводится числом.
+  const share = total ? value / total : null;
 
   return (
     <Wrapper
@@ -51,6 +58,9 @@ export function BarRow({
         </span>
         <span className="text-xs bbc-num shrink-0" style={{ color: "var(--text-primary)" }}>
           {hint ?? money(value)}
+          {share !== null ? (
+            <span style={{ color: "var(--text-muted)" }}> · {percent(share)}</span>
+          ) : null}
         </span>
       </div>
       <div
@@ -175,23 +185,27 @@ export function CycleColumns({
   showCycles: boolean;
 }) {
   const max = Math.max(...data.map((item) => item.total), 1);
+  const total = data.reduce((sum, item) => sum + item.total, 0);
   if (!data.length) return <EmptyChart />;
 
   return (
-    <div className="flex items-end gap-2 h-40" role="img" aria-label="Признанная выручка по месяцам">
+    <div className="flex items-stretch gap-2 h-48" role="img" aria-label="Признанная выручка по месяцам">
       {data.map((item, index) => (
         <div key={item.month} className="flex-1 flex flex-col items-center gap-1.5 min-w-0">
           <span className="text-[0.65rem] bbc-num" style={{ color: "var(--text-secondary)" }}>
             {moneyShort(item.total)}
           </span>
-          <div
-            className="w-full flex flex-col justify-end rounded-t-md overflow-hidden bbc-grow"
-            style={{
-              height: `${Math.max(2, (item.total / max) * 100)}%`,
-              animationDelay: `calc(${index} * var(--dur-stagger))`,
-            }}
-            title={`${item.month}: цикл 1 ${money(item.cycle1)}, цикл 2 ${money(item.cycle2)}`}
-          >
+          {/* Область роста колонки: даёт столбцу определённую высоту, иначе
+              процентная высота внутри flex-элемента схлопывается в ноль. */}
+          <div className="flex-1 w-full flex flex-col justify-end min-h-0">
+            <div
+              className="w-full flex flex-col justify-end rounded-t-md overflow-hidden bbc-grow"
+              style={{
+                height: `${Math.max(2, (item.total / max) * 100)}%`,
+                animationDelay: `calc(${index} * var(--dur-stagger))`,
+              }}
+              title={`${item.month}: цикл 1 ${money(item.cycle1)}, цикл 2 ${money(item.cycle2)}`}
+            >
             {showCycles ? (
               <>
                 {/* Cycle 2 sits on top: it is the later half of the month. */}
@@ -214,9 +228,15 @@ export function CycleColumns({
             ) : (
               <div style={{ height: "100%", background: "var(--accent)" }} />
             )}
+            </div>
           </div>
           <span className="text-[0.62rem] truncate w-full text-center" style={{ color: "var(--text-muted)" }}>
             {monthShort(item.month)}
+          </span>
+          {/* Доля месяца в периоде: без неё высота столбца читается как
+              «столько-то процентов», хотя она задана относительно максимума. */}
+          <span className="text-[0.6rem] bbc-num" style={{ color: "var(--text-muted)" }}>
+            {total ? percent(item.total / total) : "—"}
           </span>
         </div>
       ))}

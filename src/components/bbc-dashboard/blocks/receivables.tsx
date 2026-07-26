@@ -12,7 +12,7 @@
 import { useMemo, useState } from "react";
 
 import { Bridge, Heatmap, type BridgeStage } from "../charts";
-import { money, moneyShort, plural } from "../format";
+import { dateLabel, money, moneyShort, percent, plural } from "../format";
 import type { BbcMode, BbcRow } from "../types";
 import { groupBy, sumBy } from "../use-dataset";
 import { KpiStrip, RowTable, SectionCard } from "./shared";
@@ -81,7 +81,9 @@ export function ReceivablesBlock({
   const toInvoice = useMemo(
     () =>
       stats.notInvoiced
-        .filter((row) => row.period_start)
+        // Строка без клиента — это дефект данных, а не задача: ей место
+        // в блоке «Предупреждения», а не в списке дел.
+        .filter((row) => row.period_start && row.client)
         .sort((a, b) => (a.period_start ?? "").localeCompare(b.period_start ?? ""))
         .slice(0, 12),
     [stats.notInvoiced],
@@ -112,6 +114,11 @@ export function ReceivablesBlock({
       };
     });
   }, [overdue]);
+
+  const ageingTotal = useMemo(
+    () => ageing.reduce((sum, bucket) => sum + bucket.amount, 0),
+    [ageing],
+  );
 
   const stages: BridgeStage[] = [
     {
@@ -197,7 +204,7 @@ export function ReceivablesBlock({
 
         <SectionCard
           title="Старение долга"
-          subtitle="Сколько времени прошло с выставления счёта до сегодня."
+          subtitle="Сколько времени прошло с выставления счёта до сегодня. Полоска — доля корзины в общей просрочке."
         >
           {overdue.length ? (
             <div className="flex flex-col gap-2.5">
@@ -214,19 +221,20 @@ export function ReceivablesBlock({
                       {bucket.label}
                     </span>
                     <span className="text-xs bbc-num" style={{ color: "var(--text-primary)" }}>
-                      {money(bucket.amount)}{" "}
-                      <span style={{ color: "var(--text-muted)" }}>· {bucket.count}</span>
+                      {money(bucket.amount)}
+                      <span style={{ color: "var(--text-muted)" }}>
+                        {" "}· {ageingTotal ? percent(bucket.amount / ageingTotal) : "—"} ·{" "}
+                        {bucket.count} {plural(bucket.count, "счёт", "счёта", "счетов")}
+                      </span>
                     </span>
                   </div>
                   <div className="h-1.5 rounded-full overflow-hidden" style={{ background: "var(--bg-active)" }}>
                     <div
                       className="h-full rounded-full bbc-grow"
                       style={{
-                        width: `${
-                          ageing.reduce((max, item) => Math.max(max, item.amount), 1) > 0
-                            ? (bucket.amount / ageing.reduce((max, item) => Math.max(max, item.amount), 1)) * 100
-                            : 0
-                        }%`,
+                        // Доля от всей просрочки: полоска во всю строку означала бы
+                        // «вся просрочка в этой корзине», а не «эта корзина крупнейшая».
+                        width: `${ageingTotal ? (bucket.amount / ageingTotal) * 100 : 0}%`,
                         background: `var(--accent-${bucket.tone === "accent" ? "" : bucket.tone})`.replace(
                           "var(--accent-)",
                           "var(--accent)",
@@ -270,7 +278,7 @@ export function ReceivablesBlock({
                       {row.client || "—"}
                     </span>
                     <span className="mono-meta shrink-0">
-                      {row.period_start?.slice(5) ?? "—"} · {moneyShort(row.contract_amount)}
+                      с {dateLabel(row.period_start)} · {moneyShort(row.contract_amount)}
                     </span>
                   </li>
                 ))}
