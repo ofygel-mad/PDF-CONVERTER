@@ -155,7 +155,9 @@ export function RowTable({
               (header) => (
                 <th
                   key={header}
-                  className="text-left font-medium px-2 py-1.5 whitespace-nowrap"
+                  className={`font-medium px-2 py-1.5 whitespace-nowrap ${
+                    ["Договор", "Оплачено", "Признано"].includes(header) ? "text-right" : "text-left"
+                  }`}
                   style={{ color: "var(--text-muted)", borderBottom: "1px solid var(--border-subtle)" }}
                 >
                   {header}

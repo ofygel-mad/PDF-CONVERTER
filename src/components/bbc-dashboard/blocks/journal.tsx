@@ -247,7 +247,9 @@ function JournalTable({ rows }: { rows: BbcJournalRow[] }) {
               (header) => (
                 <th
                   key={header}
-                  className="text-left font-medium px-2 py-1.5 whitespace-nowrap"
+                  className={`font-medium px-2 py-1.5 whitespace-nowrap ${
+                    header === "Приход" || header === "Расход" ? "text-right" : "text-left"
+                  }`}
                   style={{ color: "var(--text-muted)", borderBottom: "1px solid var(--border-subtle)" }}
                 >
                   {header}

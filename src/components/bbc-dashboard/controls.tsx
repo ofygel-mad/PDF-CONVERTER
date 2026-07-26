@@ -267,8 +267,10 @@ export function FilterBar({
   return (
     <div className="flex flex-col gap-2">
       <div className="flex items-center gap-2 flex-wrap">
+        {/* На узком экране поиск занимает свою строку целиком: при min-w 180px
+            он ужимался до «Поиск: клиен» и подсказка переставала читаться. */}
         <input
-          className="input-field text-xs flex-1 min-w-[180px] max-w-xs"
+          className="input-field text-xs w-full sm:w-auto sm:flex-1 sm:min-w-[180px] sm:max-w-xs"
           placeholder="Поиск: клиент, договор, сотрудник…"
           value={filters.search}
           onChange={(event) => onSearch(event.target.value)}

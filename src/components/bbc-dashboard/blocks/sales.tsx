@@ -11,7 +11,7 @@
 import { useCallback, useEffect, useState } from "react";
 
 import { BbcApiError, fetchSales } from "../api";
-import { money, moneyShort, percent } from "../format";
+import { money, moneyShort, percent, plural } from "../format";
 import type { BbcSalesReport } from "../types";
 import { SectionCard } from "./shared";
 
@@ -144,10 +144,15 @@ export function SalesBlock() {
             <thead>
               <tr>
                 {["Сотрудник", "Роль", "Фикс", "Бонус план", "Бонус факт", "Δ бонуса", "Всего факт"].map(
-                  (header) => (
+                  (header, column) => (
                     <th
                       key={header}
-                      className="text-left font-medium px-2 py-1.5 whitespace-nowrap"
+                      // Первые две колонки текстовые, остальные денежные — и
+                      // подпись должна стоять над своим числом, а не у левого
+                      // края пустого столбца.
+                      className={`font-medium px-2 py-1.5 whitespace-nowrap ${
+                        column < 2 ? "text-left" : "text-right"
+                      }`}
                       style={{ color: "var(--text-muted)", borderBottom: "1px solid var(--border-subtle)" }}
                     >
                       {header}
@@ -214,7 +219,9 @@ export function SalesBlock() {
                 <div className="flex items-baseline justify-between gap-3 flex-wrap mb-2">
                   <span className="text-xs font-medium" style={{ color: "var(--text-primary)" }}>
                     {channel.channel}
-                    <span className="mono-meta ml-2">{channel.deals} сделок</span>
+                    <span className="mono-meta ml-2">
+                      {channel.deals} {plural(channel.deals, "сделка", "сделки", "сделок")}
+                    </span>
                   </span>
                   <span className="text-xs bbc-num" style={{ color: "var(--text-secondary)" }}>
                     расход {money(channel.spend)} · выручка {money(channel.revenue)}
