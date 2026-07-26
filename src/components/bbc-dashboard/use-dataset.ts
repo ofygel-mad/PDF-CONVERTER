@@ -229,6 +229,22 @@ export function useDataset() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  /**
+   * Вход уже вернул личность — принимаем её без повторного запроса `/me`.
+   * Экран входа уходит в тот же кадр, данные догружаются под индикатором.
+   */
+  const adoptIdentity = useCallback(
+    (identity: BbcMe) => {
+      setMe(identity);
+      setUnauthorized(!identity.authenticated);
+      if (identity.authenticated) {
+        setLoading(true);
+        void load();
+      }
+    },
+    [load],
+  );
+
   useEffect(() => {
     void load();
   }, [load]);
@@ -265,6 +281,7 @@ export function useDataset() {
   return {
     dataset,
     me,
+    adoptIdentity,
     rows,
     allRows: dataset?.rows ?? [],
     filters,

@@ -11,12 +11,14 @@ import { useState, type FormEvent } from "react";
 
 import { BbcApiError, login } from "../api";
 import { BbcDashboardIcon, LockIcon } from "../icon";
+import type { BbcMe } from "../types";
 
 type Props = {
   needsSetup: boolean;
   /** The visitor arrived with a link token that no longer works. */
   linkExpired?: boolean;
-  onSignedIn: () => void;
+  /** Получает ответ входа, чтобы оболочка убрала экран без второго запроса. */
+  onSignedIn: (me: BbcMe) => void;
 };
 
 export function LoginScreen({ needsSetup, linkExpired = false, onSignedIn }: Props) {
@@ -30,13 +32,14 @@ export function LoginScreen({ needsSetup, linkExpired = false, onSignedIn }: Pro
     setBusy(true);
     setError(null);
     try {
-      await login(username, password);
-      onSignedIn();
+      const me = await login(username, password);
+      // busy НЕ сбрасываем: экран сейчас сменится, а мигание кнопки обратно в
+      // «Войти» читается как «клик не сработал» — человек жмёт второй раз.
+      onSignedIn(me);
     } catch (err) {
       setError(
         err instanceof BbcApiError ? err.message : "Не удалось войти. Попробуйте ещё раз.",
       );
-    } finally {
       setBusy(false);
     }
   }

@@ -160,7 +160,11 @@ export function ReportsBlock({ rows, mode }: { rows: BbcRow[]; mode: BbcMode }) 
         <CycleColumns data={monthly} showCycles={showCycles} />
         {showCycles ? (
           <div className="flex items-center gap-4 mt-3">
-            <Legend colour="var(--accent-soft)" border="var(--accent-line)" label="Цикл 1 (01–15)" />
+            <Legend
+              colour="color-mix(in srgb, var(--accent) 42%, var(--bg-surface))"
+              border="var(--accent-line)"
+              label="Цикл 1 (01–15)"
+            />
             <Legend colour="var(--accent)" label="Цикл 2 (16–конец)" />
           </div>
         ) : null}

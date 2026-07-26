@@ -69,6 +69,7 @@ export function BbcDashboardClient() {
   const {
     dataset,
     me,
+    adoptIdentity,
     rows,
     filters,
     setFilters,
@@ -135,7 +136,7 @@ export function BbcDashboardClient() {
       <LoginScreen
         needsSetup={me?.needs_setup ?? false}
         linkExpired={!!linkToken}
-        onSignedIn={() => void reload()}
+        onSignedIn={adoptIdentity}
       />
     );
   }

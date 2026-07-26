@@ -192,12 +192,17 @@ export function CycleColumns({
     <div className="flex items-stretch gap-2 h-48" role="img" aria-label="Признанная выручка по месяцам">
       {data.map((item, index) => (
         <div key={item.month} className="flex-1 flex flex-col items-center gap-1.5 min-w-0">
-          <span className="text-[0.65rem] bbc-num" style={{ color: "var(--text-secondary)" }}>
-            {moneyShort(item.total)}
-          </span>
           {/* Область роста колонки: даёт столбцу определённую высоту, иначе
-              процентная высота внутри flex-элемента схлопывается в ноль. */}
+              процентная высота внутри flex-элемента схлопывается в ноль.
+              Подпись живёт здесь же, прямо над столбцом: у верхнего края карточки
+              она отрывалась от коротких месяцев и читалась как чужая. */}
           <div className="flex-1 w-full flex flex-col justify-end min-h-0">
+            <span
+              className="text-[0.65rem] bbc-num text-center mb-1"
+              style={{ color: "var(--text-secondary)" }}
+            >
+              {moneyShort(item.total)}
+            </span>
             <div
               className="w-full flex flex-col justify-end rounded-t-md overflow-hidden bbc-grow"
               style={{
@@ -219,7 +224,9 @@ export function CycleColumns({
                 <div
                   style={{
                     height: `${item.total ? (item.cycle1 / item.total) * 100 : 0}%`,
-                    background: "var(--accent-soft)",
+                    // Смешиваем акцент с фоном, а не берём почти прозрачный
+                    // --accent-soft: тот сливался с карточкой, и цикл 1 пропадал.
+                    background: "color-mix(in srgb, var(--accent) 42%, var(--bg-surface))",
                     borderTop: "1px solid var(--accent-line)",
                     transition: "height var(--dur-tell) var(--ease-out)",
                   }}
