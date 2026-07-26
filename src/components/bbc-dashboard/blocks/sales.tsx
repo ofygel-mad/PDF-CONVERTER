@@ -334,6 +334,7 @@ function Bar({
           width: `${Math.min(100, (value / max) * 100)}%`,
           background: colour,
           transformOrigin: "left",
+          transition: "width var(--dur-tell) var(--ease-out)",
           animationDelay: `calc(${index} * var(--dur-stagger))`,
         }}
       />

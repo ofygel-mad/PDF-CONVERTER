@@ -3,6 +3,7 @@
 /** Pieces shared by every block: cards, KPI tiles, the row table, empty states. */
 import { useMemo, type ReactNode } from "react";
 
+import { useCountUp } from "../use-count-up";
 import { useChangedKeys } from "../use-live";
 
 import { dateLabel, money, moneyShort, percent } from "../format";
@@ -62,35 +63,55 @@ export function KpiStrip({ items }: { items: KpiItem[] }) {
   return (
     <div className="grid gap-2.5 grid-cols-2 sm:grid-cols-3 lg:grid-cols-6">
       {items.map((item, index) => (
-        <div
+        <KpiTile
           key={item.label}
-          className={`card p-3 animate-fade-in${changed.has(item.label) ? " bbc-pulse" : ""}`}
-          style={{
-            animationDuration: "var(--dur-base)",
-            animationDelay: `calc(${index} * var(--dur-stagger))`,
-            animationFillMode: "backwards",
-          }}
-          title={item.hint}
-        >
-          <p className="eyebrow mb-1 truncate">{item.label}</p>
-          <p
-            className="text-lg font-semibold bbc-num truncate"
-            style={{
-              color: item.tone ? `var(--accent-${item.tone === "accent" ? "" : item.tone})`.replace(
-                "var(--accent-)",
-                "var(--accent)",
-              ) : "var(--text-primary)",
-              letterSpacing: "-0.02em",
-            }}
-          >
-            {item.format === "percent"
-              ? percent(item.value)
-              : item.format === "count"
-                ? item.value.toLocaleString("ru-RU")
-                : moneyShort(item.value)}
-          </p>
-        </div>
+          item={item}
+          index={index}
+          pulsing={changed.has(item.label)}
+        />
       ))}
+    </div>
+  );
+}
+
+function KpiTile({
+  item,
+  index,
+  pulsing,
+}: {
+  item: KpiItem;
+  index: number;
+  pulsing: boolean;
+}) {
+  const shown = useCountUp(item.value);
+  const tone = item.tone
+    ? `var(--accent-${item.tone === "accent" ? "" : item.tone})`.replace(
+        "var(--accent-)",
+        "var(--accent)",
+      )
+    : "var(--text-primary)";
+
+  return (
+    <div
+      className={`card p-3 animate-fade-in bbc-tile${pulsing ? " bbc-pulse" : ""}`}
+      style={{
+        animationDuration: "var(--dur-base)",
+        animationDelay: `calc(${index} * var(--dur-stagger))`,
+        animationFillMode: "backwards",
+      }}
+      title={item.hint}
+    >
+      <p className="eyebrow mb-1 truncate">{item.label}</p>
+      <p
+        className="text-lg font-semibold bbc-num truncate"
+        style={{ color: tone, letterSpacing: "-0.02em" }}
+      >
+        {item.format === "percent"
+          ? percent(shown)
+          : item.format === "count"
+            ? Math.round(shown).toLocaleString("ru-RU")
+            : moneyShort(shown)}
+      </p>
     </div>
   );
 }

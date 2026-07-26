@@ -235,6 +235,7 @@ export function ReportsBlock({ rows, mode }: { rows: BbcRow[]; mode: BbcMode }) 
                       width: `${Math.min(100, item.share * 100)}%`,
                       background: "var(--accent-emerald)",
                       transformOrigin: "left",
+                      transition: "width var(--dur-tell) var(--ease-out)",
                       animationDelay: `calc(${index} * var(--dur-stagger))`,
                     }}
                   />
@@ -409,6 +410,7 @@ function CashflowSection() {
                       }%`,
                       background: "var(--accent-rose)",
                       transformOrigin: "left",
+                      transition: "width var(--dur-tell) var(--ease-out)",
                       animationDelay: `calc(${index} * var(--dur-stagger))`,
                     }}
                   />

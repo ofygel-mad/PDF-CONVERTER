@@ -177,6 +177,7 @@ export function JournalBlock() {
                       }%`,
                       background: item.value < 0 ? "var(--accent-rose)" : "var(--accent)",
                       transformOrigin: "left",
+                      transition: "width var(--dur-tell) var(--ease-out)",
                       animationDelay: `calc(${index} * var(--dur-stagger))`,
                     }}
                   />

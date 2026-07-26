@@ -14,6 +14,7 @@
  * not the security boundary.
  */
 import { useCallback, useEffect, useMemo, useState } from "react";
+import { flushSync } from "react-dom";
 import Link from "next/link";
 
 import { ArrowLeftIcon, RefreshIcon } from "@/components/icons";
@@ -53,6 +54,34 @@ type BlockDefinition = {
   /** Scope permission required to open it. */
   requires: string;
 };
+
+/**
+ * Смена раздела через нативный View Transitions API.
+ *
+ * Библиотека для этого не нужна: браузер сам снимает «до» и «после» и заводит
+ * между ними псевдоэлементы, которые докрашиваются в globals.css. Имя перехода
+ * висит только на области блока, поэтому шапка и панель фильтров не замирают на
+ * время анимации. Где API нет (Firefox, Safari до 18) — обычный setState, и
+ * раздел просто меняется мгновенно.
+ */
+type DocumentWithViewTransition = Document & {
+  startViewTransition?: (callback: () => void) => unknown;
+};
+
+function withViewTransition(update: () => void) {
+  const doc = typeof document === "undefined" ? null : (document as DocumentWithViewTransition);
+  const reduced =
+    typeof window !== "undefined" &&
+    window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+
+  if (!doc?.startViewTransition || reduced) {
+    update();
+    return;
+  }
+  // flushSync обязателен: браузер снимает второй кадр сразу после колбэка, а
+  // асинхронный рендер React в него не успел бы.
+  doc.startViewTransition(() => flushSync(update));
+}
 
 const BLOCKS: BlockDefinition[] = [
   { key: "receivables", title: "Дебиторка", short: "Дебиторка", icon: ReceivablesIcon, requires: "receivables" },
@@ -208,14 +237,38 @@ export function BbcDashboardClient() {
                 onApplyView={applyView}
               />
             ) : null}
-            <button
-              type="button"
-              onClick={() => setDensity((value) => (value === "compact" ? "comfortable" : "compact"))}
-              className="btn-ghost text-xs px-2.5 py-1.5 hidden md:flex items-center gap-1.5"
-              title={density === "compact" ? "Комфортная плотность" : "Компактная плотность"}
+            {/* Двухпозиционный переключатель, а не одна кнопка: у кнопки с
+                подписью «Плотно» не прочитать, это текущее состояние или то,
+                что случится по клику. Здесь обе позиции видны сразу. */}
+            <div
+              className="hidden md:flex items-center rounded-lg p-0.5 gap-0.5"
+              style={{ background: "var(--bg-active)" }}
+              role="group"
+              aria-label="Плотность таблиц"
             >
-              {density === "compact" ? "Плотно" : "Свободно"}
-            </button>
+              {(
+                [
+                  { key: "comfortable", label: "Свободно" },
+                  { key: "compact", label: "Плотно" },
+                ] as const
+              ).map((option) => (
+                <button
+                  key={option.key}
+                  type="button"
+                  onClick={() => setDensity(option.key)}
+                  aria-pressed={density === option.key}
+                  className="text-xs px-2.5 py-1 rounded-md"
+                  style={{
+                    background: density === option.key ? "var(--bg-surface)" : "transparent",
+                    color:
+                      density === option.key ? "var(--text-primary)" : "var(--text-muted)",
+                    transition: "background var(--dur-fast), color var(--dur-fast)",
+                  }}
+                >
+                  {option.label}
+                </button>
+              ))}
+            </div>
             <button
               type="button"
               onClick={() => void reload(true)}
@@ -248,7 +301,7 @@ export function BbcDashboardClient() {
               <button
                 key={item.key}
                 type="button"
-                onClick={() => setBlock(item.key)}
+                onClick={() => withViewTransition(() => setBlock(item.key))}
                 className={`flex shrink-0 items-center gap-1.5 px-3 py-2 text-xs whitespace-nowrap border-b-2 ${
                   active ? "tab-active" : "tab-inactive"
                 }`}
@@ -311,7 +364,7 @@ export function BbcDashboardClient() {
             </div>
 
             {activeBlock ? (
-              <>
+              <div className="bbc-block-view flex flex-col gap-4">
                 <h2 className="sr-only">{activeBlock.title}</h2>
                 {activeBlock.key === "receivables" ? <ReceivablesBlock rows={rows} mode={mode} /> : null}
                 {activeBlock.key === "reports" ? <ReportsBlock rows={rows} mode={mode} /> : null}
@@ -330,7 +383,7 @@ export function BbcDashboardClient() {
                   />
                 ) : null}
                 {activeBlock.key === "roadmap" ? <RoadmapBlock /> : null}
-              </>
+              </div>
             ) : null}
           </>
         ) : null}

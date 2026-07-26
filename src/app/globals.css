@@ -405,6 +405,40 @@ body {
 /* All figures are tabular so digits never jitter while counting up. */
 .bbc-num { font-variant-numeric: tabular-nums; font-feature-settings: "tnum" 1; }
 
+/* KPI tile: rises a hair under the cursor and lights its hairline. Only
+   transform and border-color move — no shadow repaint, no layout. */
+.bbc-tile {
+  transition:
+    transform var(--dur-fast) var(--ease-out),
+    border-color var(--dur-fast) var(--ease-out),
+    background var(--dur-fast) var(--ease-out);
+}
+.bbc-tile:hover {
+  transform: translateY(-2px);
+  border-color: var(--accent-line);
+  background: var(--bg-hover);
+}
+
+/* Смена раздела: браузер сам снимает «до» и «после», нам остаётся задать
+   характер. Имя висит только на области блока — шапка, вкладки и панель
+   фильтров живут своей жизнью и не замирают на время перехода.
+   Уходящее гаснет быстрее, чем приходит новое: правило «вход медленнее
+   выхода» из системы движения. */
+.bbc-block-view { view-transition-name: bbc-block; }
+
+@keyframes bbc-view-out {
+  to { opacity: 0; transform: translateY(-4px); }
+}
+@keyframes bbc-view-in {
+  from { opacity: 0; transform: translateY(8px); }
+}
+::view-transition-old(bbc-block) {
+  animation: bbc-view-out var(--dur-fast) var(--ease-out) both;
+}
+::view-transition-new(bbc-block) {
+  animation: bbc-view-in var(--dur-base) var(--ease-out) both;
+}
+
 /* Faint grain kills gradient banding without touching the flat-depth tokens. */
 .bbc-grain::after {
   content: "";

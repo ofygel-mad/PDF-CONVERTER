@@ -22,8 +22,23 @@ import type { LiveState } from "./use-live";
 export function LiveIndicator({ live }: { live: LiveState }) {
   const tone = live.online ? "var(--accent-emerald)" : "var(--accent-amber)";
 
+  // Голое «9 минут назад» читалось как «столько мы не проверяли связь» — то есть
+  // ровно наоборот. Это возраст самих данных: когда таблицу правили в последний
+  // раз. Проверяем мы её каждые пять секунд, и это уходит в подсказку.
+  const label = !live.online
+    ? "нет связи"
+    : live.changedAt
+      ? `правка ${relativeTime(live.changedAt)}`
+      : "следим за таблицей";
+
+  const title = live.online
+    ? `Проверяем Google Sheets каждые 5 секунд${
+        live.changedAt ? `. Последнее изменение: ${relativeTime(live.changedAt)}` : ""
+      }`
+    : "Бэкенд не отвечает — показаны последние загруженные данные";
+
   return (
-    <span className="flex items-center gap-1.5 mono-meta" title="Данные обновляются автоматически">
+    <span className="flex items-center gap-1.5 mono-meta" title={title}>
       <span
         aria-hidden="true"
         style={{
@@ -34,9 +49,7 @@ export function LiveIndicator({ live }: { live: LiveState }) {
           boxShadow: live.online ? `0 0 0 3px color-mix(in srgb, ${tone} 22%, transparent)` : "none",
         }}
       />
-      <span className="hidden sm:inline">
-        {live.online ? relativeTime(live.changedAt) : "нет связи"}
-      </span>
+      <span className="hidden sm:inline">{label}</span>
     </span>
   );
 }

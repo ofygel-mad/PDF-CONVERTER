@@ -171,6 +171,7 @@ function UpcomingCard({ calendar }: { calendar: BbcCalendar }) {
                     width: `${(item.amount / max) * 100}%`,
                     background: "var(--accent-emerald)",
                     transformOrigin: "left",
+                    transition: "width var(--dur-tell) var(--ease-out)",
                     animationDelay: `calc(${index} * var(--dur-stagger))`,
                   }}
                 />
@@ -347,6 +348,7 @@ function Bar({
           width: `${(value / max) * 100}%`,
           background: colour,
           transformOrigin: "left",
+          transition: "width var(--dur-tell) var(--ease-out)",
           animationDelay: `calc(${index} * var(--dur-stagger))`,
         }}
       />

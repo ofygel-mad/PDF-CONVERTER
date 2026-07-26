@@ -208,6 +208,9 @@ export function CycleColumns({
               style={{
                 height: `${Math.max(2, (item.total / max) * 100)}%`,
                 animationDelay: `calc(${index} * var(--dur-stagger))`,
+                // Именно это делает переключение варианта перетеканием, а не
+                // перерисовкой: высота едет к новому значению за --dur-tell.
+                transition: "height var(--dur-tell) var(--ease-out)",
               }}
               title={`${item.month}: цикл 1 ${money(item.cycle1)}, цикл 2 ${money(item.cycle2)}`}
             >

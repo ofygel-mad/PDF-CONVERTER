@@ -169,7 +169,11 @@ export function ReceivablesBlock({
       .sort((a, b) => b.total - a.total)
       .slice(0, 12);
 
-    const months = [...new Set(withDiff.map((row) => row.month).filter(Boolean))]
+    // Месяцы берём по строкам именно тех клиентов, что попали в таблицу.
+    // Раньше список собирался по всем строкам — и если у топ-12 в каком-то
+    // месяце расхождений не было, колонка стояла пустой во всю высоту.
+    const shown = top.flatMap((item) => item.rows);
+    const months = [...new Set(shown.map((row) => row.month).filter(Boolean))]
       .sort((a, b) => (a ?? 0) - (b ?? 0))
       .map((month) => `2026-${String(month).padStart(2, "0")}`);
 
@@ -240,6 +244,7 @@ export function ReceivablesBlock({
                           "var(--accent)",
                         ),
                         transformOrigin: "left",
+                        transition: "width var(--dur-tell) var(--ease-out)",
                         animationDelay: `calc(${index} * var(--dur-stagger))`,
                       }}
                     />

@@ -22,6 +22,28 @@ type Dimension = {
   filterKey?: "firms" | "departments" | "employees" | "serviceKinds";
 };
 
+/**
+ * Мера, общая для всех разрезов блока.
+ *
+ * Раньше пончик считал признанную выручку, а списки под ним — суммы договоров,
+ * и на одном экране получались два разных «100%». Теперь мера одна и её выбирает
+ * пользователь: любые две карточки блока всегда сопоставимы между собой.
+ */
+type Measure = "recognized" | "contracted";
+
+const MEASURES: Array<{ key: Measure; title: string; hint: string }> = [
+  {
+    key: "recognized",
+    title: "Признано",
+    hint: "Заработано в текущем режиме признания. Разовые «на исполнении» сюда не входят.",
+  },
+  {
+    key: "contracted",
+    title: "Сумма договоров",
+    hint: "Вся законтрактованная сумма, независимо от того, признана она или ещё нет.",
+  },
+];
+
 /** Пустое значение — это не «—», а конкретный пробел в данных. Так строку
     можно узнать в блоке «Предупреждения» и починить в таблице. */
 const UNSET = {
@@ -32,14 +54,10 @@ const UNSET = {
   client: "Клиент не указан",
 };
 
+// Отдела здесь намеренно нет: он разобран отдельной карточкой «По отделам»
+// выше, и второй такой же список в том же блоке только сбивал с толку.
 const DIMENSIONS: Dimension[] = [
   { key: "firm", title: "По юрлицам", pick: (row) => row.firm || UNSET.firm, filterKey: "firms" },
-  {
-    key: "department",
-    title: "По отделам",
-    pick: (row) => row.departments[0] ?? UNSET.department,
-    filterKey: "departments",
-  },
   {
     key: "employee",
     title: "По сотрудникам",
@@ -65,6 +83,7 @@ export function AnalyticsBlock({
   onFilter?: (key: "firms" | "departments" | "employees" | "serviceKinds", value: string) => void;
 }) {
   const [drill, setDrill] = useState<{ title: string; rows: BbcRow[] } | null>(null);
+  const [measure, setMeasure] = useState<Measure>("recognized");
 
   const monthly = useMemo(() => byMonthCycle(rows, mode), [rows, mode]);
 
@@ -89,17 +108,24 @@ export function AnalyticsBlock({
 
   /** Net-profit-by-department placeholder: revenue only, expenses need the journal. */
   const departmentRevenue = useMemo(() => {
-    const byDepartment = groupBy(rows, (row) => row.departments[0] ?? "Отдел не задан");
+    const byDepartment = groupBy(rows, (row) => row.departments[0] || UNSET.department);
     return [...byDepartment.entries()]
-      .map(([code, groupRows]) => ({
-        code,
-        total: recognizedTotal(groupRows, mode),
-        contracted: sumBy(groupRows, (row) => row.contract_amount),
-        rows: groupRows,
-      }))
-      .filter((item) => item.total > 0)
-      .sort((a, b) => b.total - a.total);
-  }, [rows, mode]);
+      .map(([code, groupRows]) => {
+        const recognized = recognizedTotal(groupRows, mode);
+        const contracted = sumBy(groupRows, (row) => row.contract_amount);
+        return {
+          code,
+          value: measure === "recognized" ? recognized : contracted,
+          recognized,
+          contracted,
+          rows: groupRows,
+        };
+      })
+      .filter((item) => item.value > 0)
+      .sort((a, b) => b.value - a.value);
+  }, [rows, mode, measure]);
+
+  const measureHint = MEASURES.find((item) => item.key === measure)?.hint ?? "";
 
   return (
     <div className="flex flex-col gap-4">
@@ -136,32 +162,67 @@ export function AnalyticsBlock({
         </div>
       </SectionCard>
 
+      <div
+        className="card p-3 flex items-center justify-between gap-3 flex-wrap animate-fade-in"
+        style={{ animationDuration: "var(--dur-base)" }}
+      >
+        <div className="min-w-0">
+          <p className="eyebrow mb-0.5">Мера всех разрезов ниже</p>
+          <p className="text-xs" style={{ color: "var(--text-secondary)" }}>
+            {measureHint}
+          </p>
+        </div>
+        <div className="flex gap-1.5">
+          {MEASURES.map((item) => (
+            <button
+              key={item.key}
+              type="button"
+              onClick={() => setMeasure(item.key)}
+              className="text-xs px-3 py-1.5 rounded-lg"
+              aria-pressed={measure === item.key}
+              style={{
+                background: measure === item.key ? "var(--accent-soft)" : "var(--bg-active)",
+                border: `1px solid ${measure === item.key ? "var(--accent-line)" : "transparent"}`,
+                color: measure === item.key ? "var(--text-accent)" : "var(--text-secondary)",
+                transition: "background var(--dur-fast), color var(--dur-fast)",
+              }}
+            >
+              {item.title}
+            </button>
+          ))}
+        </div>
+      </div>
+
       <div className="grid gap-4 lg:grid-cols-2">
         <SectionCard
-          title="Выручка по отделам"
+          title="По отделам"
           subtitle="Чистая прибыль появится, когда в журнале появятся категории расходов."
         >
           <div className="flex flex-col gap-3">
             {departmentRevenue.map((item, index) => (
               <BarRow
                 key={item.code}
-                label={item.code || "Отдел не задан"}
-                value={item.total}
-                max={Math.max(...departmentRevenue.map((entry) => entry.total), 1)}
-                total={departmentRevenue.reduce((sum, entry) => sum + entry.total, 0)}
-                hint={money(item.total)}
+                label={item.code}
+                value={item.value}
+                max={Math.max(...departmentRevenue.map((entry) => entry.value), 1)}
+                total={departmentRevenue.reduce((sum, entry) => sum + entry.value, 0)}
+                hint={money(item.value)}
                 index={index}
-                onClick={() => setDrill({ title: `Отдел ${item.code}`, rows: item.rows })}
+                onClick={() =>
+                  onFilter
+                    ? onFilter("departments", item.code)
+                    : setDrill({ title: `Отдел ${item.code}`, rows: item.rows })
+                }
               />
             ))}
           </div>
         </SectionCard>
 
         <SectionCard
-          title="Структура признанной выручки"
-          subtitle="Только то, что уже признано в текущем режиме. Разовые услуги «на исполнении» сюда не входят — поэтому доли отличаются от списка «По видам услуг» ниже, где взята сумма договоров."
+          title="Структура выручки"
+          subtitle="Те же строки и та же мера, что и в разрезах ниже — доли сходятся между карточками."
         >
-          <ServiceMix rows={rows} mode={mode} />
+          <ServiceMix rows={rows} mode={mode} measure={measure} />
         </SectionCard>
       </div>
 
@@ -171,6 +232,7 @@ export function AnalyticsBlock({
           dimension={dimension}
           rows={rows}
           mode={mode}
+          measure={measure}
           onFilter={onFilter}
           onDrill={(title, drillRows) => setDrill({ title, rows: drillRows })}
         />
@@ -236,18 +298,29 @@ export function AnalyticsBlock({
 
 const MIX_TONES = ["accent", "emerald", "amber", "rose", "muted"] as const;
 
-function ServiceMix({ rows, mode }: { rows: BbcRow[]; mode: BbcMode }) {
+function ServiceMix({
+  rows,
+  mode,
+  measure,
+}: {
+  rows: BbcRow[];
+  mode: BbcMode;
+  measure: Measure;
+}) {
   const slices = useMemo(() => {
-    const byKind = groupBy(rows, (row) => row.service_kind || "—");
+    const byKind = groupBy(rows, (row) => row.service_kind || UNSET.service);
     return [...byKind.entries()]
       .map(([label, kindRows], index) => ({
         label,
-        value: recognizedTotal(kindRows, mode),
+        value:
+          measure === "recognized"
+            ? recognizedTotal(kindRows, mode)
+            : sumBy(kindRows, (row) => row.contract_amount),
         tone: MIX_TONES[index % MIX_TONES.length],
       }))
       .filter((slice) => slice.value > 0)
       .sort((a, b) => b.value - a.value);
-  }, [rows, mode]);
+  }, [rows, mode, measure]);
 
   const total = slices.reduce((sum, slice) => sum + slice.value, 0);
 
@@ -289,12 +362,14 @@ function DimensionCard({
   dimension,
   rows,
   mode,
+  measure,
   onFilter,
   onDrill,
 }: {
   dimension: Dimension;
   rows: BbcRow[];
   mode: BbcMode;
+  measure: Measure;
   onFilter?: (key: "firms" | "departments" | "employees" | "serviceKinds", value: string) => void;
   onDrill: (title: string, rows: BbcRow[]) => void;
 }) {
@@ -303,30 +378,35 @@ function DimensionCard({
     return [...grouped.entries()]
       .map(([label, groupRows]) => ({
         label,
-        total: recognizedTotal(groupRows, mode),
-        contracted: sumBy(groupRows, (row) => row.contract_amount),
+        value:
+          measure === "recognized"
+            ? recognizedTotal(groupRows, mode)
+            : sumBy(groupRows, (row) => row.contract_amount),
         rows: groupRows,
       }))
-      .filter((entry) => entry.contracted > 0)
-      .sort((a, b) => b.contracted - a.contracted)
+      .filter((entry) => entry.value > 0)
+      .sort((a, b) => b.value - a.value)
       .slice(0, 12);
-  }, [rows, mode, dimension]);
+  }, [rows, mode, measure, dimension]);
 
   if (!entries.length) return null;
-  const max = Math.max(...entries.map((entry) => entry.contracted), 1);
-  const total = entries.reduce((sum, entry) => sum + entry.contracted, 0);
+  const max = Math.max(...entries.map((entry) => entry.value), 1);
+  const total = entries.reduce((sum, entry) => sum + entry.value, 0);
 
   return (
-    <SectionCard title={dimension.title} subtitle="Длина полоски — относительно крупнейшего в списке; доля справа — от суммы списка.">
+    <SectionCard
+      title={dimension.title}
+      subtitle="Длина полоски — относительно крупнейшего в списке; доля справа — от суммы списка."
+    >
       <div className="flex flex-col gap-3">
         {entries.map((entry, index) => (
           <BarRow
             key={entry.label}
-            label={entry.label || "—"}
-            value={entry.contracted}
+            label={entry.label}
+            value={entry.value}
             max={max}
             total={total}
-            hint={money(entry.contracted)}
+            hint={money(entry.value)}
             index={index}
             onClick={() => {
               if (dimension.filterKey && onFilter) onFilter(dimension.filterKey, entry.label);
