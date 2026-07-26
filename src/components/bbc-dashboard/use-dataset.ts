@@ -110,8 +110,32 @@ function matches(row: BbcRow, filters: Filters): boolean {
 export type MonthTotals = { month: string; cycle1: number; cycle2: number; total: number };
 
 /** Recognised revenue per calendar month, split into the two accrual cycles. */
-export function byMonthCycle(rows: BbcRow[], mode: BbcMode): MonthTotals[] {
+/**
+ * Все месяцы, которые встречаются хотя бы в одном варианте признания.
+ *
+ * Нужна как общая ось: без неё при переключении «Управленческий → Документарный»
+ * месяц, где по документам ноль, просто исчезал из графика. Пропавшая колонка
+ * читается как «данные потерялись», хотя ноль — это и есть ответ: акты за месяц
+ * ещё не подписаны. Заодно ось перестаёт менять длину, и столбцы перетекают
+ * между вариантами, а не появляются и пропадают.
+ */
+export function monthAxis(rows: BbcRow[]): string[] {
+  const months = new Set<string>();
+  for (const row of rows) {
+    for (const alloc of Object.values(row.recognition)) {
+      for (const [year, month] of alloc?.alloc ?? []) {
+        months.add(`${year}-${String(month).padStart(2, "0")}`);
+      }
+    }
+  }
+  return [...months].sort();
+}
+
+export function byMonthCycle(rows: BbcRow[], mode: BbcMode, axis?: string[]): MonthTotals[] {
   const buckets = new Map<string, MonthTotals>();
+  for (const key of axis ?? []) {
+    buckets.set(key, { month: key, cycle1: 0, cycle2: 0, total: 0 });
+  }
   for (const row of rows) {
     for (const [year, month, cycle, amount] of row.recognition[mode]?.alloc ?? []) {
       const key = `${year}-${String(month).padStart(2, "0")}`;

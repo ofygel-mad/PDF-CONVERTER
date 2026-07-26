@@ -310,16 +310,18 @@ function ServiceMix({
   const slices = useMemo(() => {
     const byKind = groupBy(rows, (row) => row.service_kind || UNSET.service);
     return [...byKind.entries()]
-      .map(([label, kindRows], index) => ({
+      .map(([label, kindRows]) => ({
         label,
         value:
           measure === "recognized"
             ? recognizedTotal(kindRows, mode)
             : sumBy(kindRows, (row) => row.contract_amount),
-        tone: MIX_TONES[index % MIX_TONES.length],
       }))
       .filter((slice) => slice.value > 0)
-      .sort((a, b) => b.value - a.value);
+      .sort((a, b) => b.value - a.value)
+      // Цвет назначаем после сортировки, иначе крупнейшей доле доставался
+      // случайный оттенок, а акцент дизайн-системы уходил на хвост.
+      .map((slice, index) => ({ ...slice, tone: MIX_TONES[index % MIX_TONES.length] }));
   }, [rows, mode, measure]);
 
   const total = slices.reduce((sum, slice) => sum + slice.value, 0);

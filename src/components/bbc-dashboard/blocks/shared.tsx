@@ -91,6 +91,16 @@ function KpiTile({
       )
     : "var(--text-primary)";
 
+  // В плитке число сокращено до «189 млн» — точное значение нужно уметь
+  // достать, не уходя в реестр. Поэтому оно всегда в подсказке, а свой hint
+  // блока приписывается к нему, а не вместо него.
+  const exact =
+    item.format === "percent"
+      ? percent(item.value)
+      : item.format === "count"
+        ? Math.round(item.value).toLocaleString("ru-RU")
+        : `${money(item.value)} ₸`;
+
   return (
     <div
       className={`card p-3 animate-fade-in bbc-tile${pulsing ? " bbc-pulse" : ""}`}
@@ -99,7 +109,7 @@ function KpiTile({
         animationDelay: `calc(${index} * var(--dur-stagger))`,
         animationFillMode: "backwards",
       }}
-      title={item.hint}
+      title={item.hint ? `${exact} — ${item.hint}` : exact}
     >
       <p className="eyebrow mb-1 truncate">{item.label}</p>
       <p

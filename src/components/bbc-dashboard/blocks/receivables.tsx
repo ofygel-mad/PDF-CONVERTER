@@ -184,9 +184,11 @@ export function ReceivablesBlock({
     <div className="flex flex-col gap-4">
       <KpiStrip
         items={[
-          { label: "Договоров", value: stats.contracted },
-          { label: "Выставлено", value: stats.invoicedAmount },
-          { label: "Получено", value: stats.paid },
+          // Подписи именно про деньги: «Договоров» рядом с «189 млн» читалось
+          // как количество договоров.
+          { label: "Сумма договоров", value: stats.contracted },
+          { label: "Выставлено счетов", value: stats.invoicedAmount },
+          { label: "Получено денег", value: stats.paid },
           { label: "Дебиторка", value: stats.receivableAmount, tone: "rose" },
           { label: "Авансы", value: stats.prepaymentAmount, tone: "emerald" },
           {
@@ -194,6 +196,7 @@ export function ReceivablesBlock({
             value: stats.collection,
             format: "percent",
             tone: stats.collection > 0.6 ? "emerald" : "amber",
+            hint: "Доля полученных денег от выставленных счетов",
           },
         ]}
       />

@@ -22,6 +22,7 @@ import {
   byMonthCycle,
   documentaryCounterpart,
   isActDateMode,
+  monthAxis,
   recognizedTotal,
   sumBy,
   wipTotal,
@@ -38,7 +39,10 @@ type ReportRow = {
 export function ReportsBlock({ rows, mode }: { rows: BbcRow[]; mode: BbcMode }) {
   const [showCycles, setShowCycles] = useState(true);
 
-  const monthly = useMemo(() => byMonthCycle(rows, mode), [rows, mode]);
+  // Ось общая для всех вариантов признания: месяц, где по документам ноль, не
+  // должен исчезать из отчёта — этот ноль и есть содержательный ответ.
+  const axis = useMemo(() => monthAxis(rows), [rows]);
+  const monthly = useMemo(() => byMonthCycle(rows, mode, axis), [rows, mode, axis]);
   const months = monthly.map((item) => item.month);
 
   const recognized = recognizedTotal(rows, mode);
@@ -128,8 +132,8 @@ export function ReportsBlock({ rows, mode }: { rows: BbcRow[]; mode: BbcMode }) 
     if (isActDateMode(mode)) return null;
     const v2mode: BbcMode = mode.startsWith("v2:") ? mode : (`v2:${mode.slice("v1:period:".length)}` as BbcMode);
     const v1mode = documentaryCounterpart(v2mode);
-    const earned = byMonthCycle(rows, v2mode);
-    const documented = byMonthCycle(rows, v1mode);
+    const earned = byMonthCycle(rows, v2mode, axis);
+    const documented = byMonthCycle(rows, v1mode, axis);
 
     return earned.map((item) => {
       const closed = documented.find((entry) => entry.month === item.month)?.total ?? 0;
@@ -140,7 +144,7 @@ export function ReportsBlock({ rows, mode }: { rows: BbcRow[]; mode: BbcMode }) 
         share: item.total ? closed / item.total : 0,
       };
     });
-  }, [rows, mode]);
+  }, [rows, mode, axis]);
 
   return (
     <div className="flex flex-col gap-4">
