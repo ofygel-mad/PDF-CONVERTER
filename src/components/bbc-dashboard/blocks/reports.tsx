@@ -34,6 +34,14 @@ type ReportRow = {
   values: Record<string, number>;
   tone?: "primary" | "muted" | "total";
   note?: string;
+  /**
+   * Строка, которая принципиально не раскладывается по месяцам.
+   *
+   * WIP — это деньги, для которых месяц ещё не определён; прочерк в каждой
+   * колонке выглядел как «данных нет», хотя сумма известна. Такая строка
+   * показывает одно число во всю ширину.
+   */
+  spanAmount?: number;
 };
 
 export function ReportsBlock({ rows, mode }: { rows: BbcRow[]; mode: BbcMode }) {
@@ -84,13 +92,14 @@ export function ReportsBlock({ rows, mode }: { rows: BbcRow[]; mode: BbcMode }) 
     if (wip) {
       result.push({
         label: "На исполнении (WIP)",
-        values: Object.fromEntries(months.map((month) => [month, 0])),
+        values: {},
         tone: "muted",
-        note: `${money(wip)} — заработано, но период услуги не задан или работа не закрыта`,
+        note: "заработано, но период услуги не задан или работа не закрыта",
+        spanAmount: wip,
       });
     }
     return result;
-  }, [rows, mode, monthly, months, wip]);
+  }, [rows, mode, monthly, wip]);
 
   /* ── Balance: the two legs of the bridge become assets and liabilities ── */
   const balanceRows: ReportRow[] = useMemo(() => {
@@ -576,19 +585,30 @@ function ReportTable({ months, rows }: { months: string[]; rows: ReportRow[] }) 
                 {row.label}
                 {row.note ? <span className="mono-meta block">{row.note}</span> : null}
               </td>
-              {months.map((month) => (
+              {row.spanAmount !== undefined ? (
                 <td
-                  key={month}
+                  colSpan={months.length}
                   className="px-2 py-1.5 text-right bbc-num whitespace-nowrap"
-                  style={{
-                    color: row.tone === "muted" ? "var(--text-muted)" : "var(--text-primary)",
-                    fontWeight: row.tone === "total" ? 600 : 400,
-                    borderTop: row.tone === "total" ? "1px solid var(--border-base)" : undefined,
-                  }}
+                  style={{ color: "var(--accent-amber)" }}
                 >
-                  {row.values[month] ? money(row.values[month]) : "—"}
+                  {money(row.spanAmount)}
+                  <span className="mono-meta ml-2">вне месяцев</span>
                 </td>
-              ))}
+              ) : (
+                months.map((month) => (
+                  <td
+                    key={month}
+                    className="px-2 py-1.5 text-right bbc-num whitespace-nowrap"
+                    style={{
+                      color: row.tone === "muted" ? "var(--text-muted)" : "var(--text-primary)",
+                      fontWeight: row.tone === "total" ? 600 : 400,
+                      borderTop: row.tone === "total" ? "1px solid var(--border-base)" : undefined,
+                    }}
+                  >
+                    {row.values[month] ? money(row.values[month]) : "—"}
+                  </td>
+                ))
+              )}
             </tr>
           ))}
         </tbody>
