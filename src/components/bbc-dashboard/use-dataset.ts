@@ -1,0 +1,278 @@
+"use client";
+
+/**
+ * Dataset state: load once, filter instantly.
+ *
+ * The backend already applied the visibility scope and pre-computed the revenue
+ * allocation for every mode, so this hook never re-implements accounting rules —
+ * it filters rows and sums the allocation the chosen mode points at. With ~500
+ * rows that is sub-millisecond, which is why filters and mode switches feel
+ * instant and never hit the network.
+ *
+ * Filters and the four mode switches live in the URL, so any view is a shareable
+ * link and survives a reload.
+ */
+import { useCallback, useEffect, useMemo, useState } from "react";
+
+import { BbcApiError, fetchDataset, fetchMe } from "./api";
+import type { BbcDataset, BbcMe, BbcMode, BbcRow } from "./types";
+
+export type Filters = {
+  months: string[];
+  firms: string[];
+  departments: string[];
+  employees: string[];
+  serviceKinds: string[];
+  statuses: string[];
+  search: string;
+};
+
+export const EMPTY_FILTERS: Filters = {
+  months: [],
+  firms: [],
+  departments: [],
+  employees: [],
+  serviceKinds: [],
+  statuses: [],
+  search: "",
+};
+
+/** Filter keys that hold a list of values (everything except free-text search). */
+const LIST_KEYS = [
+  "months",
+  "firms",
+  "departments",
+  "employees",
+  "serviceKinds",
+  "statuses",
+] as const;
+
+const FALLBACK_MODE: BbcMode = "v2:prorata:wip";
+
+/* ── URL round-trip ──────────────────────────────────────────────────────────── */
+
+function readUrl(): { filters: Filters; mode: BbcMode | null; block: string | null } {
+  if (typeof window === "undefined") {
+    return { filters: EMPTY_FILTERS, mode: null, block: null };
+  }
+  const params = new URLSearchParams(window.location.search);
+  const filters: Filters = { ...EMPTY_FILTERS, search: params.get("q") ?? "" };
+  for (const key of LIST_KEYS) {
+    const raw = params.get(key);
+    if (raw) filters[key] = raw.split(",").filter(Boolean);
+  }
+  return {
+    filters,
+    mode: (params.get("mode") as BbcMode) || null,
+    block: params.get("block"),
+  };
+}
+
+function writeUrl(filters: Filters, mode: BbcMode, block: string) {
+  if (typeof window === "undefined") return;
+  const params = new URLSearchParams(window.location.search);
+
+  for (const key of LIST_KEYS) {
+    const values = filters[key];
+    if (values.length) params.set(key, values.join(","));
+    else params.delete(key);
+  }
+  if (filters.search) params.set("q", filters.search);
+  else params.delete("q");
+  params.set("mode", mode);
+  params.set("block", block);
+
+  const query = params.toString();
+  window.history.replaceState(null, "", query ? `?${query}` : window.location.pathname);
+}
+
+/* ── Filtering ───────────────────────────────────────────────────────────────── */
+
+function matches(row: BbcRow, filters: Filters): boolean {
+  if (filters.months.length && !filters.months.includes(String(row.month ?? ""))) return false;
+  if (filters.firms.length && !filters.firms.includes(row.firm)) return false;
+  if (filters.employees.length && !filters.employees.includes(row.employee)) return false;
+  if (filters.serviceKinds.length && !filters.serviceKinds.includes(row.service_kind)) return false;
+  if (filters.statuses.length && !filters.statuses.includes(row.status)) return false;
+  if (filters.departments.length) {
+    if (!row.departments.some((code) => filters.departments.includes(code))) return false;
+  }
+  if (filters.search) {
+    const needle = filters.search.toLowerCase();
+    const haystack = `${row.client} ${row.contract_no} ${row.subject} ${row.employee}`.toLowerCase();
+    if (!haystack.includes(needle)) return false;
+  }
+  return true;
+}
+
+/* ── Aggregation ─────────────────────────────────────────────────────────────── */
+
+export type MonthTotals = { month: string; cycle1: number; cycle2: number; total: number };
+
+/** Recognised revenue per calendar month, split into the two accrual cycles. */
+export function byMonthCycle(rows: BbcRow[], mode: BbcMode): MonthTotals[] {
+  const buckets = new Map<string, MonthTotals>();
+  for (const row of rows) {
+    for (const [year, month, cycle, amount] of row.recognition[mode]?.alloc ?? []) {
+      const key = `${year}-${String(month).padStart(2, "0")}`;
+      const bucket = buckets.get(key) ?? { month: key, cycle1: 0, cycle2: 0, total: 0 };
+      if (cycle === 1) bucket.cycle1 += amount;
+      else bucket.cycle2 += amount;
+      bucket.total += amount;
+      buckets.set(key, bucket);
+    }
+  }
+  return [...buckets.values()].sort((a, b) => a.month.localeCompare(b.month));
+}
+
+export function recognizedTotal(rows: BbcRow[], mode: BbcMode): number {
+  let total = 0;
+  for (const row of rows) {
+    for (const entry of row.recognition[mode]?.alloc ?? []) total += entry[3];
+  }
+  return total;
+}
+
+/** Money earned but not placeable yet — «на исполнении». */
+export function wipTotal(rows: BbcRow[], mode: BbcMode): number {
+  return rows.reduce((sum, row) => sum + (row.recognition[mode]?.wip ?? 0), 0);
+}
+
+export function sumBy(rows: BbcRow[], pick: (row: BbcRow) => number | null | undefined): number {
+  return rows.reduce((sum, row) => sum + (pick(row) ?? 0), 0);
+}
+
+/** Group rows by any dimension, keeping the group's rows for drill-down. */
+export function groupBy(rows: BbcRow[], key: (row: BbcRow) => string): Map<string, BbcRow[]> {
+  const groups = new Map<string, BbcRow[]>();
+  for (const row of rows) {
+    const value = key(row) || "—";
+    const bucket = groups.get(value);
+    if (bucket) bucket.push(row);
+    else groups.set(value, [row]);
+  }
+  return groups;
+}
+
+/** True when the mode allocates V1 by act date — the gap block is meaningless then. */
+export function isActDateMode(mode: BbcMode): boolean {
+  return mode === "v1:avrdate";
+}
+
+/** The V1 counterpart of a V2 mode, so «Разрыв» compares like with like. */
+export function documentaryCounterpart(mode: BbcMode): BbcMode {
+  if (mode.startsWith("v1:")) return mode;
+  return `v1:period:${mode.slice("v2:".length)}` as BbcMode;
+}
+
+/* ── Hook ────────────────────────────────────────────────────────────────────── */
+
+export function useDataset() {
+  const initial = useMemo(readUrl, []);
+
+  const [dataset, setDataset] = useState<BbcDataset | null>(null);
+  const [me, setMe] = useState<BbcMe | null>(null);
+  const [filters, setFilters] = useState<Filters>(initial.filters);
+  const [mode, setMode] = useState<BbcMode>(initial.mode ?? FALLBACK_MODE);
+  const [block, setBlock] = useState<string>(initial.block ?? "receivables");
+  const [error, setError] = useState<string | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [unauthorized, setUnauthorized] = useState(false);
+
+  /**
+   * Identity first, data second.
+   *
+   * `/bbc/me` answers "who is asking" without ever failing, so an anonymous
+   * visitor — or someone whose link was revoked — reaches the login screen
+   * without a single failed request. Asking for `/dataset` first would make a
+   * 401 part of the normal path, which is noise in the console and, worse,
+   * indistinguishable from a real backend fault.
+   */
+  const load = useCallback(async (refresh = false) => {
+    try {
+      const identity = await fetchMe();
+      setMe(identity);
+
+      if (!identity.authenticated) {
+        setDataset(null);
+        setUnauthorized(true);
+        setError(null);
+        return;
+      }
+
+      const payload = await fetchDataset(refresh);
+      setDataset(payload);
+      setUnauthorized(false);
+      setError(null);
+      // Adopt the server default only when the URL did not pin a mode.
+      setMode((current) => (initial.mode ? current : payload.default_mode));
+    } catch (err) {
+      // A 401 here means the credential died mid-session (link revoked or
+      // expired) — hand the user back to the login screen rather than an error.
+      if (err instanceof BbcApiError && err.isUnauthorized) {
+        setDataset(null);
+        setUnauthorized(true);
+        setError(null);
+      } else {
+        setError(err instanceof Error ? err.message : "Не удалось загрузить данные");
+      }
+    } finally {
+      setLoading(false);
+    }
+    // `initial.mode` is captured once on mount by design.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  useEffect(() => {
+    void load();
+  }, [load]);
+
+  useEffect(() => {
+    writeUrl(filters, mode, block);
+  }, [filters, mode, block]);
+
+  const rows = useMemo(
+    () => (dataset ? dataset.rows.filter((row) => matches(row, filters)) : []),
+    [dataset, filters],
+  );
+
+  const toggleFilter = useCallback((key: (typeof LIST_KEYS)[number], value: string) => {
+    setFilters((current) => {
+      const values = current[key];
+      return {
+        ...current,
+        [key]: values.includes(value)
+          ? values.filter((item) => item !== value)
+          : [...values, value],
+      };
+    });
+  }, []);
+
+  const clearFilters = useCallback(() => setFilters(EMPTY_FILTERS), []);
+
+  const activeFilterCount = useMemo(
+    () =>
+      LIST_KEYS.reduce((sum, key) => sum + filters[key].length, 0) + (filters.search ? 1 : 0),
+    [filters],
+  );
+
+  return {
+    dataset,
+    me,
+    rows,
+    allRows: dataset?.rows ?? [],
+    filters,
+    setFilters,
+    toggleFilter,
+    clearFilters,
+    activeFilterCount,
+    mode,
+    setMode,
+    block,
+    setBlock,
+    loading,
+    error,
+    unauthorized,
+    reload: load,
+  };
+}

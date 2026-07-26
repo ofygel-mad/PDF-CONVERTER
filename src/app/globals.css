@@ -61,6 +61,21 @@
   --scrollbar-bg:  rgba(255,255,255,0.10);
   --scrollbar-hover: rgba(255,255,255,0.22);
   --selection-bg:  rgba(61,90,254,0.32);
+
+  /* ── Motion ────────────────────────────────────────────────────────────────
+     One timing scale for the whole product. Rules: entrances are slower than
+     exits, series stagger by --dur-stagger, and only transform/opacity animate.
+     Everything collapses to 0 under prefers-reduced-motion (bottom of file).   */
+  --ease-out:      cubic-bezier(0.32, 0.72, 0, 1);
+  --ease-in-out:   cubic-bezier(0.65, 0, 0.35, 1);
+  --ease-spring:   cubic-bezier(0.34, 1.56, 0.64, 1);
+
+  --dur-instant:   80ms;
+  --dur-fast:      140ms;   /* exits, hovers */
+  --dur-base:      220ms;   /* entrances */
+  --dur-slow:      360ms;
+  --dur-tell:      560ms;   /* the variant morph — the one animation that narrates */
+  --dur-stagger:   35ms;
 }
 
 /* ─── Light theme — the paper vault ───────────────────────────── */
@@ -351,6 +366,56 @@ body {
 .tab-inactive { color: var(--text-muted); border-bottom-color: transparent; }
 .tab-inactive:hover { color: var(--text-secondary); }
 
+/* ─── BBC Dashboard (removable module) ────────────────────────── */
+
+/* A value that just changed in Google Sheets: one accent ring, then gone.
+   Makes a live edit noticeable without yanking the row the user is reading.
+   The ring is a pseudo-element so only transform/opacity animate — animating
+   box-shadow here would force a repaint on every frame. */
+@keyframes bbc-ring {
+  from { opacity: 0.9; transform: scale(0.94); }
+  to   { opacity: 0;   transform: scale(1.10); }
+}
+.bbc-pulse { position: relative; }
+.bbc-pulse::after {
+  content: "";
+  position: absolute;
+  inset: -3px;
+  border-radius: inherit;
+  border: 1px solid var(--accent);
+  pointer-events: none;
+  will-change: transform, opacity;
+  animation: bbc-ring var(--dur-tell) var(--ease-out) forwards;
+}
+
+/* Bars/lines grow from their baseline instead of popping in. */
+@keyframes bbc-grow-y {
+  from { transform: scaleY(0); }
+  to   { transform: scaleY(1); }
+}
+.bbc-grow { transform-origin: bottom; animation: bbc-grow-y var(--dur-slow) var(--ease-out) backwards; }
+
+/* Heatmap cells arrive on a diagonal wave (delay set inline per cell). */
+@keyframes bbc-cell-in {
+  from { opacity: 0; transform: scale(0.82); }
+  to   { opacity: 1; transform: scale(1); }
+}
+.bbc-cell-in { animation: bbc-cell-in var(--dur-base) var(--ease-out) backwards; }
+
+/* All figures are tabular so digits never jitter while counting up. */
+.bbc-num { font-variant-numeric: tabular-nums; font-feature-settings: "tnum" 1; }
+
+/* Faint grain kills gradient banding without touching the flat-depth tokens. */
+.bbc-grain::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  border-radius: inherit;
+  opacity: 0.025;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='120' height='120'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='3'/%3E%3C/filter%3E%3Crect width='120' height='120' filter='url(%23n)'/%3E%3C/svg%3E");
+}
+
 /* ─── Animations ──────────────────────────────────────────────── */
 @keyframes fade-in {
   from { opacity: 0; transform: translateY(8px); }
@@ -466,4 +531,69 @@ textarea.input-field {
     right: 1rem;
     max-width: none;
   }
+}
+
+/* ─── BBC: плотность и печать ─────────────────────────────────────
+   Компактный режим сжимает вертикальные отступы таблиц и карточек, не трогая
+   размеры шрифта: читаемость остаётся, а на экран влезает заметно больше строк. */
+[data-bbc-density="compact"] .card { padding: 0.75rem; }
+[data-bbc-density="compact"] .card-inner { padding: 0.5rem; }
+[data-bbc-density="compact"] .row-item { padding: 0.4rem 0.6rem; }
+[data-bbc-density="compact"] table td,
+[data-bbc-density="compact"] table th { padding-top: 0.2rem; padding-bottom: 0.2rem; }
+[data-bbc-density="compact"] .flex.flex-col.gap-4 { gap: 0.6rem; }
+
+/* Печать: отчёт на бумаге — обычный документ, а не скриншот интерфейса. */
+@media print {
+  :root { --page-bg: #ffffff; }
+
+  body { background: #fff; color: #000; }
+
+  /* Навигация, фильтры и кнопки на бумаге бесполезны. */
+  header, nav, button, input, .bbc-no-print { display: none !important; }
+
+  .card, .card-inner {
+    border: 1px solid #ddd !important;
+    box-shadow: none !important;
+    break-inside: avoid;
+    page-break-inside: avoid;
+  }
+
+  /* Таблицы не должны обрезаться по ширине контейнера. */
+  .overflow-x-auto { overflow: visible !important; }
+
+  table { font-size: 10pt; }
+  thead { display: table-header-group; }  /* шапка повторяется на каждой странице */
+
+  a[href]::after { content: ""; }
+}
+
+/* ─── Reduced motion ──────────────────────────────────────────────
+   Accessibility requirement, not an option: when the OS asks for less
+   motion, animation stops entirely while every state stays correct.
+   Durations are zeroed at the token level so components need no branches. */
+@media (prefers-reduced-motion: reduce) {
+  :root {
+    --dur-instant: 0ms;
+    --dur-fast:    0ms;
+    --dur-base:    0ms;
+    --dur-slow:    0ms;
+    --dur-tell:    0ms;
+    --dur-stagger: 0ms;
+  }
+
+  *,
+  *::before,
+  *::after {
+    animation-duration: 1ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 1ms !important;
+    scroll-behavior: auto !important;
+  }
+}
+
+/* Sparkline draw-in (BBC Dashboard) */
+@keyframes bbc-draw {
+  from { stroke-dashoffset: 1000; }
+  to   { stroke-dashoffset: 0; }
 }

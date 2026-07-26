@@ -6,12 +6,16 @@ import type { ComponentType } from "react";
 
 import { AutocallModal } from "@/components/services/autocall-modal";
 import { ArrowLeftIcon, PhoneIcon, PuzzleIcon } from "@/components/icons";
+// BBC Dashboard (removable module — см. src/components/bbc-dashboard/README.md)
+import { BbcDashboardIcon } from "@/components/bbc-dashboard/icon";
 
 type ServiceTile = {
   key: string;
   title: string;
   description: string;
   Icon: ComponentType<{ size?: number }>;
+  /** When set, the tile navigates to this page instead of opening a modal. */
+  href?: string;
 };
 
 const TILES: ServiceTile[] = [
@@ -21,7 +25,37 @@ const TILES: ServiceTile[] = [
     description: "Фактическая стоимость и дата обзвонов → Google Sheets",
     Icon: PhoneIcon,
   },
+  // BBC Dashboard (removable module)
+  {
+    key: "bbc-dashboard",
+    title: "BBC Dashboard",
+    description: "Интерактивный дашборд по сводной таблице в Google Sheets",
+    Icon: BbcDashboardIcon,
+    href: "/bbc-dashboard",
+  },
 ];
+
+const TILE_CLASS =
+  "group text-left card p-5 transition-colors flex flex-col gap-3.5 hover:bg-[var(--bg-hover)]";
+
+function TileBody({ tile }: { tile: ServiceTile }) {
+  return (
+    <>
+      <span
+        className="inline-flex items-center justify-center w-11 h-11 rounded-xl transition-colors"
+        style={{ background: "var(--accent-soft)", color: "var(--text-accent)" }}
+      >
+        <tile.Icon size={20} />
+      </span>
+      <span className="text-base font-semibold" style={{ color: "var(--text-primary)", letterSpacing: "-0.01em" }}>
+        {tile.title}
+      </span>
+      <span className="text-xs leading-relaxed" style={{ color: "var(--text-secondary)" }}>
+        {tile.description}
+      </span>
+    </>
+  );
+}
 
 export function ServicesClient() {
   const [openService, setOpenService] = useState<string | null>(null);
@@ -55,27 +89,22 @@ export function ServicesClient() {
           Внешние сервисы, из которых мы тянем данные для формирования таблиц.
         </p>
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-          {TILES.map((tile) => (
-            <button
-              key={tile.key}
-              type="button"
-              onClick={() => setOpenService(tile.key)}
-              className="group text-left card p-5 transition-colors flex flex-col gap-3.5 hover:bg-[var(--bg-hover)]"
-            >
-              <span
-                className="inline-flex items-center justify-center w-11 h-11 rounded-xl transition-colors"
-                style={{ background: "var(--accent-soft)", color: "var(--text-accent)" }}
+          {TILES.map((tile) =>
+            tile.href ? (
+              <Link key={tile.key} href={tile.href} className={TILE_CLASS}>
+                <TileBody tile={tile} />
+              </Link>
+            ) : (
+              <button
+                key={tile.key}
+                type="button"
+                onClick={() => setOpenService(tile.key)}
+                className={TILE_CLASS}
               >
-                <tile.Icon size={20} />
-              </span>
-              <span className="text-base font-semibold" style={{ color: "var(--text-primary)", letterSpacing: "-0.01em" }}>
-                {tile.title}
-              </span>
-              <span className="text-xs leading-relaxed" style={{ color: "var(--text-secondary)" }}>
-                {tile.description}
-              </span>
-            </button>
-          ))}
+                <TileBody tile={tile} />
+              </button>
+            ),
+          )}
         </div>
       </main>
 

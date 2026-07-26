@@ -6,6 +6,8 @@
 *.iam.gserviceaccount.com.json
 autocall-499823-*.json
 service-account*.json
+# BBC Dashboard service-account creds (live private key)
+bbc-sheets.json
 AUTOCALL_INTEGRATION_HANDOFF.md
 
 # ── OS / IDE ──────────────────────────────────
