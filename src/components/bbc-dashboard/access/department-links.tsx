@@ -59,9 +59,16 @@ export function DepartmentLinks() {
     void reload();
   }, [reload]);
 
-  /** Newest still-working link for a department, if any. */
-  function activeLink(code: string): BbcLink | undefined {
-    return links.find((link) => link.label === code && link.is_active);
+  /**
+   * Все действующие ссылки отдела, а не только последняя.
+   *
+   * Строка в списке одна на отдел, но ссылок за ней может стоять несколько —
+   * например, если её выдали повторно, не отозвав старую. Раньше крестик снимал
+   * только новейшую, и доступ по прежней продолжал работать: человек видел
+   * «отозвано», а отдел оставался открыт. Поэтому отзыв идёт по всем сразу.
+   */
+  function activeLinks(code: string): BbcLink[] {
+    return links.filter((link) => link.label === code && link.is_active);
   }
 
   async function issue(code: string, hours: number | null) {
@@ -75,13 +82,13 @@ export function DepartmentLinks() {
     }
   }
 
-  async function revoke(linkId: string) {
+  async function revoke(linkIds: string[]) {
     setError(null);
     try {
-      await revokeLink(linkId);
+      for (const linkId of linkIds) await revokeLink(linkId);
       setIssued((previous) => {
         const next = { ...previous };
-        delete next[linkId];
+        for (const linkId of linkIds) delete next[linkId];
         return next;
       });
       await reload();
@@ -96,7 +103,13 @@ export function DepartmentLinks() {
         <h2 className="text-sm font-semibold" style={{ color: "var(--text-primary)" }}>
           Ссылки для руководителей отделов
         </h2>
-        <span className="mono-meta">{links.filter((l) => l.is_active).length} активных</span>
+        {/* Считаем открытые отделы, а не строки в таблице ссылок: строка в
+            списке одна на отдел, и «2 активных» при одной видимой строке
+            читалось как потерянная ссылка. */}
+        <span className="mono-meta">
+          {DEPARTMENTS.filter((item) => activeLinks(item.code).length).length} из{" "}
+          {DEPARTMENTS.length} отделов открыто
+        </span>
       </div>
       <p className="text-xs mb-5 max-w-2xl" style={{ color: "var(--text-secondary)" }}>
         По ссылке руководитель видит дебиторку, аналитику и платёжный календарь{" "}
@@ -120,22 +133,29 @@ export function DepartmentLinks() {
       ) : null}
 
       <div className="flex flex-col gap-2.5">
-        {DEPARTMENTS.map((department, index) => (
-          <DepartmentRow
-            key={department.code}
-            code={department.code}
-            name={department.name}
-            link={activeLink(department.code)}
-            url={(() => {
-              const link = activeLink(department.code);
-              return link ? issued[link.id] ?? null : null;
-            })()}
-            loading={loading}
-            index={index}
-            onIssue={(hours) => issue(department.code, hours)}
-            onRevoke={revoke}
-          />
-        ))}
+        {DEPARTMENTS.map((department, index) => {
+          const open = activeLinks(department.code);
+          return (
+            <DepartmentRow
+              key={department.code}
+              code={department.code}
+              name={department.name}
+              link={open[0]}
+              extra={open.length - 1}
+              // Адрес возвращается ровно один раз — при создании. Если его нет
+              // в локальном состоянии, значит ссылку выдали в прошлый визит.
+              url={open[0] ? issued[open[0].id] ?? null : null}
+              loading={loading}
+              index={index}
+              onIssue={(hours) => issue(department.code, hours)}
+              onRevoke={() => revoke(open.map((link) => link.id))}
+              onReissue={async (hours) => {
+                await revoke(open.map((link) => link.id));
+                await issue(department.code, hours);
+              }}
+            />
+          );
+        })}
       </div>
     </section>
   );
@@ -145,14 +165,28 @@ type RowProps = {
   code: string;
   name: string;
   link: BbcLink | undefined;
+  /** Сколько ещё действующих ссылок у отдела помимо показанной. */
+  extra: number;
   url: string | null;
   loading: boolean;
   index: number;
   onIssue: (hours: number | null) => void;
-  onRevoke: (linkId: string) => void;
+  onRevoke: () => void;
+  onReissue: (hours: number | null) => void;
 };
 
-function DepartmentRow({ code, name, link, url, loading, index, onIssue, onRevoke }: RowProps) {
+function DepartmentRow({
+  code,
+  name,
+  link,
+  extra,
+  url,
+  loading,
+  index,
+  onIssue,
+  onRevoke,
+  onReissue,
+}: RowProps) {
   const [pickerOpen, setPickerOpen] = useState(false);
   const [copied, setCopied] = useState(false);
 
@@ -227,36 +261,61 @@ function DepartmentRow({ code, name, link, url, loading, index, onIssue, onRevok
           </>
         ) : (
           <>
-            <input
-              readOnly
-              value={url ?? "ссылка выдана — скопировать можно было только при создании"}
-              onFocus={(event) => event.currentTarget.select()}
-              className="input-field text-xs flex-1 min-w-[200px]"
-              style={{ fontFamily: "var(--font-plex-mono), ui-monospace, monospace" }}
-              aria-label={`Ссылка для отдела ${code}`}
-            />
             {url ? (
-              <button
-                type="button"
-                className="btn-ghost text-xs p-1.5"
-                onClick={copy}
-                title="Скопировать"
-                aria-label="Скопировать ссылку"
-              >
-                {copied ? (
-                  <span style={{ color: "var(--accent-emerald)" }}>
-                    <CheckIcon size={15} />
-                  </span>
-                ) : (
-                  <CopyIcon size={15} />
-                )}
-              </button>
-            ) : null}
+              <>
+                <input
+                  readOnly
+                  value={url}
+                  onFocus={(event) => event.currentTarget.select()}
+                  className="input-field text-xs flex-1 min-w-[200px]"
+                  style={{ fontFamily: "var(--font-plex-mono), ui-monospace, monospace" }}
+                  aria-label={`Ссылка для отдела ${code}`}
+                />
+                <button
+                  type="button"
+                  className="btn-ghost text-xs p-1.5"
+                  onClick={copy}
+                  title="Скопировать"
+                  aria-label="Скопировать ссылку"
+                >
+                  {copied ? (
+                    <span style={{ color: "var(--accent-emerald)" }}>
+                      <CheckIcon size={15} />
+                    </span>
+                  ) : (
+                    <CopyIcon size={15} />
+                  )}
+                </button>
+              </>
+            ) : (
+              // Адрес в поле не показываем: сервер отдаёт его один раз, а
+              // обрезанная подпись в инпуте читалась как кнопка «скопировать».
+              // Вместо этого — состояние словами и способ получить новый адрес.
+              <>
+                <span className="text-xs" style={{ color: "var(--text-secondary)" }}>
+                  Доступ открыт. Адрес показывается один раз — при создании.
+                </span>
+                <button
+                  type="button"
+                  className="btn-ghost text-xs px-2.5 py-1.5 flex items-center gap-1.5"
+                  onClick={() => onReissue(null)}
+                  disabled={loading}
+                  title="Отозвать текущую ссылку и выдать новую"
+                >
+                  <LinkIcon size={14} />
+                  Выдать заново
+                </button>
+              </>
+            )}
             <button
               type="button"
               className="btn-ghost text-xs p-1.5"
-              onClick={() => onRevoke(link.id)}
-              title="Отозвать доступ по этой ссылке"
+              onClick={onRevoke}
+              title={
+                extra > 0
+                  ? `Отозвать все действующие ссылки отдела (${extra + 1})`
+                  : "Отозвать доступ по этой ссылке"
+              }
               aria-label={`Отозвать доступ для отдела ${code}`}
               style={{ color: "var(--accent-rose)" }}
             >
@@ -294,6 +353,11 @@ function DepartmentRow({ code, name, link, url, loading, index, onIssue, onRevok
             {link.last_used_at ? ` · ${relativeTime(link.last_used_at)}` : ""}
           </span>
           <span className="mono-meta">создана {dateLabel(link.created_at)}</span>
+          {extra > 0 ? (
+            <span className="mono-meta" style={{ color: "var(--accent-amber)" }}>
+              + ещё {extra} действующих — крестик отзовёт все
+            </span>
+          ) : null}
         </div>
       ) : null}
     </div>
