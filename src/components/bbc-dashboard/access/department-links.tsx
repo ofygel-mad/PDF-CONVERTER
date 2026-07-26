@@ -15,7 +15,7 @@ import { useEffect, useMemo, useState } from "react";
 
 import { BbcApiError, createLink, fetchLinks, revokeLink } from "../api";
 import { CheckIcon, ClockIcon, CopyIcon, LinkIcon } from "../icon";
-import { dateLabel, expiresIn, relativeTime } from "../format";
+import { dateLabel, expiresIn, plural, relativeTime } from "../format";
 import type { BbcLink } from "../types";
 
 /** Codes as typed in «Отдел», with the readable name shown next to them. */
@@ -355,7 +355,8 @@ function DepartmentRow({
           <span className="mono-meta">создана {dateLabel(link.created_at)}</span>
           {extra > 0 ? (
             <span className="mono-meta" style={{ color: "var(--accent-amber)" }}>
-              + ещё {extra} действующих — крестик отзовёт все
+              + ещё {extra} {plural(extra, "действующая", "действующие", "действующих")} — крестик
+              отзовёт все
             </span>
           ) : null}
         </div>
