@@ -109,6 +109,19 @@ export function createLink(department: string, expiresInHours?: number | null): 
   });
 }
 
+/**
+ * Сделать выданную ссылку временной — или снова бессрочной.
+ *
+ * Именно смена срока, а не перевыпуск: адрес остаётся прежним, поэтому у того,
+ * кому ссылку уже отправили, ничего не ломается.
+ */
+export function updateLinkExpiry(linkId: string, minutes: number | null): Promise<BbcLink> {
+  return request<BbcLink>(`/links/${encodeURIComponent(linkId)}`, {
+    method: "PATCH",
+    body: JSON.stringify({ expires_in_minutes: minutes }),
+  });
+}
+
 export function revokeLink(linkId: string): Promise<BbcOk> {
   return request<BbcOk>(`/links/${encodeURIComponent(linkId)}`, { method: "DELETE" });
 }

@@ -10,30 +10,66 @@ import { useCallback, useEffect, useState, type FormEvent } from "react";
 import Link from "next/link";
 
 import { ArrowLeftIcon } from "@/components/icons";
-import { BbcApiError, changeCredentials, fetchMe, logout } from "../api";
+import { BbcApiError, changeCredentials, fetchLinks, fetchMe, logout } from "../api";
 import { BbcDashboardIcon, LogoutIcon, UserIcon } from "../icon";
 import { DepartmentLinks } from "./department-links";
 import { LoginScreen } from "./login-screen";
-import type { BbcMe } from "../types";
+import type { BbcLink, BbcMe } from "../types";
 
-export function AccountClient() {
-  const [me, setMe] = useState<BbcMe | null>(null);
-  const [loading, setLoading] = useState(true);
+/**
+ * Личность держим в модуле, а не только в состоянии компонента.
+ *
+ * Кабинет — соседняя страница дашборда, куда заходят и возвращаются. Без кэша
+ * каждый заход начинался с пустого экрана «Загрузка…» на время round-trip до
+ * бэкенда, хотя ответ был известен секунду назад.
+ */
+let cachedMe: BbcMe | null = null;
+
+/**
+ * Загрузка кабинета: личность и ссылки одним заходом.
+ *
+ * Раньше `/links` уходил только после ответа `/me` — просто потому, что список
+ * рисовался вложенным компонентом и до его монтирования дело не доходило. Две
+ * последовательные ходки до бэкенда на странице из двух карточек и давали
+ * ощущение, что кабинет «долго грузится». Право на список всё равно проверяет
+ * сервер, так что спросить оба сразу ничего не стоит: не-админ получит на
+ * второй запрос 401, и ответ ему просто не понадобится.
+ */
+function useAccount() {
+  const [me, setMe] = useState<BbcMe | null>(cachedMe);
+  const [links, setLinks] = useState<BbcLink[]>([]);
+  const [loading, setLoading] = useState(!cachedMe);
+  const [linksLoading, setLinksLoading] = useState(true);
 
   const load = useCallback(async () => {
-    setLoading(true);
-    try {
-      setMe(await fetchMe());
-    } catch {
+    const [identity, linkList] = await Promise.allSettled([fetchMe(), fetchLinks()]);
+
+    if (identity.status === "fulfilled") {
+      cachedMe = identity.value;
+      setMe(identity.value);
+    } else {
+      cachedMe = null;
       setMe(null);
-    } finally {
-      setLoading(false);
     }
+    if (linkList.status === "fulfilled") setLinks(linkList.value);
+
+    setLoading(false);
+    setLinksLoading(false);
   }, []);
 
   useEffect(() => {
+    // Загрузка на монтировании. Состояние меняется только после await, то есть
+    // каскада рендеров тут нет — правило же считает подозрительным любой
+    // setState внутри эффекта и этот случай отличить не умеет.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     void load();
   }, [load]);
+
+  return { me, links, loading, linksLoading, reload: load };
+}
+
+export function AccountClient() {
+  const { me, links, loading, linksLoading, reload } = useAccount();
 
   if (loading) {
     return (
@@ -44,7 +80,7 @@ export function AccountClient() {
   }
 
   if (!me?.authenticated) {
-    return <LoginScreen needsSetup={me?.needs_setup ?? false} onSignedIn={load} />;
+    return <LoginScreen needsSetup={me?.needs_setup ?? false} onSignedIn={reload} />;
   }
 
   if (!me.is_admin) {
@@ -95,7 +131,7 @@ export function AccountClient() {
             className="btn-ghost text-xs px-2.5 py-1.5 flex items-center gap-1.5"
             onClick={async () => {
               await logout();
-              await load();
+              await reload();
             }}
           >
             <LogoutIcon size={15} />
@@ -105,8 +141,8 @@ export function AccountClient() {
       </header>
 
       <main className="flex-1 w-full max-w-4xl mx-auto px-5 py-8 flex flex-col gap-5">
-        <CredentialsCard onChanged={load} />
-        <DepartmentLinks />
+        <CredentialsCard onChanged={reload} />
+        <DepartmentLinks initialLinks={links} loading={linksLoading} />
       </main>
     </div>
   );

@@ -27,6 +27,18 @@ export type LiveState = {
   online: boolean;
   /** Wall-clock of the last successful poll, for «обновлено N сек назад». */
   polledAt: number | null;
+  /**
+   * Почему бэкенд не смог прочитать таблицу, если не смог.
+   *
+   * Бэкенд при отказе Google оставляет прежний снапшот и живёт дальше — это
+   * правильно, иначе сбой на стороне Google гасил бы весь дашборд. Но раньше
+   * причина оставалась в логе: экран продолжал показывать вчерашние числа с
+   * зелёной точкой, и отличить «в таблице ничего не меняли» от «мы её больше не
+   * читаем» было нельзя. Теперь причина доходит до индикатора.
+   */
+  sourceError: string | null;
+  /** Когда источник был прочитан удачно в последний раз. */
+  fetchedAt: string | null;
 };
 
 export function useLive(
@@ -42,6 +54,8 @@ export function useLive(
     changedAt: null,
     online: true,
     polledAt: null,
+    sourceError: null,
+    fetchedAt: null,
   });
 
   // Kept in refs so the polling effect never restarts on each render.
@@ -61,11 +75,21 @@ export function useLive(
     try {
       const payload = await fetchRevision();
       backoff.current = POLL_MS;
+
+      // Источников может стать больше одного (журнал, реестр продаж), поэтому
+      // берём первую названную ошибку, а не только мастер-таблицу.
+      const failing = Object.entries(payload.sources ?? {}).find(
+        ([, source]) => source?.error,
+      );
+      const master = payload.sources?.master ?? Object.values(payload.sources ?? {})[0];
+
       setState({
         revision: payload.revision,
         changedAt: payload.changed_at,
         online: true,
         polledAt: Date.now(),
+        sourceError: failing ? (failing[1].error ?? null) : null,
+        fetchedAt: master?.fetched_at ?? null,
       });
 
       if (payload.revision > knownRevision.current) {

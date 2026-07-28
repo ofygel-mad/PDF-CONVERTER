@@ -9,10 +9,10 @@
  * permanent plain-Russian line spells out the current combination. The user can
  * always read which number they are looking at.
  */
-import { useState } from "react";
+import { useState, type CSSProperties } from "react";
 
-import { ClockIcon } from "./icon";
-import { relativeTime } from "./format";
+import { ClockIcon, ControlPanelIcon } from "./icon";
+import { plural, relativeTime } from "./format";
 import type { BbcDataset, BbcMode } from "./types";
 import type { Filters } from "./use-dataset";
 import type { LiveState } from "./use-live";
@@ -20,25 +20,44 @@ import type { LiveState } from "./use-live";
 /* ── Live indicator ──────────────────────────────────────────────────────────── */
 
 export function LiveIndicator({ live }: { live: LiveState }) {
-  const tone = live.online ? "var(--accent-emerald)" : "var(--accent-amber)";
+  // Три состояния, а не два. «Нет связи» — не отвечает наш бэкенд. «Источник не
+  // читается» — бэкенд жив и честно отдаёт последние данные, но саму таблицу он
+  // больше прочитать не может: сменились права сервис-аккаунта, переименовали
+  // лист, кончилась квота. Раньше это выглядело как полный порядок — зелёная
+  // точка и «правка 4 часа назад», хотя цифры молча застыли.
+  const failing = live.online && !!live.sourceError;
 
-  // Голое «9 минут назад» читалось как «столько мы не проверяли связь» — то есть
-  // ровно наоборот. Это возраст самих данных: когда таблицу правили в последний
-  // раз. Проверяем мы её каждые пять секунд, и это уходит в подсказку.
+  const tone = !live.online
+    ? "var(--accent-amber)"
+    : failing
+      ? "var(--accent-rose)"
+      : "var(--accent-emerald)";
+
   const label = !live.online
     ? "нет связи"
-    : live.changedAt
-      ? `правка ${relativeTime(live.changedAt)}`
-      : "следим за таблицей";
+    : failing
+      ? "таблица не читается"
+      : live.changedAt
+        ? `правка ${relativeTime(live.changedAt)}`
+        : "следим за таблицей";
 
-  const title = live.online
-    ? `Проверяем Google Sheets каждые 5 секунд${
-        live.changedAt ? `. Последнее изменение: ${relativeTime(live.changedAt)}` : ""
-      }`
-    : "Бэкенд не отвечает — показаны последние загруженные данные";
+  const title = !live.online
+    ? "Бэкенд не отвечает — показаны последние загруженные данные"
+    : failing
+      ? `Google Sheets не отвечает: ${live.sourceError}. Числа на экране — от ${
+          live.fetchedAt ? relativeTime(live.fetchedAt) : "последнего удачного чтения"
+        }, новее взять неоткуда.`
+      : `Проверяем Google Sheets каждые 5 секунд${
+          live.changedAt ? `. Последнее изменение: ${relativeTime(live.changedAt)}` : ""
+        }`;
 
   return (
-    <span className="flex items-center gap-1.5 mono-meta" title={title}>
+    <span
+      className="flex items-center gap-1.5 mono-meta"
+      title={title}
+      style={failing ? { color: "var(--accent-rose)" } : undefined}
+      role={failing ? "alert" : undefined}
+    >
       <span
         aria-hidden="true"
         style={{
@@ -46,10 +65,15 @@ export function LiveIndicator({ live }: { live: LiveState }) {
           height: 6,
           borderRadius: "50%",
           background: tone,
-          boxShadow: live.online ? `0 0 0 3px color-mix(in srgb, ${tone} 22%, transparent)` : "none",
+          boxShadow:
+            live.online && !failing
+              ? `0 0 0 3px color-mix(in srgb, ${tone} 22%, transparent)`
+              : "none",
         }}
       />
-      <span className="hidden sm:inline">{label}</span>
+      {/* Сбой источника нельзя прятать на узком экране — это единственное
+          состояние, где цифрам на экране верить нельзя. */}
+      <span className={failing ? "" : "hidden sm:inline"}>{label}</span>
     </span>
   );
 }
@@ -84,7 +108,15 @@ function compose(variant: "v1" | "v2", allocation: "period" | "avrdate", cycle: 
   return `v1:period:${cycle}:${oneOff}` as BbcMode;
 }
 
-export function ModeControls({
+/**
+ * Четыре переключателя режима — всегда развёрнуты.
+ *
+ * Раньше они прятались за «Настройки отчёта ▼» прямо над данными, где место
+ * дорого. Теперь блок живёт в своей вкладке, прятать его больше не от кого, а
+ * свёрнутый список настроек — это лишний клик до единственного места, где режим
+ * вообще можно собрать вручную.
+ */
+export function ModeSwitches({
   dataset,
   mode,
   onMode,
@@ -93,42 +125,15 @@ export function ModeControls({
   mode: BbcMode;
   onMode: (mode: BbcMode) => void;
 }) {
-  const [open, setOpen] = useState(false);
   const current = decompose(mode);
 
   return (
-    <div className="flex flex-col gap-2">
-      <div className="flex items-center gap-1.5 flex-wrap">
-        {Object.entries(dataset.presets).map(([key, preset]) => (
-          <button
-            key={key}
-            type="button"
-            onClick={() => onMode(preset.mode)}
-            className={mode === preset.mode ? "btn-primary text-xs px-3 py-1.5" : "btn-ghost text-xs px-3 py-1.5"}
-          >
-            {preset.title}
-          </button>
-        ))}
-        <button
-          type="button"
-          className="btn-ghost text-xs px-2.5 py-1.5"
-          onClick={() => setOpen((value) => !value)}
-          aria-expanded={open}
-        >
-          Настройки отчёта {open ? "▲" : "▼"}
-        </button>
-      </div>
-
-      {/* Always visible: what the current combination actually means. */}
+    <div className="flex flex-col gap-3">
       <p className="mono-meta" style={{ color: "var(--text-secondary)" }}>
         {dataset.mode_descriptions[mode]}
       </p>
 
-      {open ? (
-        <div
-          className="card-inner p-3 flex flex-col gap-3 animate-fade-in"
-          style={{ animationDuration: "var(--dur-base)" }}
-        >
+      <div className="card-inner p-3 flex flex-col gap-3">
           <SwitchRow
             title="Вариант признания"
             options={[
@@ -181,8 +186,7 @@ export function ModeControls({
               режиме не применяются.
             </p>
           )}
-        </div>
-      ) : null}
+      </div>
     </div>
   );
 }
@@ -232,7 +236,13 @@ function SwitchRow({
 
 /* ── Filters ─────────────────────────────────────────────────────────────────── */
 
-type FilterKey = "months" | "firms" | "departments" | "employees" | "serviceKinds" | "statuses";
+export type FilterKey =
+  | "months"
+  | "firms"
+  | "departments"
+  | "employees"
+  | "serviceKinds"
+  | "statuses";
 
 const FILTER_GROUPS: Array<{ key: FilterKey; title: string; source: keyof BbcDataset["dimensions"] }> = [
   { key: "months", title: "Месяц", source: "months" },
@@ -252,6 +262,7 @@ export function FilterBar({
   activeCount,
   visibleRows,
   totalRows,
+  alwaysOpen = false,
 }: {
   dataset: BbcDataset;
   filters: Filters;
@@ -261,8 +272,11 @@ export function FilterBar({
   activeCount: number;
   visibleRows: number;
   totalRows: number;
+  /** В панели управления прятать фильтры не от кого — она и есть их место. */
+  alwaysOpen?: boolean;
 }) {
   const [open, setOpen] = useState(false);
+  const expanded = alwaysOpen || open;
 
   return (
     <div className="flex flex-col gap-2">
@@ -276,17 +290,19 @@ export function FilterBar({
           onChange={(event) => onSearch(event.target.value)}
           aria-label="Поиск по строкам"
         />
-        <button
-          type="button"
-          className="btn-ghost text-xs px-2.5 py-1.5"
-          onClick={() => setOpen((value) => !value)}
-          aria-expanded={open}
-        >
-          Фильтры{activeCount ? ` · ${activeCount}` : ""} {open ? "▲" : "▼"}
-        </button>
+        {alwaysOpen ? null : (
+          <button
+            type="button"
+            className="btn-ghost text-xs px-2.5 py-1.5"
+            onClick={() => setOpen((value) => !value)}
+            aria-expanded={open}
+          >
+            Фильтры{activeCount ? ` · ${activeCount}` : ""} {open ? "▲" : "▼"}
+          </button>
+        )}
         {activeCount ? (
           <button type="button" className="btn-ghost text-xs px-2.5 py-1.5" onClick={onClear}>
-            Сбросить
+            Сбросить{alwaysOpen ? ` · ${activeCount}` : ""}
           </button>
         ) : null}
         <span className="mono-meta ml-auto">
@@ -294,7 +310,7 @@ export function FilterBar({
         </span>
       </div>
 
-      {open ? (
+      {expanded ? (
         <div
           className="card-inner p-3 grid gap-3 sm:grid-cols-2 lg:grid-cols-3 animate-fade-in"
           style={{ animationDuration: "var(--dur-base)" }}
@@ -332,6 +348,151 @@ export function FilterBar({
           })}
         </div>
       ) : null}
+    </div>
+  );
+}
+
+/* ── Context strip ───────────────────────────────────────────────────────────── */
+
+/**
+ * Строка-статус под навигацией.
+ *
+ * Панель управления уехала в свою вкладку, и данные поднялись почти на треть
+ * экрана — но цифра без подписи опаснее, чем цифра, до которой надо доскроллить.
+ * Поэтому от панели остаётся одна строка, которая всегда отвечает на вопрос
+ * «что я сейчас вижу»: каким способом признан доход, какие фильтры стоят,
+ * сколько строк осталось. Клик по любой её части ведёт в панель.
+ */
+export function ContextStrip({
+  dataset,
+  mode,
+  filters,
+  activeCount,
+  visibleRows,
+  totalRows,
+  live,
+  onOpen,
+  onToggle,
+  onClear,
+  tone,
+}: {
+  dataset: BbcDataset;
+  mode: BbcMode;
+  filters: Filters;
+  activeCount: number;
+  visibleRows: number;
+  totalRows: number;
+  live: LiveState;
+  onOpen: () => void;
+  onToggle: (key: FilterKey, value: string) => void;
+  onClear: () => void;
+  /** Цвет отдела, когда дашборд открыт по реферальной ссылке. */
+  tone?: string;
+}) {
+  const preset = Object.values(dataset.presets).find((item) => item.mode === mode);
+  const accent = tone ?? "var(--accent)";
+
+  const chips: Array<{ key: FilterKey; group: string; value: string }> = [];
+  for (const group of FILTER_GROUPS) {
+    for (const value of filters[group.key]) {
+      chips.push({ key: group.key, group: group.title, value });
+    }
+  }
+
+  return (
+    <div
+      className="bbc-context-strip bbc-enter flex items-center gap-2 px-4 py-1.5 border-b overflow-x-auto scrollbar-hidden"
+      style={
+        {
+          background: "var(--bg-raised)",
+          borderColor: "var(--border-subtle)",
+          "--enter-index": 2,
+        } as CSSProperties
+      }
+    >
+      <button
+        type="button"
+        onClick={onOpen}
+        className="flex items-center gap-1.5 shrink-0 text-xs"
+        title="Открыть панель управления"
+      >
+        <span aria-hidden="true" style={{ color: accent }}>
+          ◆
+        </span>
+        <span style={{ color: "var(--text-primary)" }}>{preset?.title ?? "Свой режим"}</span>
+      </button>
+
+      <span className="mono-meta shrink-0 hidden md:inline" style={{ color: "var(--text-muted)" }}>
+        {dataset.mode_descriptions[mode]}
+      </span>
+
+      {chips.length ? (
+        <span className="mono-meta shrink-0" aria-hidden="true" style={{ color: "var(--text-muted)" }}>
+          ·
+        </span>
+      ) : null}
+
+      {chips.slice(0, 6).map((chip) => (
+        <button
+          key={`${chip.key}:${chip.value}`}
+          type="button"
+          onClick={() => onToggle(chip.key, chip.value)}
+          className="shrink-0 flex items-center gap-1 px-2 py-0.5 rounded-full text-[0.68rem] max-w-[170px]"
+          style={{
+            background: "var(--accent-soft)",
+            color: "var(--text-accent)",
+            border: "1px solid var(--accent-line)",
+          }}
+          title={`${chip.group}: ${chip.value} — снять фильтр`}
+        >
+          <span className="truncate">{chip.value}</span>
+          <span aria-hidden="true" style={{ opacity: 0.7 }}>
+            ✕
+          </span>
+        </button>
+      ))}
+
+      {chips.length > 6 ? (
+        <span className="mono-meta shrink-0">+{chips.length - 6}</span>
+      ) : null}
+
+      {activeCount ? (
+        <button
+          type="button"
+          onClick={onClear}
+          className="mono-meta shrink-0"
+          style={{ color: "var(--text-muted)" }}
+        >
+          сбросить
+        </button>
+      ) : null}
+
+      <span className="flex-1" />
+
+      {/* Возраст данных показываем только когда он перестал быть подробностью:
+          источник не читается, и на экране заведомо не последняя правда. */}
+      {live.sourceError ? (
+        <span className="mono-meta shrink-0" style={{ color: "var(--accent-rose)" }}>
+          данные от {live.fetchedAt ? relativeTime(live.fetchedAt) : "прошлого чтения"}
+        </span>
+      ) : null}
+
+      <span className="mono-meta shrink-0">
+        {visibleRows === totalRows
+          ? `${totalRows} ${plural(totalRows, "строка", "строки", "строк")}`
+          : `${visibleRows} из ${totalRows}`}
+      </span>
+
+      <button
+        type="button"
+        onClick={onOpen}
+        className="btn-ghost shrink-0 text-xs px-2 py-1 flex items-center gap-1.5"
+        style={{ minHeight: 0 }}
+        title="Панель управления: режим, фильтры, виды"
+      >
+        <ControlPanelIcon size={13} />
+        <span className="hidden lg:inline">Настроить</span>
+      </button>
     </div>
   );
 }

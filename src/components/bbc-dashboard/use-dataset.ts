@@ -12,7 +12,7 @@
  * Filters and the four mode switches live in the URL, so any view is a shareable
  * link and survives a reload.
  */
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import { BbcApiError, fetchDataset, fetchMe } from "./api";
 import type { BbcDataset, BbcMe, BbcMode, BbcRow } from "./types";
@@ -48,6 +48,19 @@ const LIST_KEYS = [
 ] as const;
 
 const FALLBACK_MODE: BbcMode = "v2:prorata:wip";
+
+/**
+ * Предохранитель на кнопку «Обновить».
+ *
+ * Обычный поток данных Google не трогает: браузер спрашивает только `/revision`,
+ * а таблицу читает фоновый цикл бэкенда. Единственная дыра — `?refresh=true`,
+ * который идёт в Google напрямую и мимо всякого ограничения частоты. Человек,
+ * которому кажется, что «не обновилось», нажмёт кнопку десять раз подряд и
+ * выберет минутную квоту на ровном месте. Десять секунд — это меньше одного
+ * фонового цикла (15 с), так что осмысленную возможность обновить руками
+ * предохранитель не отнимает.
+ */
+const FORCE_MIN_MS = 10_000;
 
 /* ── URL round-trip ──────────────────────────────────────────────────────────── */
 
@@ -202,6 +215,8 @@ export function useDataset() {
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [unauthorized, setUnauthorized] = useState(false);
+  const [cooldown, setCooldown] = useState(0);
+  const forcedAt = useRef(0);
 
   /**
    * Identity first, data second.
@@ -213,6 +228,12 @@ export function useDataset() {
    * indistinguishable from a real backend fault.
    */
   const load = useCallback(async (refresh = false) => {
+    if (refresh) {
+      if (Date.now() - forcedAt.current < FORCE_MIN_MS) return;
+      forcedAt.current = Date.now();
+      setCooldown(Math.ceil(FORCE_MIN_MS / 1000));
+    }
+
     try {
       const identity = await fetchMe();
       setMe(identity);
@@ -277,6 +298,17 @@ export function useDataset() {
     writeUrl(filters, mode, block);
   }, [filters, mode, block]);
 
+  // Тикает только пока идёт остывание — в покое таймеров не остаётся.
+  const cooling = cooldown > 0;
+  useEffect(() => {
+    if (!cooling) return;
+    const timer = setInterval(() => {
+      const left = Math.ceil((FORCE_MIN_MS - (Date.now() - forcedAt.current)) / 1000);
+      setCooldown(left > 0 ? left : 0);
+    }, 500);
+    return () => clearInterval(timer);
+  }, [cooling]);
+
   const rows = useMemo(
     () => (dataset ? dataset.rows.filter((row) => matches(row, filters)) : []),
     [dataset, filters],
@@ -321,5 +353,7 @@ export function useDataset() {
     error,
     unauthorized,
     reload: load,
+    /** Секунд до следующего разрешённого ручного обновления, 0 — можно. */
+    refreshCooldown: cooldown,
   };
 }

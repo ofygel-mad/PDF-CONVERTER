@@ -11,6 +11,8 @@ export type BbcMe = {
   role: string | null;
   /** Set when the caller arrived through a department referral link. */
   link_label: string | null;
+  /** Когда эта ссылка перестанет работать. null — бессрочная. */
+  link_expires_at?: string | null;
   departments: string[];
   blocks: string[];
   is_admin: boolean;
@@ -30,7 +32,7 @@ export type BbcLink = {
   last_used_at: string | null;
   use_count: number;
   is_active: boolean;
-  /** Present only in the response that created the link — never on listing. */
+  /** Адрес ссылки. Приходит и при выдаче, и в списке — но только пока она жива. */
   url: string | null;
 };
 

@@ -13,15 +13,17 @@
  * behind it was already filtered server-side, so hiding a tab is presentation,
  * not the security boundary.
  */
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState, type CSSProperties } from "react";
 import { flushSync } from "react-dom";
 import Link from "next/link";
 
 import { ArrowLeftIcon, RefreshIcon } from "@/components/icons";
 import { currentLinkToken } from "./api";
+import { DepartmentBanner } from "./access/department-banner";
 import { LoginScreen } from "./access/login-screen";
 import { AnalyticsBlock } from "./blocks/analytics";
 import { CalendarBlock } from "./blocks/calendar";
+import { ControlPanelBlock } from "./blocks/control-panel";
 import { JournalBlock } from "./blocks/journal";
 import { RoadmapBlock } from "./blocks/pending";
 import { SalesBlock } from "./blocks/sales";
@@ -29,11 +31,12 @@ import { ReceivablesBlock } from "./blocks/receivables";
 import { ReportsBlock } from "./blocks/reports";
 import { WarningsBlock } from "./blocks/warnings";
 import { CommandPalette } from "./command-palette";
-import { FilterBar, LiveIndicator, ModeControls } from "./controls";
+import { ContextStrip, LiveIndicator } from "./controls";
 import {
   AnalyticsIcon,
   BbcDashboardIcon,
   CalendarIcon,
+  ControlPanelIcon,
   JournalIcon,
   ReceivablesIcon,
   ReportsIcon,
@@ -42,8 +45,10 @@ import {
   UserIcon,
   WarningIcon,
 } from "./icon";
+import { department } from "./department";
 import { type SavedView, useSavedViews } from "./saved-views";
 import { useDataset } from "./use-dataset";
+import { flip } from "./flip";
 import { useLive } from "./use-live";
 
 type BlockDefinition = {
@@ -94,6 +99,22 @@ const BLOCKS: BlockDefinition[] = [
   { key: "roadmap", title: "Будущие инструменты", short: "Планы", icon: RoadmapIcon, requires: "roadmap" },
 ];
 
+/**
+ * Панель управления — раздел, но не раздел данных.
+ *
+ * Область видимости её не ограничивает: у ссылок, выданных раньше, в базе
+ * записан список из трёх блоков, и проверка по `scope.blocks` отняла бы у их
+ * владельцев собственные настройки. Прятать тут нечего — данные приходят уже
+ * отфильтрованными сервером, а это поверхность управления ими.
+ */
+const CONTROL_BLOCK: BlockDefinition = {
+  key: "control",
+  title: "Панель управления",
+  short: "Панель управления",
+  icon: ControlPanelIcon,
+  requires: "control",
+};
+
 export function BbcDashboardClient() {
   const {
     dataset,
@@ -113,6 +134,7 @@ export function BbcDashboardClient() {
     error,
     unauthorized,
     reload,
+    refreshCooldown,
   } = useDataset();
 
   const onLiveChange = useCallback(() => {
@@ -135,28 +157,70 @@ export function BbcDashboardClient() {
     };
   }, [density]);
 
-  const applyView = useCallback(
-    (view: SavedView) => {
-      setFilters(view.filters);
-      setMode(view.mode);
-      setBlock(view.block);
-    },
-    [setFilters, setMode, setBlock],
-  );
+  /**
+   * Смена плотности — с перелётом блоков.
+   *
+   * Атрибут переставляется прямо здесь, в обработчике, а не в эффекте: FLIP
+   * обязан снять позиции «до» и «после» в одном кадре, а эффект React выполнится
+   * только после коммита, когда мерить уже нечего. Состояние обновляется следом
+   * и на раскладку не влияет — оно нужно переключателю, чтобы знать себя.
+   */
+  const applyDensity = useCallback((next: "comfortable" | "compact") => {
+    flip(() => {
+      document.documentElement.dataset.bbcDensity = next;
+    });
+    setDensity(next);
+  }, []);
 
   const isAdmin = dataset?.scope.departments.includes("*") ?? false;
+
+  /**
+   * Экран отдела: свой тон и своя шапка.
+   *
+   * Ссылка всегда выдаётся на один отдел, поэтому берём первый код области
+   * видимости. Для админа отдела нет — у него весь дашборд.
+   */
+  const departmentInfo = isAdmin ? null : department(dataset?.scope.departments[0]);
+  const tone = departmentInfo?.tone;
 
   const allowedBlocks = useMemo(() => {
     if (!dataset) return [];
     const granted = new Set(dataset.scope.blocks);
     const all = granted.has("*");
-    return BLOCKS.filter((item) => all || granted.has(item.requires));
+    return [...BLOCKS.filter((item) => all || granted.has(item.requires)), CONTROL_BLOCK];
   }, [dataset]);
 
   const activeBlock = useMemo(() => {
     if (!allowedBlocks.length) return null;
     return allowedBlocks.find((item) => item.key === block) ?? allowedBlocks[0];
   }, [allowedBlocks, block]);
+
+  // Куда возвращает кнопка «К разделу»: тот раздел с данными, из которого ушли
+  // в настройки, а не первый попавшийся. Запоминается в самом переходе — это
+  // обработчик события, а не эффект, поэтому лишнего каскада рендеров нет.
+  const [lastDataBlock, setLastDataBlock] = useState("receivables");
+
+  const goToBlock = useCallback(
+    (key: string) => {
+      const current = activeBlock?.key;
+      if (current && current !== CONTROL_BLOCK.key && current !== key) setLastDataBlock(current);
+      withViewTransition(() => setBlock(key));
+    },
+    [activeBlock, setBlock],
+  );
+
+  const applyView = useCallback(
+    (view: SavedView) => {
+      setFilters(view.filters);
+      setMode(view.mode);
+      goToBlock(view.block);
+    },
+    [setFilters, setMode, goToBlock],
+  );
+
+  const onPanel = activeBlock?.key === CONTROL_BLOCK.key;
+  const backBlock =
+    allowedBlocks.find((item) => item.key === lastDataBlock) ?? allowedBlocks[0];
 
   if (unauthorized) {
     // `linkExpired` distinguishes "never signed in" from "the link stopped
@@ -173,7 +237,7 @@ export function BbcDashboardClient() {
   if (loading && !dataset) {
     return (
       <div
-        className="min-h-screen flex flex-col items-center justify-center gap-3"
+        className="bbc-boot min-h-screen flex flex-col items-center justify-center gap-3"
         style={{ background: "var(--page-bg)" }}
       >
         <span className="logo-badge animate-spin-slow">
@@ -188,10 +252,21 @@ export function BbcDashboardClient() {
   }
 
   return (
-    <div className="min-h-screen flex flex-col" style={{ background: "var(--page-bg)" }}>
+    <div
+      // На экране отдела тон расходится по карточкам и активной вкладке — это
+      // и делает его «своим», не добавляя в систему второго акцентного цвета.
+      className={`min-h-screen flex flex-col${departmentInfo ? " bbc-dept" : ""}`}
+      style={{ background: "var(--page-bg)", ...(tone ? { "--dept-tone": tone } : null) } as CSSProperties}
+    >
       <header
-        className="sticky top-0 z-40 border-b backdrop-blur-md"
-        style={{ background: "var(--header-bg)", borderColor: "var(--border-subtle)" }}
+        className="bbc-enter sticky top-0 z-40 border-b backdrop-blur-md"
+        style={
+          {
+            background: "var(--header-bg)",
+            borderColor: "var(--border-subtle)",
+            "--enter-index": 0,
+          } as CSSProperties
+        }
       >
         <div className="flex items-center justify-between gap-2 px-4 py-2.5">
           <div className="flex items-center gap-2.5 min-w-0">
@@ -212,15 +287,7 @@ export function BbcDashboardClient() {
             >
               BBC · управленческий отчёт
             </span>
-            {dataset && !isAdmin && dataset.scope.label ? (
-              <span
-                className="text-[0.68rem] px-2 py-0.5 rounded-full shrink-0"
-                style={{ background: "var(--accent-soft)", color: "var(--text-accent)" }}
-                title="Доступ по ссылке отдела"
-              >
-                {dataset.scope.label}
-              </span>
-            ) : null}
+
           </div>
 
           <div className="flex items-center gap-2 shrink-0">
@@ -230,58 +297,36 @@ export function BbcDashboardClient() {
                 dataset={dataset}
                 blocks={allowedBlocks.map((item) => ({ key: item.key, title: item.title }))}
                 savedViews={views}
-                onBlock={setBlock}
+                onBlock={goToBlock}
                 onMode={setMode}
                 onFilter={toggleFilter}
                 onSearch={(value) => setFilters((current) => ({ ...current, search: value }))}
                 onApplyView={applyView}
               />
             ) : null}
-            {/* Двухпозиционный переключатель, а не одна кнопка: у кнопки с
-                подписью «Плотно» не прочитать, это текущее состояние или то,
-                что случится по клику. Здесь обе позиции видны сразу. */}
-            <div
-              className="hidden md:flex items-center rounded-lg p-0.5 gap-0.5"
-              style={{ background: "var(--bg-active)" }}
-              role="group"
-              aria-label="Плотность таблиц"
-            >
-              {(
-                [
-                  { key: "comfortable", label: "Свободно" },
-                  { key: "compact", label: "Плотно" },
-                ] as const
-              ).map((option) => (
-                <button
-                  key={option.key}
-                  type="button"
-                  onClick={() => setDensity(option.key)}
-                  aria-pressed={density === option.key}
-                  className="text-xs px-2.5 py-1 rounded-md"
-                  style={{
-                    background: density === option.key ? "var(--bg-surface)" : "transparent",
-                    color:
-                      density === option.key ? "var(--text-primary)" : "var(--text-muted)",
-                    transition: "background var(--dur-fast), color var(--dur-fast)",
-                  }}
-                >
-                  {option.label}
-                </button>
-              ))}
-            </div>
+            {/* Ручное чтение идёт прямо в Google мимо фонового цикла, поэтому у
+                кнопки есть остывание: «не обновилось» обычно означает «в таблице
+                не меняли», а не «нажми ещё десять раз». */}
             <button
               type="button"
               onClick={() => void reload(true)}
-              disabled={loading}
+              disabled={loading || refreshCooldown > 0}
               className="btn-ghost text-xs px-2.5 py-1.5 flex items-center gap-1.5"
-              title="Перечитать таблицу сейчас"
+              title={
+                refreshCooldown > 0
+                  ? `Только что читали таблицу. Следующее ручное чтение через ${refreshCooldown} с — фоновое обновление идёт само каждые 15 секунд.`
+                  : "Перечитать таблицу сейчас"
+              }
             >
               <RefreshIcon size={15} />
-              <span className="hidden sm:inline">{loading ? "Обновление…" : "Обновить"}</span>
+              <span className="hidden sm:inline">
+                {loading ? "Обновление…" : refreshCooldown > 0 ? `${refreshCooldown} с` : "Обновить"}
+              </span>
             </button>
             {isAdmin ? (
               <Link
                 href="/bbc-dashboard/account"
+                prefetch
                 className="btn-ghost text-xs px-2.5 py-1.5 flex items-center gap-1.5"
                 title="Личный кабинет"
               >
@@ -292,20 +337,36 @@ export function BbcDashboardClient() {
           </div>
         </div>
 
-        <nav className="flex gap-1 px-3 overflow-x-auto scrollbar-hidden" aria-label="Разделы">
+        <nav
+          className="bbc-enter flex gap-1 px-3 overflow-x-auto scrollbar-hidden"
+          style={{ "--enter-index": 1 } as CSSProperties}
+          aria-label="Разделы"
+        >
           {allowedBlocks.map((item) => {
             const Icon = item.icon;
             const active = activeBlock?.key === item.key;
             const badge = item.key === "warnings" ? dataset?.warnings_summary.total ?? 0 : 0;
+            const isControl = item.key === CONTROL_BLOCK.key;
             return (
               <button
                 key={item.key}
                 type="button"
-                onClick={() => withViewTransition(() => setBlock(item.key))}
+                onClick={() => goToBlock(item.key)}
                 className={`flex shrink-0 items-center gap-1.5 px-3 py-2 text-xs whitespace-nowrap border-b-2 ${
                   active ? "tab-active" : "tab-inactive"
                 }`}
-                style={{ transition: "color var(--dur-fast)" }}
+                // Настройки отделены от разделов данных: они не про цифры, а про
+                // то, как цифры считаются, — и не должны стоять с ними в ряд.
+                style={{
+                  transition: "color var(--dur-fast)",
+                  ...(isControl
+                    ? {
+                        marginLeft: "auto",
+                        borderLeft: "1px solid var(--border-subtle)",
+                        paddingLeft: "0.9rem",
+                      }
+                    : null),
+                }}
                 aria-current={active ? "page" : undefined}
               >
                 <Icon size={14} />
@@ -327,9 +388,38 @@ export function BbcDashboardClient() {
             );
           })}
         </nav>
+
+        {dataset && departmentInfo ? (
+          <DepartmentBanner
+            info={departmentInfo}
+            rowCount={dataset.rows.length}
+            blocks={dataset.scope.blocks}
+            expiresAt={me?.link_expires_at}
+          />
+        ) : null}
+
+        {/* Панель уехала в свою вкладку, но подпись под цифрой осталась здесь. */}
+        {dataset && !onPanel ? (
+          <ContextStrip
+            dataset={dataset}
+            mode={mode}
+            filters={filters}
+            activeCount={activeFilterCount}
+            visibleRows={rows.length}
+            totalRows={dataset.rows.length}
+            live={live}
+            onOpen={() => goToBlock(CONTROL_BLOCK.key)}
+            onToggle={toggleFilter}
+            onClear={clearFilters}
+            tone={tone}
+          />
+        ) : null}
       </header>
 
-      <main className="flex-1 w-full max-w-[1400px] mx-auto px-4 py-5 flex flex-col gap-4">
+      <main
+        className="bbc-enter flex-1 w-full max-w-[1400px] mx-auto px-4 py-5 flex flex-col gap-4"
+        style={{ "--enter-index": 3 } as CSSProperties}
+      >
         {error ? (
           <div
             className="card p-4 text-sm"
@@ -342,30 +432,32 @@ export function BbcDashboardClient() {
 
         {dataset ? (
           <>
-            <div className="card p-4 flex flex-col gap-3">
-              <ModeControls dataset={dataset} mode={mode} onMode={setMode} />
-              <div className="divider" />
-              <FilterBar
-                dataset={dataset}
-                filters={filters}
-                onToggle={toggleFilter}
-                onSearch={(value) => setFilters((current) => ({ ...current, search: value }))}
-                onClear={clearFilters}
-                activeCount={activeFilterCount}
-                visibleRows={rows.length}
-                totalRows={dataset.rows.length}
-              />
-              <SavedViewsBar
-                views={views}
-                onApply={applyView}
-                onRemove={removeView}
-                onSave={(name) => saveView(name, block, mode, filters)}
-              />
-            </div>
-
             {activeBlock ? (
               <div className="bbc-block-view flex flex-col gap-4">
                 <h2 className="sr-only">{activeBlock.title}</h2>
+                {activeBlock.key === CONTROL_BLOCK.key ? (
+                  <ControlPanelBlock
+                    dataset={dataset}
+                    rows={rows}
+                    mode={mode}
+                    onMode={setMode}
+                    filters={filters}
+                    onToggleFilter={toggleFilter}
+                    onSearch={(value) => setFilters((current) => ({ ...current, search: value }))}
+                    onClearFilters={clearFilters}
+                    activeFilterCount={activeFilterCount}
+                    density={density}
+                    onDensity={applyDensity}
+                    views={views}
+                    onSaveView={(name) => saveView(name, lastDataBlock, mode, filters)}
+                    onApplyView={applyView}
+                    onRemoveView={removeView}
+                    onBack={() => goToBlock(backBlock?.key ?? "receivables")}
+                    backTitle={backBlock?.title ?? "Дебиторка"}
+                    restricted={!isAdmin}
+                    tone={tone}
+                  />
+                ) : null}
                 {activeBlock.key === "receivables" ? <ReceivablesBlock rows={rows} mode={mode} /> : null}
                 {activeBlock.key === "reports" ? <ReportsBlock rows={rows} mode={mode} /> : null}
                 {activeBlock.key === "analytics" ? (
@@ -388,91 +480,6 @@ export function BbcDashboardClient() {
           </>
         ) : null}
       </main>
-    </div>
-  );
-}
-
-/**
- * Полоска сохранённых видов.
- *
- * Вид — это связка «блок + режим + фильтры» под своим именем. Хранится локально,
- * но поделиться им можно ссылкой: всё состояние и так живёт в URL.
- */
-function SavedViewsBar({
-  views,
-  onApply,
-  onRemove,
-  onSave,
-}: {
-  views: SavedView[];
-  onApply: (view: SavedView) => void;
-  onRemove: (id: string) => void;
-  onSave: (name: string) => void;
-}) {
-  const [naming, setNaming] = useState(false);
-  const [name, setName] = useState("");
-
-  return (
-    <div className="flex items-center gap-1.5 flex-wrap bbc-no-print">
-      {views.map((view) => (
-        <span
-          key={view.id}
-          className="flex items-center gap-1 text-[0.7rem] rounded-lg"
-          style={{ background: "var(--bg-active)", color: "var(--text-secondary)" }}
-        >
-          <button
-            type="button"
-            className="pl-2.5 py-1"
-            onClick={() => onApply(view)}
-            title={`${view.block} · ${view.mode}`}
-          >
-            {view.name}
-          </button>
-          <button
-            type="button"
-            className="pr-2 py-1"
-            onClick={() => onRemove(view.id)}
-            aria-label={`Удалить вид «${view.name}»`}
-            style={{ color: "var(--text-muted)" }}
-          >
-            ✕
-          </button>
-        </span>
-      ))}
-
-      {naming ? (
-        <form
-          onSubmit={(event) => {
-            event.preventDefault();
-            onSave(name);
-            setName("");
-            setNaming(false);
-          }}
-          className="flex items-center gap-1.5"
-        >
-          <input
-            autoFocus
-            value={name}
-            onChange={(event) => setName(event.target.value)}
-            onBlur={() => setNaming(false)}
-            placeholder="Название вида"
-            className="input-field text-xs max-w-[160px]"
-            aria-label="Название сохранённого вида"
-          />
-          <button type="submit" className="btn-ghost text-xs px-2 py-1">
-            Сохранить
-          </button>
-        </form>
-      ) : (
-        <button
-          type="button"
-          className="btn-ghost text-[0.7rem] px-2.5 py-1"
-          onClick={() => setNaming(true)}
-          title="Сохранить текущие фильтры и режим"
-        >
-          + Сохранить вид
-        </button>
-      )}
     </div>
   );
 }

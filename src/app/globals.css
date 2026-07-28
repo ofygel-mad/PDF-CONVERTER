@@ -439,6 +439,55 @@ body {
   animation: bbc-view-in var(--dur-base) var(--ease-out) both;
 }
 
+/* ─── Экран отдела ─────────────────────────────────────────────────
+   Доступ по реферальной ссылке. Тон отдела проходит по левому канту карточек и
+   по активной вкладке — этого хватает, чтобы экран читался как «мой отдел», и
+   при этом в систему не добавляется второй акцентный цвет: --dept-tone всегда
+   один из уже существующих токенов. */
+.bbc-dept section.card {
+  border-left: 2px solid color-mix(in srgb, var(--dept-tone, var(--accent)) 55%, transparent);
+}
+.bbc-dept .tab-active {
+  border-bottom-color: var(--dept-tone, var(--accent));
+}
+
+/* ─── Появление дашборда ───────────────────────────────────────────
+   После входа интерфейс не должен возникать целиком в одном кадре: экран из
+   тридцати чисел, появившийся разом, читается как вспышка, и глазу негде
+   зацепиться. Поэтому вход собирается по слоям — шапка, навигация, строка
+   режима, затем сами данные, — и каждый слой всплывает из лёгкой расфокусировки.
+   Порядок задаётся переменной --enter-index прямо в разметке, а не отдельными
+   классами на каждый блок.
+
+   Анимируются только opacity, transform и filter: раскладка за кадр не
+   пересчитывается ни разу. При prefers-reduced-motion длительности из токенов
+   обнуляются, и всё это схлопывается в мгновенный показ. */
+@keyframes bbc-enter {
+  from {
+    opacity: 0;
+    transform: translateY(12px) scale(0.985);
+    filter: blur(5px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+    filter: blur(0);
+  }
+}
+
+.bbc-enter {
+  animation: bbc-enter var(--dur-slow) var(--ease-out) both;
+  animation-delay: calc(var(--enter-index, 0) * 70ms);
+  will-change: transform, opacity, filter;
+}
+
+/* Экран ожидания дышит, пока читается таблица: страница жива, а не подвисла. */
+@keyframes bbc-boot {
+  from { opacity: 0; transform: scale(0.97); }
+  to   { opacity: 1; transform: scale(1); }
+}
+.bbc-boot { animation: bbc-boot var(--dur-base) var(--ease-out) both; }
+
 /* Faint grain kills gradient banding without touching the flat-depth tokens. */
 .bbc-grain::after {
   content: "";
@@ -484,11 +533,14 @@ body {
   to   { opacity: 1; transform: translateY(0) scale(1); }
 }
 
-.animate-fade-in   { animation: fade-in   0.25s ease both; }
-.animate-slide-up  { animation: slide-up  0.28s ease both; }
-.animate-toast-in  { animation: toast-in  0.25s ease both; }
+/* Длительности берутся из шкалы, а не из вручную набранных секунд: иначе
+   prefers-reduced-motion гасит их только заглушкой в самом низу файла, а любая
+   правка тайминга расходится с остальным продуктом. */
+.animate-fade-in   { animation: fade-in   var(--dur-base) var(--ease-out) both; }
+.animate-slide-up  { animation: slide-up  var(--dur-slow) var(--ease-out) both; }
+.animate-toast-in  { animation: toast-in  var(--dur-base) var(--ease-out) both; }
 .animate-spin-slow { animation: spin-slow 1.4s linear infinite; }
-.animate-variant-swap { animation: variant-swap 0.32s cubic-bezier(0.2, 0.7, 0.2, 1) both; }
+.animate-variant-swap { animation: variant-swap var(--dur-slow) var(--ease-out) both; }
 
 /* ─── Row quality colours ─────────────────────────────────────── */
 .row-inflow  { background: var(--inflow-bg); }
@@ -568,14 +620,54 @@ textarea.input-field {
 }
 
 /* ─── BBC: плотность и печать ─────────────────────────────────────
-   Компактный режим сжимает вертикальные отступы таблиц и карточек, не трогая
-   размеры шрифта: читаемость остаётся, а на экран влезает заметно больше строк. */
+   Компактный режим — не «то же самое, но мельче». Он перестраивает раскладку:
+   плитки KPI ложатся в один ряд подписью и числом в строку, карточки встают по
+   две в ряд, второстепенные колонки таблиц уходят. Размер шрифта при этом не
+   трогаем — читаемость важнее лишних процентов места.
+   Перелёт блоков между двумя состояниями делает flip.ts. */
 [data-bbc-density="compact"] .card { padding: 0.75rem; }
 [data-bbc-density="compact"] .card-inner { padding: 0.5rem; }
 [data-bbc-density="compact"] .row-item { padding: 0.4rem 0.6rem; }
 [data-bbc-density="compact"] table td,
 [data-bbc-density="compact"] table th { padding-top: 0.2rem; padding-bottom: 0.2rem; }
 [data-bbc-density="compact"] .flex.flex-col.gap-4 { gap: 0.6rem; }
+
+/* KPI: шесть крупных плиток → один ряд узких, подпись и число в строку. */
+[data-bbc-density="compact"] .bbc-kpi-grid {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 0.4rem;
+}
+[data-bbc-density="compact"] .bbc-kpi-tile {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 0.5rem;
+  padding: 0.4rem 0.6rem;
+}
+[data-bbc-density="compact"] .bbc-kpi-tile .eyebrow { margin-bottom: 0; }
+[data-bbc-density="compact"] .bbc-kpi-value { font-size: 0.95rem; }
+
+@media (min-width: 640px) {
+  [data-bbc-density="compact"] .bbc-kpi-grid {
+    grid-template-columns: repeat(6, minmax(0, 1fr));
+  }
+}
+
+/* Второстепенные колонки реестра: строка без них всё ещё читается. */
+[data-bbc-density="compact"] table [data-optional] { display: none; }
+
+/* Блоки: колонка → две колонки. Таблицы остаются во всю ширину — сжимать их
+   вдвое значит включить горизонтальный скролл там, где его не было. */
+@media (min-width: 1280px) {
+  [data-bbc-density="compact"] .bbc-block-view {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    align-items: start;
+  }
+  [data-bbc-density="compact"] .bbc-block-view > *:has(table) {
+    grid-column: 1 / -1;
+  }
+}
 
 /* Печать: отчёт на бумаге — обычный документ, а не скриншот интерфейса. */
 @media print {

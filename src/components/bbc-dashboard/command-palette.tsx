@@ -10,10 +10,29 @@
  *
  * Полностью с клавиатуры: ↑↓ перебор, Enter выбор, Esc закрыть.
  */
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
 
+import { SearchIcon } from "./icon";
 import type { BbcDataset, BbcMode } from "./types";
 import type { SavedView } from "./saved-views";
+
+/**
+ * Подпись сочетания клавиш: «⌘K» на Mac, «Ctrl K» везде ещё.
+ *
+ * Через useSyncExternalStore, а не через прямое чтение navigator в рендере:
+ * сервер обязан отрендерить то же, что и первый кадр клиента, иначе гидратация
+ * ругается на расхождение. Серверный снапшот — «Ctrl K», клиент уточняет.
+ */
+const noopSubscribe = () => () => {};
+
+function useShortcutLabel(): string {
+  const mac = useSyncExternalStore(
+    noopSubscribe,
+    () => /Mac|iPhone|iPad/i.test(navigator.platform || navigator.userAgent || ""),
+    () => false,
+  );
+  return mac ? "⌘K" : "Ctrl K";
+}
 
 type Action = {
   id: string;
@@ -46,6 +65,7 @@ export function CommandPalette({
 }: Props) {
   const [open, setOpen] = useState(false);
   const [query, setQuery] = useState("");
+  const shortcut = useShortcutLabel();
   const [cursor, setCursor] = useState(0);
   const inputRef = useRef<HTMLInputElement>(null);
   const listRef = useRef<HTMLDivElement>(null);
@@ -204,10 +224,19 @@ export function CommandPalette({
         type="button"
         onClick={show}
         className="btn-ghost text-xs px-2.5 py-1.5 flex items-center gap-1.5"
-        title="Командная палитра"
+        title={`Поиск по разделам, клиентам и режимам (${shortcut})`}
       >
-        <span aria-hidden="true">⌘K</span>
+        {/* Раньше здесь стоял голый символ «⌘»: на Windows он рисуется
+            прямоугольником-заменителем и читался как случайный знак. Действие
+            называет иконка, а сочетание клавиш — подпись справа. */}
+        <SearchIcon size={15} />
         <span className="hidden lg:inline">Поиск</span>
+        <kbd
+          className="hidden xl:inline mono-meta px-1.5 py-0.5 rounded"
+          style={{ background: "var(--bg-active)", color: "var(--text-muted)" }}
+        >
+          {shortcut}
+        </kbd>
       </button>
     );
   }

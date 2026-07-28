@@ -184,3 +184,39 @@ export function LockIcon(props: IconProps) {
     </Glyph>
   );
 }
+
+/** Sliders — the control panel tab. */
+export function ControlPanelIcon(props: IconProps) {
+  return (
+    <Glyph {...props}>
+      <path d="M4 7h10M18 7h2M4 17h4M12 17h8" />
+      <circle cx="16" cy="7" r="2" />
+      <circle cx="10" cy="17" r="2" />
+    </Glyph>
+  );
+}
+
+/**
+ * Лупа для кнопки поиска.
+ *
+ * Раньше на её месте стоял символ `⌘`: на Windows в шрифте без этой глифы он
+ * рисуется прямоугольником-заменителем и читается как случайный знак, а не как
+ * клавиша. Сочетание клавиш теперь подписано словами и уходит вправо.
+ */
+export function SearchIcon(props: IconProps) {
+  return (
+    <Glyph {...props}>
+      <circle cx="11" cy="11" r="6.5" />
+      <path d="m15.8 15.8 4 4" />
+    </Glyph>
+  );
+}
+
+/** Right arrow — «К данным →». */
+export function ArrowRightIcon(props: IconProps) {
+  return (
+    <Glyph {...props}>
+      <path d="M5 12h14M13 6l6 6-6 6" />
+    </Glyph>
+  );
+}

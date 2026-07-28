@@ -23,6 +23,9 @@ export function SectionCard({
   return (
     <section
       className="card bbc-grain relative p-4 animate-fade-in"
+      // Имя для FLIP: по нему карточку узнают до и после перестройки сетки,
+      // чтобы она перелетела на новое место, а не мигнула там.
+      data-flip-id={`section:${title}`}
       style={{ animationDuration: "var(--dur-base)" }}
     >
       <div className="flex items-start justify-between gap-3 mb-3">
@@ -61,7 +64,7 @@ export function KpiStrip({ items }: { items: KpiItem[] }) {
   const changed = useChangedKeys(values);
 
   return (
-    <div className="grid gap-2.5 grid-cols-2 sm:grid-cols-3 lg:grid-cols-6">
+    <div className="bbc-kpi-grid grid gap-2.5 grid-cols-2 sm:grid-cols-3 lg:grid-cols-6">
       {items.map((item, index) => (
         <KpiTile
           key={item.label}
@@ -103,7 +106,8 @@ function KpiTile({
 
   return (
     <div
-      className={`card p-3 animate-fade-in bbc-tile${pulsing ? " bbc-pulse" : ""}`}
+      className={`bbc-kpi-tile card p-3 animate-fade-in bbc-tile${pulsing ? " bbc-pulse" : ""}`}
+      data-flip-id={`kpi:${item.label}`}
       style={{
         animationDuration: "var(--dur-base)",
         animationDelay: `calc(${index} * var(--dur-stagger))`,
@@ -113,7 +117,7 @@ function KpiTile({
     >
       <p className="eyebrow mb-1 truncate">{item.label}</p>
       <p
-        className="text-lg font-semibold bbc-num truncate"
+        className="bbc-kpi-value text-lg font-semibold bbc-num truncate"
         style={{ color: tone, letterSpacing: "-0.02em" }}
       >
         {item.format === "percent"
@@ -151,79 +155,44 @@ export function RowTable({
       <table className="w-full text-xs" style={{ borderCollapse: "collapse" }}>
         <thead>
           <tr>
-            {["№", "Клиент", "Отдел", "Услуга", "Период", "Договор", "Оплачено", "Признано", "Статус"].map(
-              (header) => (
-                <th
-                  key={header}
-                  className={`font-medium px-2 py-1.5 whitespace-nowrap ${
-                    ["Договор", "Оплачено", "Признано"].includes(header) ? "text-right" : "text-left"
-                  }`}
-                  style={{ color: "var(--text-muted)", borderBottom: "1px solid var(--border-subtle)" }}
-                >
-                  {header}
-                </th>
-              ),
-            )}
+            {COLUMNS.map((column) => (
+              <th
+                key={column.key}
+                data-optional={column.optional ? "" : undefined}
+                className={`font-medium px-2 py-1.5 whitespace-nowrap ${
+                  column.align === "right" ? "text-right" : "text-left"
+                }`}
+                style={{ color: "var(--text-muted)", borderBottom: "1px solid var(--border-subtle)" }}
+              >
+                {column.header}
+              </th>
+            ))}
           </tr>
         </thead>
         <tbody>
-          {rows.slice(0, limit).map((row, index) => {
-            const recognized = (row.recognition[mode]?.alloc ?? []).reduce(
-              (sum, entry) => sum + entry[3],
-              0,
-            );
-            const wip = row.recognition[mode]?.wip ?? 0;
-            return (
-              <tr
-                key={row.index}
-                className="animate-fade-in"
-                style={{
-                  animationDuration: "var(--dur-fast)",
-                  animationDelay: `calc(${Math.min(index, 20)} * var(--dur-stagger) / 2)`,
-                  animationFillMode: "backwards",
-                }}
-              >
-                <td className="px-2 py-1.5 mono-meta">{row.index}</td>
+          {rows.slice(0, limit).map((row, index) => (
+            <tr
+              key={row.index}
+              className="animate-fade-in"
+              style={{
+                animationDuration: "var(--dur-fast)",
+                animationDelay: `calc(${Math.min(index, 20)} * var(--dur-stagger) / 2)`,
+                animationFillMode: "backwards",
+              }}
+            >
+              {COLUMNS.map((column) => (
                 <td
-                  className="px-2 py-1.5 max-w-[220px] truncate"
-                  style={{ color: "var(--text-primary)" }}
-                  title={row.client}
+                  key={column.key}
+                  data-optional={column.optional ? "" : undefined}
+                  className={`px-2 py-1.5 ${column.cellClass ?? ""}`}
+                  style={{ color: column.tone ?? "var(--text-secondary)" }}
+                  title={column.title?.(row)}
                 >
-                  {row.client || "—"}
+                  {column.render(row, mode)}
                 </td>
-                <td className="px-2 py-1.5" style={{ color: "var(--text-secondary)" }}>
-                  {row.departments.join(", ") || "—"}
-                </td>
-                <td className="px-2 py-1.5" style={{ color: "var(--text-secondary)" }}>
-                  {row.service_kind || "—"}
-                </td>
-                <td className="px-2 py-1.5 mono-meta whitespace-nowrap">
-                  {row.period_start ? dateLabel(row.period_start) : "—"}
-                  {row.period_end ? ` – ${dateLabel(row.period_end)}` : ""}
-                </td>
-                <td className="px-2 py-1.5 text-right bbc-num" style={{ color: "var(--text-primary)" }}>
-                  {money(row.contract_amount)}
-                </td>
-                <td className="px-2 py-1.5 text-right bbc-num" style={{ color: "var(--text-secondary)" }}>
-                  {money(row.paid_amount)}
-                </td>
-                <td className="px-2 py-1.5 text-right bbc-num">
-                  {recognized ? (
-                    <span style={{ color: "var(--accent-emerald)" }}>{money(recognized)}</span>
-                  ) : wip ? (
-                    <span style={{ color: "var(--accent-amber)" }} title="Ожидает: нет дат периода">
-                      {money(wip)} · WIP
-                    </span>
-                  ) : (
-                    <span style={{ color: "var(--text-muted)" }}>—</span>
-                  )}
-                </td>
-                <td className="px-2 py-1.5" style={{ color: "var(--text-secondary)" }}>
-                  {row.status || "—"}
-                </td>
-              </tr>
-            );
-          })}
+              ))}
+            </tr>
+          ))}
         </tbody>
       </table>
 
@@ -236,6 +205,108 @@ export function RowTable({
     </div>
   );
 }
+
+/**
+ * Колонки реестра, описанные один раз.
+ *
+ * `optional` — то, без чего строку всё ещё можно прочитать: в компактном режиме
+ * эти колонки уходят, и на экран влезает вдвое больше строк. Договор, оплата и
+ * признание не помечены никогда — ради них таблицу и открывают.
+ */
+type RowColumn = {
+  key: string;
+  header: string;
+  align?: "left" | "right";
+  optional?: boolean;
+  cellClass?: string;
+  tone?: string;
+  title?: (row: BbcRow) => string | undefined;
+  render: (row: BbcRow, mode: BbcMode) => ReactNode;
+};
+
+const COLUMNS: RowColumn[] = [
+  {
+    key: "index",
+    header: "№",
+    optional: true,
+    cellClass: "mono-meta",
+    render: (row) => row.index,
+  },
+  {
+    key: "client",
+    header: "Клиент",
+    cellClass: "max-w-[220px] truncate",
+    tone: "var(--text-primary)",
+    title: (row) => row.client || undefined,
+    render: (row) => row.client || "—",
+  },
+  {
+    key: "departments",
+    header: "Отдел",
+    optional: true,
+    render: (row) => row.departments.join(", ") || "—",
+  },
+  {
+    key: "service",
+    header: "Услуга",
+    optional: true,
+    render: (row) => row.service_kind || "—",
+  },
+  {
+    key: "period",
+    header: "Период",
+    cellClass: "mono-meta whitespace-nowrap",
+    render: (row) =>
+      `${row.period_start ? dateLabel(row.period_start) : "—"}${
+        row.period_end ? ` – ${dateLabel(row.period_end)}` : ""
+      }`,
+  },
+  {
+    key: "contract",
+    header: "Договор",
+    align: "right",
+    cellClass: "text-right bbc-num",
+    tone: "var(--text-primary)",
+    render: (row) => money(row.contract_amount),
+  },
+  {
+    key: "paid",
+    header: "Оплачено",
+    align: "right",
+    cellClass: "text-right bbc-num",
+    render: (row) => money(row.paid_amount),
+  },
+  {
+    key: "recognized",
+    header: "Признано",
+    align: "right",
+    cellClass: "text-right bbc-num",
+    render: (row, mode) => {
+      const recognized = (row.recognition[mode]?.alloc ?? []).reduce(
+        (sum, entry) => sum + entry[3],
+        0,
+      );
+      const wip = row.recognition[mode]?.wip ?? 0;
+      if (recognized) {
+        return <span style={{ color: "var(--accent-emerald)" }}>{money(recognized)}</span>;
+      }
+      if (wip) {
+        return (
+          <span style={{ color: "var(--accent-amber)" }} title="Ожидает: нет дат периода">
+            {money(wip)} · WIP
+          </span>
+        );
+      }
+      return <span style={{ color: "var(--text-muted)" }}>—</span>;
+    },
+  },
+  {
+    key: "status",
+    header: "Статус",
+    optional: true,
+    render: (row) => row.status || "—",
+  },
+];
 
 /** Honest empty state: names the missing data instead of saying "нет данных". */
 export function PendingBlock({
