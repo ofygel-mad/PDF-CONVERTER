@@ -35,17 +35,28 @@ import { SectionCard } from "./shared";
  * Список существует ровно потому, что его отсутствие и породило жалобу на
  * «мёртвые кнопки». Молчание тут читается как поломка.
  */
-const AFFECTED: Array<{ title: string; affected: boolean; why: string }> = [
-  { title: "Отчёты", affected: true, why: "ОПиУ и профиль месяцев считаются из признанной выручки" },
-  { title: "Аналитика", affected: true, why: "структура выручки и разрезы — по признанию" },
+const AFFECTED: Array<{ key: string; title: string; affected: boolean; why: string }> = [
   {
+    key: "reports",
+    title: "Отчёты",
+    affected: true,
+    why: "ОПиУ и профиль месяцев считаются из признанной выручки",
+  },
+  {
+    key: "analytics",
+    title: "Аналитика",
+    affected: true,
+    why: "структура выручки и разрезы — по признанию",
+  },
+  {
+    key: "receivables",
     title: "Дебиторка",
     affected: false,
     why: "живёт на фактах документов: счёт, акт, оплата",
   },
-  { title: "Журнал", affected: false, why: "движение денег, признание тут ни при чём" },
-  { title: "Календарь", affected: false, why: "у него свой метод прогноза платежей" },
-  { title: "Продажи", affected: false, why: "план и факт из таблицы ОМиП" },
+  { key: "journal", title: "Журнал", affected: false, why: "движение денег, признание тут ни при чём" },
+  { key: "calendar", title: "Календарь", affected: false, why: "у него свой метод прогноза платежей" },
+  { key: "sales", title: "Продажи", affected: false, why: "план и факт из таблицы ОМиП" },
 ];
 
 export function ControlPanelBlock({
@@ -86,6 +97,15 @@ export function ControlPanelBlock({
   restricted?: boolean;
   tone?: string;
 }) {
+  // Руководителю отдела нет смысла рассказывать про «Отчёты» и «Продажи»:
+  // этих разделов у него нет, и список выглядел бы как обещание того, чего
+  // он не увидит.
+  const affected = useMemo(() => {
+    const granted = new Set(dataset.scope.blocks);
+    if (granted.has("*")) return AFFECTED;
+    return AFFECTED.filter((item) => granted.has(item.key));
+  }, [dataset.scope.blocks]);
+
   const axis = useMemo(() => monthAxis(rows), [rows]);
   const activeTotal = useMemo(() => recognizedTotal(rows, mode), [rows, mode]);
 
@@ -140,7 +160,7 @@ export function ControlPanelBlock({
         <div className="mt-4">
           <p className="eyebrow mb-2">На что влияет выбор</p>
           <div className="grid gap-1.5 sm:grid-cols-2 lg:grid-cols-3">
-            {AFFECTED.map((item) => (
+            {affected.map((item) => (
               <div
                 key={item.title}
                 className="flex items-baseline gap-2 text-xs px-2.5 py-1.5 rounded-lg"
