@@ -304,6 +304,40 @@ export function BbcDashboardClient() {
                 onApplyView={applyView}
               />
             ) : null}
+            {/* Тумблер живёт в шапке, а не в панели управления, ровно потому,
+                что перестраиваются блоки на вкладках с данными: из панели их
+                нет в DOM, и перелетать в момент клика было бы нечему. Обе
+                позиции видны сразу — у одиночной кнопки «Плотно» не прочитать,
+                это текущее состояние или то, что случится по клику. */}
+            <div
+              className="hidden md:flex items-center rounded-lg p-0.5 gap-0.5"
+              style={{ background: "var(--bg-active)" }}
+              role="group"
+              aria-label="Плотность интерфейса"
+            >
+              {(
+                [
+                  { key: "comfortable", label: "Свободно", hint: "крупные плитки, блоки в колонку" },
+                  { key: "compact", label: "Плотно", hint: "узкие плитки в ряд, блоки по двое" },
+                ] as const
+              ).map((option) => (
+                <button
+                  key={option.key}
+                  type="button"
+                  onClick={() => applyDensity(option.key)}
+                  aria-pressed={density === option.key}
+                  title={option.hint}
+                  className="text-xs px-2.5 py-1 rounded-md"
+                  style={{
+                    background: density === option.key ? "var(--bg-surface)" : "transparent",
+                    color: density === option.key ? "var(--text-primary)" : "var(--text-muted)",
+                    transition: "background var(--dur-fast), color var(--dur-fast)",
+                  }}
+                >
+                  {option.label}
+                </button>
+              ))}
+            </div>
             {/* Ручное чтение идёт прямо в Google мимо фонового цикла, поэтому у
                 кнопки есть остывание: «не обновилось» обычно означает «в таблице
                 не меняли», а не «нажми ещё десять раз». */}
@@ -446,8 +480,6 @@ export function BbcDashboardClient() {
                     onSearch={(value) => setFilters((current) => ({ ...current, search: value }))}
                     onClearFilters={clearFilters}
                     activeFilterCount={activeFilterCount}
-                    density={density}
-                    onDensity={applyDensity}
                     views={views}
                     onSaveView={(name) => saveView(name, lastDataBlock, mode, filters)}
                     onApplyView={applyView}

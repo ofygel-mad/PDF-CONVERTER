@@ -48,8 +48,6 @@ const AFFECTED: Array<{ title: string; affected: boolean; why: string }> = [
   { title: "Продажи", affected: false, why: "план и факт из таблицы ОМиП" },
 ];
 
-type Density = "comfortable" | "compact";
-
 export function ControlPanelBlock({
   dataset,
   rows,
@@ -60,8 +58,6 @@ export function ControlPanelBlock({
   onSearch,
   onClearFilters,
   activeFilterCount,
-  density,
-  onDensity,
   views,
   onSaveView,
   onApplyView,
@@ -80,8 +76,6 @@ export function ControlPanelBlock({
   onSearch: (value: string) => void;
   onClearFilters: () => void;
   activeFilterCount: number;
-  density: Density;
-  onDensity: (density: Density) => void;
   views: SavedView[];
   onSaveView: (name: string) => void;
   onApplyView: (view: SavedView) => void;
@@ -194,56 +188,19 @@ export function ControlPanelBlock({
         />
       </SectionCard>
 
-      <div className="grid gap-4 lg:grid-cols-2">
+      {restricted ? null : (
         <SectionCard
-          title="Плотность"
-          subtitle="Компактный режим перестраивает сетку целиком, а не просто сжимает отступы."
+          title="Сохранённые виды"
+          subtitle="Связка «раздел + режим + фильтры» под своим именем. Хранится в этом браузере."
         >
-          <div
-            className="inline-flex items-center rounded-lg p-0.5 gap-0.5"
-            style={{ background: "var(--bg-active)" }}
-            role="group"
-            aria-label="Плотность интерфейса"
-          >
-            {(
-              [
-                { key: "comfortable", label: "Свободно", hint: "крупные плитки, блоки в колонку" },
-                { key: "compact", label: "Плотно", hint: "узкие плитки в ряд, блоки по двое" },
-              ] as const
-            ).map((option) => (
-              <button
-                key={option.key}
-                type="button"
-                onClick={() => onDensity(option.key)}
-                aria-pressed={density === option.key}
-                title={option.hint}
-                className="text-xs px-3 py-1.5 rounded-md"
-                style={{
-                  background: density === option.key ? "var(--bg-surface)" : "transparent",
-                  color: density === option.key ? "var(--text-primary)" : "var(--text-muted)",
-                  transition: "background var(--dur-fast), color var(--dur-fast)",
-                }}
-              >
-                {option.label}
-              </button>
-            ))}
-          </div>
+          <SavedViews
+            views={views}
+            onApply={onApplyView}
+            onRemove={onRemoveView}
+            onSave={onSaveView}
+          />
         </SectionCard>
-
-        {restricted ? null : (
-          <SectionCard
-            title="Сохранённые виды"
-            subtitle="Связка «раздел + режим + фильтры» под своим именем. Хранится в этом браузере."
-          >
-            <SavedViews
-              views={views}
-              onApply={onApplyView}
-              onRemove={onRemoveView}
-              onSave={onSaveView}
-            />
-          </SectionCard>
-        )}
-      </div>
+      )}
     </div>
   );
 }
@@ -330,11 +287,13 @@ function PresetCard({
             )}
           </p>
         </div>
+        {/* Неактивный вариант рисуется приглушённо: emerald в этой системе
+            означает приток денег, а не «другой пресет». */}
         <Sparkline
           values={months.map((item) => item.total)}
           width={84}
           height={26}
-          tone={active ? "accent" : "emerald"}
+          tone={active ? "accent" : "muted"}
         />
       </div>
 

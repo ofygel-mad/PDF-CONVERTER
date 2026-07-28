@@ -265,7 +265,7 @@ export function Sparkline({
   values: number[];
   width?: number;
   height?: number;
-  tone?: "accent" | "emerald" | "rose";
+  tone?: "accent" | "emerald" | "rose" | "muted";
 }) {
   if (values.length < 2) {
     return <div style={{ width, height }} aria-hidden="true" />;
