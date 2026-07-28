@@ -47,11 +47,9 @@ function isPrepayment(row: BbcRow): boolean {
 export function ReceivablesBlock({
   rows,
   mode,
-  onDrill,
 }: {
   rows: BbcRow[];
   mode: BbcMode;
-  onDrill?: (rows: BbcRow[], title: string) => void;
 }) {
   const [focus, setFocus] = useState<{ title: string; rows: BbcRow[] } | null>(null);
 
@@ -367,7 +365,7 @@ export function ReceivablesBlock({
             </button>
           }
         >
-          <RowTable rows={focus.rows} mode={mode} onDrill={onDrill} />
+          <RowTable rows={focus.rows} mode={mode} />
         </SectionCard>
       ) : null}
     </div>

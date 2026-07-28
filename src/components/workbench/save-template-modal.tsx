@@ -1,7 +1,8 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 
+import { useScrollLock } from "@/components/use-scroll-lock";
 import { useWorkbench } from "@/components/workbench/context";
 import type { TemplateColumnConfig } from "@/components/workbench/types";
 
@@ -40,6 +41,16 @@ export function SaveTemplateModal({ parserKey, variantKey, columns, onClose, onS
     onSaved(templateId);
   };
 
+  useScrollLock(true);
+
+  useEffect(() => {
+    const onKey = (event: KeyboardEvent) => {
+      if (event.key === "Escape") onClose();
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [onClose]);
+
   return (
     <div
       className="fixed inset-0 z-50 flex items-center justify-center p-4"
@@ -47,8 +58,12 @@ export function SaveTemplateModal({ parserKey, variantKey, columns, onClose, onS
       onClick={(e) => { if (e.target === e.currentTarget) onClose(); }}
     >
       <div
-        className="w-full max-w-md rounded-2xl p-6 space-y-4"
-        style={{ background: "var(--surface)", border: "1px solid var(--border-base)" }}
+        className="w-full max-w-md rounded-2xl p-6 space-y-4 overflow-y-auto"
+        style={{
+          background: "var(--surface)",
+          border: "1px solid var(--border-base)",
+          maxHeight: "88svh",
+        }}
       >
         <div>
           <h3 className="text-base font-semibold" style={{ color: "var(--text-primary)" }}>

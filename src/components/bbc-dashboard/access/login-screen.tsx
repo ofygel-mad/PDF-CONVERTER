@@ -46,7 +46,7 @@ export function LoginScreen({ needsSetup, linkExpired = false, onSignedIn }: Pro
 
   return (
     <div
-      className="min-h-screen flex items-center justify-center px-5"
+      className="min-h-screen min-h-[100dvh] flex items-center justify-center px-5"
       style={{ background: "var(--page-bg)" }}
     >
       <div

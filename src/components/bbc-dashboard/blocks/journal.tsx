@@ -15,6 +15,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 
 import { BbcApiError, fetchJournal } from "../api";
 import { dateLabel, money, moneyShort, percent, plural } from "../format";
+import { SpecList, type FieldSpec } from "../mobile/card-list";
 import type { BbcJournalPayload, BbcJournalRow } from "../types";
 import { SectionCard } from "./shared";
 
@@ -201,7 +202,7 @@ export function JournalBlock() {
         subtitle="Исходные строки журнала — гарантия, что ничего не скрыто."
         action={
           <input
-            className="input-field text-xs max-w-[220px]"
+            className="input-field text-xs w-full sm:max-w-[220px]"
             placeholder="Контрагент, фирма, счёт…"
             value={search}
             onChange={(event) => {
@@ -229,82 +230,91 @@ export function JournalBlock() {
   );
 }
 
-function JournalTable({ rows }: { rows: BbcJournalRow[] }) {
-  if (!rows.length) {
-    return (
-      <p className="text-xs" style={{ color: "var(--text-muted)" }}>
-        Ничего не найдено.
-      </p>
-    );
-  }
+/**
+ * Колонки журнала — тем же описанием, что и реестр.
+ *
+ * Контрагент становится заголовком карточки, дата и фирма — подписью под ним.
+ * Номер строки, счёт и категория помечены `optional`: на десктопе в компактном
+ * режиме они уходят, на телефоне прячутся под раскрытие.
+ */
+const JOURNAL_COLUMNS: FieldSpec<BbcJournalRow, null>[] = [
+  {
+    key: "index",
+    header: "№",
+    optional: true,
+    cellClass: "mono-meta",
+    render: (row) => row.index,
+  },
+  {
+    key: "at",
+    header: "Дата",
+    secondary: true,
+    cellClass: "mono-meta whitespace-nowrap",
+    render: (row) => dateLabel(row.at),
+  },
+  {
+    key: "counterparty",
+    header: "Контрагент",
+    primary: true,
+    cellClass: "max-w-[200px] truncate",
+    tone: "var(--text-primary)",
+    hint: (row) => row.counterparty || undefined,
+    render: (row) => row.counterparty || "—",
+  },
+  {
+    key: "firm",
+    header: "Фирма",
+    secondary: true,
+    cellClass: "max-w-[160px] truncate",
+    hint: (row) => row.firm || undefined,
+    render: (row) => row.firm || "—",
+  },
+  {
+    key: "account",
+    header: "Счёт",
+    optional: true,
+    cellClass: "max-w-[160px] truncate",
+    hint: (row) => row.account || undefined,
+    render: (row) => row.account || "—",
+  },
+  {
+    key: "category",
+    header: "Категория",
+    optional: true,
+    tone: (row) => (row.category ? "var(--text-secondary)" : "var(--text-muted)"),
+    render: (row) => row.category || "не задана",
+  },
+  {
+    key: "inflow",
+    header: "Приход",
+    align: "right",
+    cellClass: "text-right bbc-num",
+    tone: "var(--accent-emerald)",
+    render: (row) => (row.inflow ? money(row.inflow) : "—"),
+  },
+  {
+    key: "outflow",
+    header: "Расход",
+    align: "right",
+    cellClass: "text-right bbc-num",
+    tone: "var(--accent-rose)",
+    render: (row) => (row.outflow ? money(row.outflow) : "—"),
+  },
+];
 
+function JournalTable({ rows }: { rows: BbcJournalRow[] }) {
   return (
-    <div className="overflow-x-auto">
-      <table className="w-full text-xs" style={{ borderCollapse: "collapse" }}>
-        <thead>
-          <tr>
-            {["№", "Дата", "Контрагент", "Фирма", "Счёт", "Категория", "Приход", "Расход"].map(
-              (header) => (
-                <th
-                  key={header}
-                  className={`font-medium px-2 py-1.5 whitespace-nowrap ${
-                    header === "Приход" || header === "Расход" ? "text-right" : "text-left"
-                  }`}
-                  style={{ color: "var(--text-muted)", borderBottom: "1px solid var(--border-subtle)" }}
-                >
-                  {header}
-                </th>
-              ),
-            )}
-          </tr>
-        </thead>
-        <tbody>
-          {rows.map((row, index) => (
-            <tr
-              key={row.index}
-              className={row.inflow ? "row-inflow" : row.outflow ? "row-outflow" : undefined}
-              style={{
-                animation: index < 30 ? "fade-in var(--dur-fast) var(--ease-out) backwards" : undefined,
-                animationDelay: index < 30 ? `calc(${index} * var(--dur-stagger) / 3)` : undefined,
-              }}
-            >
-              <td className="px-2 py-1.5 mono-meta">{row.index}</td>
-              <td className="px-2 py-1.5 mono-meta whitespace-nowrap">{dateLabel(row.at)}</td>
-              <td
-                className="px-2 py-1.5 max-w-[200px] truncate"
-                style={{ color: "var(--text-primary)" }}
-                title={row.counterparty}
-              >
-                {row.counterparty || "—"}
-              </td>
-              <td
-                className="px-2 py-1.5 max-w-[160px] truncate"
-                style={{ color: "var(--text-secondary)" }}
-                title={row.firm}
-              >
-                {row.firm || "—"}
-              </td>
-              <td
-                className="px-2 py-1.5 max-w-[160px] truncate"
-                style={{ color: "var(--text-secondary)" }}
-                title={row.account}
-              >
-                {row.account || "—"}
-              </td>
-              <td className="px-2 py-1.5" style={{ color: row.category ? "var(--text-secondary)" : "var(--text-muted)" }}>
-                {row.category || "не задана"}
-              </td>
-              <td className="px-2 py-1.5 text-right bbc-num" style={{ color: "var(--accent-emerald)" }}>
-                {row.inflow ? money(row.inflow) : ""}
-              </td>
-              <td className="px-2 py-1.5 text-right bbc-num" style={{ color: "var(--accent-rose)" }}>
-                {row.outflow ? money(row.outflow) : ""}
-              </td>
-            </tr>
-          ))}
-        </tbody>
-      </table>
-    </div>
+    <SpecList
+      columns={JOURNAL_COLUMNS}
+      rows={rows}
+      ctx={null}
+      rowKey={(row) => row.index}
+      // Постранично листает сам блок — здесь ограничивать второй раз нечего.
+      limit={rows.length}
+      mobileLimit={rows.length}
+      rowClassName={(row) => (row.inflow ? "row-inflow" : row.outflow ? "row-outflow" : undefined)}
+      empty="Ничего не найдено."
+    />
   );
 }
 

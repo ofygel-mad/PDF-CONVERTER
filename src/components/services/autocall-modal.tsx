@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useState } from "react";
 
 import { CloseIcon, PhoneIcon, RefreshIcon } from "@/components/icons";
+import { useScrollLock } from "@/components/use-scroll-lock";
 
 const API = "/api/backend";
 /* Accent for autocall metrics — pulled from the design system's sapphire */
@@ -87,6 +88,8 @@ export function AutocallModal({ onClose }: { onClose: () => void }) {
     return () => window.removeEventListener("keydown", onKey);
   }, [onClose]);
 
+  useScrollLock(true);
+
   const handleSync = async () => {
     setSyncing(true);
     setSyncMsg(null);
@@ -133,10 +136,15 @@ export function AutocallModal({ onClose }: { onClose: () => void }) {
       className="fixed inset-0 z-50 flex flex-col"
       style={{ background: "var(--page-bg)" }}
     >
-      {/* Header */}
+      {/* Header. Верхний отступ считается от «чёлки»: модалка занимает экран
+          целиком, включая зону выреза. */}
       <div
         className="flex items-center justify-between gap-3 px-5 py-3 border-b"
-        style={{ background: "var(--header-bg)", borderColor: "var(--border-subtle)" }}
+        style={{
+          background: "var(--header-bg)",
+          borderColor: "var(--border-subtle)",
+          paddingTop: "calc(0.75rem + var(--safe-t))",
+        }}
       >
         <div className="flex items-center gap-2.5">
           <span className="logo-badge">
@@ -179,7 +187,10 @@ export function AutocallModal({ onClose }: { onClose: () => void }) {
       </div>
 
       {/* Body */}
-      <div className="flex-1 overflow-auto p-5 max-w-4xl w-full mx-auto space-y-5">
+      <div
+        className="flex-1 overflow-auto p-5 max-w-4xl w-full mx-auto space-y-5"
+        style={{ paddingBottom: "max(1.25rem, var(--safe-b))" }}
+      >
         {syncMsg && (
           <div
             className="rounded-lg px-4 py-3 text-sm"

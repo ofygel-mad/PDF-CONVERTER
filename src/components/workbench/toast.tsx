@@ -21,9 +21,10 @@ export function ToastContainer() {
 
   return (
     <div
-      className="fixed z-50 flex flex-col gap-2"
+      // Отступ снизу задан классом, а не инлайном: на телефоне уведомление
+      // обязано подняться над закреплённым таб-баром, а это медиа-запрос.
+      className="workbench-toast fixed z-50 flex flex-col gap-2"
       style={{
-        bottom: "1.25rem",
         right: "1rem",
         left: "1rem",
         maxWidth: "360px",

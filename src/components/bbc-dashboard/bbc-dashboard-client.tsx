@@ -16,6 +16,7 @@
 import { useCallback, useEffect, useMemo, useState, type CSSProperties } from "react";
 import { flushSync } from "react-dom";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 
 import { ArrowLeftIcon, RefreshIcon } from "@/components/icons";
 import { currentLinkToken } from "./api";
@@ -31,13 +32,14 @@ import { ReceivablesBlock } from "./blocks/receivables";
 import { ReportsBlock } from "./blocks/reports";
 import { WarningsBlock } from "./blocks/warnings";
 import { CommandPalette } from "./command-palette";
-import { ContextStrip, LiveIndicator } from "./controls";
+import { ContextStrip, LiveFailureBanner, LiveIndicator } from "./controls";
 import {
   AnalyticsIcon,
   BbcDashboardIcon,
   CalendarIcon,
   ControlPanelIcon,
   JournalIcon,
+  MoreIcon,
   ReceivablesIcon,
   ReportsIcon,
   RoadmapIcon,
@@ -45,6 +47,10 @@ import {
   UserIcon,
   WarningIcon,
 } from "./icon";
+import { ActionsSheet } from "./mobile/actions-sheet";
+import { BottomTabs, splitTabs } from "./mobile/bottom-tabs";
+import { ControlSheet } from "./mobile/control-sheet";
+import { NavSheet } from "./mobile/nav-sheet";
 import { department } from "./department";
 import { type SavedView, useSavedViews } from "./saved-views";
 import { useDataset } from "./use-dataset";
@@ -200,11 +206,38 @@ export function BbcDashboardClient() {
   // обработчик события, а не эффект, поэтому лишнего каскада рендеров нет.
   const [lastDataBlock, setLastDataBlock] = useState("receivables");
 
+  /** Какой лист открыт на телефоне. Ни один из них не влияет на раскладку. */
+  const [sheet, setSheet] = useState<"nav" | "actions" | "control" | null>(null);
+  // Палитра управляется отсюда: на телефоне её кнопки в шапке нет, и открывают
+  // её из листа действий.
+  const [paletteOpen, setPaletteOpen] = useState(false);
+
+  const router = useRouter();
+
+  // Тот же расчёт, что и у нижнего бара: лист «Ещё» показывает ровно то, что в
+  // бар не поместилось, и подсвечивается, когда открыт раздел из него.
+  const { tabs: barBlocks, rest: sheetBlocks } = useMemo(
+    () => splitTabs(allowedBlocks),
+    [allowedBlocks],
+  );
+  const barKeys = useMemo(() => new Set(barBlocks.map((item) => item.key)), [barBlocks]);
+
   const goToBlock = useCallback(
     (key: string) => {
       const current = activeBlock?.key;
       if (current && current !== CONTROL_BLOCK.key && current !== key) setLastDataBlock(current);
+
+      // Лист закрывается до перехода и отдельным обновлением: иначе он попадёт
+      // в «старый» снимок View Transition и будет уезжать вместе с разделом.
+      setSheet(null);
+
       withViewTransition(() => setBlock(key));
+
+      // Прокрутка наверх — снаружи flushSync: скролл во время съёмки снял бы
+      // неверное смещение. `behavior: "auto"` обязателен явно, иначе
+      // `html { scroll-behavior: smooth }` из globals.css запустит плавный
+      // скролл на ~400мс против 220мс перехода, и они подерутся.
+      window.scrollTo({ top: 0, behavior: "auto" });
     },
     [activeBlock, setBlock],
   );
@@ -237,7 +270,7 @@ export function BbcDashboardClient() {
   if (loading && !dataset) {
     return (
       <div
-        className="bbc-boot min-h-screen flex flex-col items-center justify-center gap-3"
+        className="bbc-boot min-h-screen min-h-[100dvh] flex flex-col items-center justify-center gap-3"
         style={{ background: "var(--page-bg)" }}
       >
         <span className="logo-badge animate-spin-slow">
@@ -255,11 +288,17 @@ export function BbcDashboardClient() {
     <div
       // На экране отдела тон расходится по карточкам и активной вкладке — это
       // и делает его «своим», не добавляя в систему второго акцентного цвета.
-      className={`min-h-screen flex flex-col${departmentInfo ? " bbc-dept" : ""}`}
+      // svh, а не dvh: снизу будет закреплённый таб-бар, а при dvh высота
+      // раскладки едет вместе с исчезающей адресной строкой Safari — и
+      // залипающая шапка на каждом скролле заметно дёргается.
+      className={`min-h-screen min-h-[100svh] flex flex-col${departmentInfo ? " bbc-dept" : ""}`}
       style={{ background: "var(--page-bg)", ...(tone ? { "--dept-tone": tone } : null) } as CSSProperties}
     >
+      {/* Шапка. На телефоне залипает не она целиком, а только верхняя строка:
+          лента вкладок, баннер отдела и строка контекста уезжают со страницей.
+          Четыре залипающих ряда съедали пятую часть экрана и не отдавали её. */}
       <header
-        className="bbc-enter sticky top-0 z-40 border-b backdrop-blur-md"
+        className="bbc-enter bbc-header border-b"
         style={
           {
             background: "var(--header-bg)",
@@ -268,22 +307,31 @@ export function BbcDashboardClient() {
           } as CSSProperties
         }
       >
-        <div className="flex items-center justify-between gap-2 px-4 py-2.5">
+        <div
+          className="bbc-header-bar flex items-center justify-between gap-2 px-4 py-2.5"
+          style={{ borderColor: "var(--border-subtle)" }}
+        >
           <div className="flex items-center gap-2.5 min-w-0">
             <Link
               href="/services"
-              className="btn-ghost text-xs px-2.5 py-1.5 flex items-center gap-1.5"
+              className="btn-ghost text-xs px-2.5 py-1.5 hidden sm:flex items-center gap-1.5"
               title="К сервисам"
             >
               <ArrowLeftIcon size={15} />
               <span className="hidden sm:inline">Назад</span>
             </Link>
-            <span className="logo-badge">
+            {/* На телефоне значок уступает место заголовку — тот и так называет
+                раздел, а «Назад» переехало в лист действий. */}
+            <span className="logo-badge hidden sm:inline-flex">
               <BbcDashboardIcon size={16} />
             </span>
             <span
-              className="text-sm font-semibold truncate"
-              style={{ color: "var(--text-primary)", letterSpacing: "-0.01em" }}
+              className="font-semibold truncate"
+              style={{
+                color: "var(--text-primary)",
+                letterSpacing: "-0.01em",
+                fontSize: "var(--ios-title)",
+              }}
             >
               BBC · управленческий отчёт
             </span>
@@ -291,7 +339,25 @@ export function BbcDashboardClient() {
           </div>
 
           <div className="flex items-center gap-2 shrink-0">
-            <LiveIndicator live={live} />
+            <span className="sm:hidden">
+              <LiveIndicator live={live} compact />
+            </span>
+            <span className="hidden sm:inline-flex">
+              <LiveIndicator live={live} />
+            </span>
+
+            {/* Телефон: всё остальное из шапки — в лист действий. */}
+            <button
+              type="button"
+              onClick={() => setSheet("actions")}
+              className="btn-ghost sm:hidden flex items-center justify-center px-2.5 py-1.5"
+              aria-label="Действия"
+              aria-haspopup="dialog"
+            >
+              <MoreIcon size={16} />
+            </button>
+
+            <span className="hidden sm:contents">
             {dataset ? (
               <CommandPalette
                 dataset={dataset}
@@ -302,6 +368,8 @@ export function BbcDashboardClient() {
                 onFilter={toggleFilter}
                 onSearch={(value) => setFilters((current) => ({ ...current, search: value }))}
                 onApplyView={applyView}
+                open={paletteOpen}
+                onOpenChange={setPaletteOpen}
               />
             ) : null}
             {/* Тумблер живёт в шапке, а не в панели управления, ровно потому,
@@ -368,11 +436,18 @@ export function BbcDashboardClient() {
                 <span className="hidden sm:inline">Кабинет</span>
               </Link>
             ) : null}
+            </span>
           </div>
         </div>
 
+        {/* Сбой источника на телефоне — своей строкой: в шапке из одной строки
+            для подписи места нет, а прятать это состояние нельзя. */}
+        <LiveFailureBanner live={live} />
+
+        {/* Лента вкладок — только с sm. На телефоне разделы живут в нижнем
+            баре, где все видны сразу и ничего не уезжает за край. */}
         <nav
-          className="bbc-enter flex gap-1 px-3 overflow-x-auto scrollbar-hidden"
+          className="bbc-enter hidden sm:flex gap-1 px-3 overflow-x-auto scrollbar-hidden"
           style={{ "--enter-index": 1 } as CSSProperties}
           aria-label="Разделы"
         >
@@ -407,7 +482,7 @@ export function BbcDashboardClient() {
                 {item.short}
                 {badge ? (
                   <span
-                    className="ml-0.5 px-1.5 rounded-full text-[0.6rem] bbc-num"
+                    className="ml-0.5 px-1.5 rounded-full bbc-micro bbc-num"
                     style={{
                       background: dataset?.warnings_summary.critical
                         ? "var(--accent-rose)"
@@ -443,6 +518,7 @@ export function BbcDashboardClient() {
             totalRows={dataset.rows.length}
             live={live}
             onOpen={() => goToBlock(CONTROL_BLOCK.key)}
+            onOpenSheet={() => setSheet("control")}
             onToggle={toggleFilter}
             onClear={clearFilters}
             tone={tone}
@@ -451,7 +527,7 @@ export function BbcDashboardClient() {
       </header>
 
       <main
-        className="bbc-enter flex-1 w-full max-w-[1400px] mx-auto px-4 py-5 flex flex-col gap-4"
+        className="bbc-enter bbc-main flex-1 w-full max-w-[1400px] mx-auto px-4 py-5 flex flex-col gap-4"
         style={{ "--enter-index": 3 } as CSSProperties}
       >
         {error ? (
@@ -512,6 +588,66 @@ export function BbcDashboardClient() {
           </>
         ) : null}
       </main>
+
+      {/* ── Телефон ──────────────────────────────────────────────────────
+          Бар стоит вне `.bbc-block-view`, поэтому View Transition его не
+          трогает — и правильно: постоянный элемент интерфейса не должен
+          мигать на каждом переключении раздела. */}
+      {dataset ? (
+        <>
+          <BottomTabs
+            blocks={allowedBlocks}
+            activeKey={activeBlock?.key}
+            warningCount={dataset.warnings_summary.total}
+            onSelect={goToBlock}
+            onMore={() => setSheet("nav")}
+            moreActive={!!activeBlock && !barKeys.has(activeBlock.key)}
+          />
+
+          <NavSheet
+            open={sheet === "nav"}
+            onClose={() => setSheet(null)}
+            blocks={sheetBlocks}
+            activeKey={activeBlock?.key}
+            warningCount={dataset.warnings_summary.total}
+            onSelect={goToBlock}
+          />
+
+          <ActionsSheet
+            open={sheet === "actions"}
+            onClose={() => setSheet(null)}
+            loading={loading}
+            refreshCooldown={refreshCooldown}
+            onRefresh={() => {
+              setSheet(null);
+              void reload(true);
+            }}
+            onSearch={() => {
+              setSheet(null);
+              setPaletteOpen(true);
+            }}
+            isAdmin={isAdmin}
+            onAccount={() => router.push("/bbc-dashboard/account")}
+            onServices={() => router.push("/services")}
+          />
+
+          <ControlSheet
+            open={sheet === "control"}
+            onClose={() => setSheet(null)}
+            dataset={dataset}
+            mode={mode}
+            onMode={setMode}
+            filters={filters}
+            onToggleFilter={toggleFilter}
+            onSearch={(value) => setFilters((current) => ({ ...current, search: value }))}
+            onClearFilters={clearFilters}
+            activeFilterCount={activeFilterCount}
+            visibleRows={rows.length}
+            totalRows={dataset.rows.length}
+            onOpenPanel={() => goToBlock(CONTROL_BLOCK.key)}
+          />
+        </>
+      ) : null}
     </div>
   );
 }

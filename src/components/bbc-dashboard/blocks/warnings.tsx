@@ -138,7 +138,7 @@ function WarningCard({
                 {warning.title}
               </h3>
               <span
-                className="text-[0.62rem] px-1.5 py-0.5 rounded"
+                className="bbc-micro px-1.5 py-0.5 rounded"
                 style={{ background: "var(--bg-active)", color: severity.colour }}
               >
                 {severity.label}

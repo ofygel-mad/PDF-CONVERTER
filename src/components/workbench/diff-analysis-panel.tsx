@@ -1,7 +1,8 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 
+import { useScrollLock } from "@/components/use-scroll-lock";
 import { useWorkbench } from "@/components/workbench/context";
 import type {
   AnalyzeDiffResponse,
@@ -52,6 +53,16 @@ export function DiffAnalysisPanel({
   onClose,
 }: Props) {
   const { handleAnalyzeDiff, handleSmartRefine, handleClarify } = useWorkbench();
+
+  useScrollLock(true);
+
+  useEffect(() => {
+    const onKey = (event: KeyboardEvent) => {
+      if (event.key === "Escape") onClose();
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [onClose]);
 
   const [result, setResult] = useState<AnalyzeDiffResponse | null>(null);
   const [narrative, setNarrative] = useState<string>("");
@@ -137,8 +148,14 @@ export function DiffAnalysisPanel({
 
   return (
     <div
+      // Панель прижата к низу, поэтому нижний отступ считается от домашней
+      // полоски — иначе её край уезжает под неё.
       className="fixed inset-0 z-50 flex items-end justify-center p-4"
-      style={{ background: "rgba(0,0,0,0.45)", backdropFilter: "blur(3px)" }}
+      style={{
+        background: "rgba(0,0,0,0.45)",
+        backdropFilter: "blur(3px)",
+        paddingBottom: "max(1rem, var(--safe-b))",
+      }}
       onClick={(e) => { if (e.target === e.currentTarget) onClose(); }}
     >
       <div
@@ -146,7 +163,7 @@ export function DiffAnalysisPanel({
         style={{
           background: "var(--surface)",
           border: "1px solid var(--border-base)",
-          maxHeight: "80vh",
+          maxHeight: "80svh",
         }}
       >
         {/* Header */}

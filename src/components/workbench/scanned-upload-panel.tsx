@@ -1,7 +1,8 @@
 "use client";
 
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 
+import { useScrollLock } from "@/components/use-scroll-lock";
 import type { ScanResponse } from "@/components/workbench/types";
 
 type Props = {
@@ -18,6 +19,16 @@ export function ScannedUploadPanel({ onClose, onSentToReview, apiBase }: Props) 
   const [result, setResult] = useState<ScanResponse | null>(null);
   const [errorMsg, setErrorMsg] = useState("");
   const [isSending, setIsSending] = useState(false);
+
+  useScrollLock(true);
+
+  useEffect(() => {
+    const onKey = (event: KeyboardEvent) => {
+      if (event.key === "Escape") onClose();
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [onClose]);
 
   const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -71,8 +82,14 @@ export function ScannedUploadPanel({ onClose, onSentToReview, apiBase }: Props) 
 
   return (
     <div
+      // Панель прижата к низу экрана, поэтому нижний отступ обязан считаться от
+      // домашней полоски: без этого её край уезжает под неё.
       className="fixed inset-0 z-50 flex items-end justify-center p-4"
-      style={{ background: "rgba(0,0,0,0.45)", backdropFilter: "blur(3px)" }}
+      style={{
+        background: "rgba(0,0,0,0.45)",
+        backdropFilter: "blur(3px)",
+        paddingBottom: "max(1rem, var(--safe-b))",
+      }}
       onClick={(e) => { if (e.target === e.currentTarget) onClose(); }}
     >
       <div
@@ -80,7 +97,7 @@ export function ScannedUploadPanel({ onClose, onSentToReview, apiBase }: Props) 
         style={{
           background: "var(--surface)",
           border: "1px solid var(--border-base)",
-          maxHeight: "80vh",
+          maxHeight: "80svh",
         }}
       >
         {/* Header */}

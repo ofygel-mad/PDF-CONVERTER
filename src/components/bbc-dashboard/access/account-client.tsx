@@ -73,7 +73,7 @@ export function AccountClient() {
 
   if (loading) {
     return (
-      <div className="min-h-screen flex items-center justify-center" style={{ background: "var(--page-bg)" }}>
+      <div className="min-h-screen min-h-[100dvh] flex items-center justify-center" style={{ background: "var(--page-bg)" }}>
         <p className="mono-meta">Загрузка…</p>
       </div>
     );
@@ -85,7 +85,7 @@ export function AccountClient() {
 
   if (!me.is_admin) {
     return (
-      <div className="min-h-screen flex items-center justify-center px-5" style={{ background: "var(--page-bg)" }}>
+      <div className="min-h-screen min-h-[100dvh] flex items-center justify-center px-5" style={{ background: "var(--page-bg)" }}>
         <div className="card p-6 max-w-sm text-center">
           <p className="text-sm mb-3" style={{ color: "var(--text-primary)" }}>
             Личный кабинет доступен только администратору
@@ -99,7 +99,7 @@ export function AccountClient() {
   }
 
   return (
-    <div className="min-h-screen flex flex-col" style={{ background: "var(--page-bg)" }}>
+    <div className="min-h-screen min-h-[100dvh] flex flex-col" style={{ background: "var(--page-bg)" }}>
       <header
         className="sticky top-0 z-40 flex items-center justify-between gap-2 px-4 py-2.5 border-b backdrop-blur-md"
         style={{ background: "var(--header-bg)", borderColor: "var(--border-subtle)" }}

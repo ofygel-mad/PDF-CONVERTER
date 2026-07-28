@@ -11,7 +11,8 @@
  */
 import { useState, type CSSProperties } from "react";
 
-import { ClockIcon, ControlPanelIcon } from "./icon";
+import { ClockIcon, ControlPanelIcon, SlidersIcon } from "./icon";
+import { Hint } from "./mobile/hint";
 import { plural, relativeTime } from "./format";
 import type { BbcDataset, BbcMode } from "./types";
 import type { Filters } from "./use-dataset";
@@ -19,7 +20,14 @@ import type { LiveState } from "./use-live";
 
 /* ── Live indicator ──────────────────────────────────────────────────────────── */
 
-export function LiveIndicator({ live }: { live: LiveState }) {
+export function LiveIndicator({
+  live,
+  compact = false,
+}: {
+  live: LiveState;
+  /** В однострочной шапке телефона — только точка. */
+  compact?: boolean;
+}) {
   // Три состояния, а не два. «Нет связи» — не отвечает наш бэкенд. «Источник не
   // читается» — бэкенд жив и честно отдаёт последние данные, но саму таблицу он
   // больше прочитать не может: сменились права сервис-аккаунта, переименовали
@@ -72,9 +80,39 @@ export function LiveIndicator({ live }: { live: LiveState }) {
         }}
       />
       {/* Сбой источника нельзя прятать на узком экране — это единственное
-          состояние, где цифрам на экране верить нельзя. */}
-      <span className={failing ? "" : "hidden sm:inline"}>{label}</span>
+          состояние, где цифрам на экране верить нельзя. В компактном виде
+          подпись убрана даже для сбоя: на телефоне он выведен отдельной
+          строкой-баннером под шапкой, где заметнее, а не мельче. */}
+      {compact ? null : <span className={failing ? "" : "hidden sm:inline"}>{label}</span>}
     </span>
+  );
+}
+
+/**
+ * Сбой источника на телефоне — отдельной строкой, а не подписью у точки.
+ *
+ * В однострочной шапке для текста места нет, но это единственное состояние, где
+ * числам на экране верить нельзя, — и прятать его нельзя тем более. Строка под
+ * шапкой даёт ему больше заметности, чем мелкая подпись, а не меньше.
+ */
+export function LiveFailureBanner({ live }: { live: LiveState }) {
+  const failing = live.online && !!live.sourceError;
+  if (!failing && live.online) return null;
+
+  const text = !live.online
+    ? "Нет связи с сервером — на экране последние загруженные данные."
+    : `Google Sheets не отвечает: ${live.sourceError}. Числа — от ${
+        live.fetchedAt ? relativeTime(live.fetchedAt) : "последнего удачного чтения"
+      }, новее взять неоткуда.`;
+
+  return (
+    <div
+      className={`sm:hidden px-4 py-2 text-xs ${live.online ? "banner-rose" : "banner-amber"}`}
+      style={{ borderRadius: 0 }}
+      role="alert"
+    >
+      {text}
+    </div>
   );
 }
 
@@ -226,7 +264,7 @@ function SwitchRow({
         ))}
       </div>
       {hint ? (
-        <p className="text-[0.68rem] mt-1.5" style={{ color: "var(--text-muted)" }}>
+        <p className="bbc-micro mt-1.5" style={{ color: "var(--text-muted)" }}>
           {hint}
         </p>
       ) : null}
@@ -329,7 +367,7 @@ export function FilterBar({
                         key={value}
                         type="button"
                         onClick={() => onToggle(group.key, value)}
-                        className="text-[0.7rem] px-2 py-1 rounded-md max-w-[150px] truncate"
+                        className="bbc-mini px-2 py-1 rounded-md max-w-[150px] truncate"
                         style={{
                           background: active ? "var(--accent-soft)" : "var(--bg-active)",
                           border: `1px solid ${active ? "var(--accent-line)" : "transparent"}`,
@@ -372,6 +410,7 @@ export function ContextStrip({
   totalRows,
   live,
   onOpen,
+  onOpenSheet,
   onToggle,
   onClear,
   tone,
@@ -383,7 +422,10 @@ export function ContextStrip({
   visibleRows: number;
   totalRows: number;
   live: LiveState;
+  /** Десктоп: уводит в раздел «Панель управления». */
   onOpen: () => void;
+  /** Телефон: открывает лист управления, не покидая раздел с данными. */
+  onOpenSheet?: () => void;
   onToggle: (key: FilterKey, value: string) => void;
   onClear: () => void;
   /** Цвет отдела, когда дашборд открыт по реферальной ссылке. */
@@ -399,9 +441,54 @@ export function ContextStrip({
     }
   }
 
+  const rowsLabel =
+    visibleRows === totalRows
+      ? `${totalRows} ${plural(totalRows, "строка", "строки", "строк")}`
+      : `${visibleRows} из ${totalRows}`;
+
   return (
+    <>
+    {/* Телефон: одна строка вместо ленты чипов с прокруткой вбок.
+        Листать вбок под шапкой, которую только что ужали до 48px, — ровно то,
+        чего на телефоне позволить себе нельзя. Весь смысл ленты («что я сейчас
+        вижу») умещается в одну строку, а снять фильтр можно в листе, который
+        она открывает. */}
+    <button
+      type="button"
+      onClick={onOpenSheet ?? onOpen}
+      aria-haspopup={onOpenSheet ? "dialog" : undefined}
+      className="bbc-context-strip sm:hidden w-full flex items-center gap-2 px-4 py-2 border-b text-left"
+      style={
+        {
+          background: "var(--bg-raised)",
+          borderColor: "var(--border-subtle)",
+          minHeight: "var(--ios-tap)",
+        } as CSSProperties
+      }
+    >
+      <span aria-hidden="true" className="shrink-0" style={{ color: accent }}>
+        ◆
+      </span>
+      <span className="flex-1 min-w-0 truncate text-xs" style={{ color: "var(--text-primary)" }}>
+        {preset?.title ?? "Свой режим"}
+        <span style={{ color: "var(--text-muted)" }}>
+          {" · "}
+          {rowsLabel}
+          {activeCount ? ` · фильтры ${activeCount}` : ""}
+        </span>
+      </span>
+      {live.sourceError ? (
+        <span className="mono-meta shrink-0" style={{ color: "var(--accent-rose)" }}>
+          старые данные
+        </span>
+      ) : null}
+      <span className="shrink-0" style={{ color: "var(--text-muted)" }} aria-hidden="true">
+        <SlidersIcon size={16} />
+      </span>
+    </button>
+
     <div
-      className="bbc-context-strip bbc-enter flex items-center gap-2 px-4 py-1.5 border-b overflow-x-auto scrollbar-hidden"
+      className="bbc-context-strip bbc-enter hidden sm:flex items-center gap-2 px-4 py-1.5 border-b overflow-x-auto scrollbar-hidden"
       style={
         {
           background: "var(--bg-raised)",
@@ -437,7 +524,7 @@ export function ContextStrip({
           key={`${chip.key}:${chip.value}`}
           type="button"
           onClick={() => onToggle(chip.key, chip.value)}
-          className="shrink-0 flex items-center gap-1 px-2 py-0.5 rounded-full text-[0.68rem] max-w-[170px]"
+          className="shrink-0 flex items-center gap-1 px-2 py-0.5 rounded-full bbc-micro max-w-[170px]"
           style={{
             background: "var(--accent-soft)",
             color: "var(--text-accent)",
@@ -477,11 +564,7 @@ export function ContextStrip({
         </span>
       ) : null}
 
-      <span className="mono-meta shrink-0">
-        {visibleRows === totalRows
-          ? `${totalRows} ${plural(totalRows, "строка", "строки", "строк")}`
-          : `${visibleRows} из ${totalRows}`}
-      </span>
+      <span className="mono-meta shrink-0">{rowsLabel}</span>
 
       <button
         type="button"
@@ -494,6 +577,7 @@ export function ContextStrip({
         <span className="hidden lg:inline">Настроить</span>
       </button>
     </div>
+    </>
   );
 }
 
@@ -515,11 +599,12 @@ export function CoverageChip({
   const tone =
     share >= 0.9 ? "var(--accent-emerald)" : share >= 0.5 ? "var(--accent-amber)" : "var(--accent-rose)";
 
-  return (
+  // Пояснение к покрытию — через Hint: раньше оно жило в `title`, а именно
+  // здесь объясняется, насколько числу вообще можно верить.
+  const chip = (
     <span
-      className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-[0.68rem]"
+      className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full bbc-micro"
       style={{ background: "var(--bg-active)", color: "var(--text-secondary)" }}
-      title={hint}
     >
       <span aria-hidden="true" style={{ width: 5, height: 5, borderRadius: "50%", background: tone }} />
       {label}
@@ -528,18 +613,21 @@ export function CoverageChip({
       </span>
     </span>
   );
+
+  return hint ? <Hint text={hint} label={`Что входит в «${label}»`}>{chip}</Hint> : chip;
 }
 
 /** Marks a figure that rests on a fallback rather than real data. */
 export function EstimateBadge({ reason }: { reason: string }) {
   return (
-    <span
-      className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[0.62rem]"
-      style={{ background: "var(--bg-active)", color: "var(--accent-amber)" }}
-      title={reason}
-    >
-      <ClockIcon size={10} />
-      оценка
-    </span>
+    <Hint text={reason} label="Почему это оценка">
+      <span
+        className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded bbc-micro"
+        style={{ background: "var(--bg-active)", color: "var(--accent-amber)" }}
+      >
+        <ClockIcon size={10} />
+        оценка
+      </span>
+    </Hint>
   );
 }

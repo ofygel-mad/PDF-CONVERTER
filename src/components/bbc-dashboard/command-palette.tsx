@@ -11,7 +11,9 @@
  * Полностью с клавиатуры: ↑↓ перебор, Enter выбор, Esc закрыть.
  */
 import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
+import { createPortal } from "react-dom";
 
+import { useScrollLock } from "../use-scroll-lock";
 import { SearchIcon } from "./icon";
 import type { BbcDataset, BbcMode } from "./types";
 import type { SavedView } from "./saved-views";
@@ -51,6 +53,12 @@ type Props = {
   onFilter: (key: "firms" | "departments" | "employees" | "serviceKinds", value: string) => void;
   onSearch: (value: string) => void;
   onApplyView: (view: SavedView) => void;
+  /**
+   * Открытость поднята в оболочку: на телефоне кнопки палитры в шапке нет, и
+   * открывать её приходится из листа действий.
+   */
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
 };
 
 export function CommandPalette({
@@ -62,8 +70,9 @@ export function CommandPalette({
   onFilter,
   onSearch,
   onApplyView,
+  open,
+  onOpenChange,
 }: Props) {
-  const [open, setOpen] = useState(false);
   const [query, setQuery] = useState("");
   const shortcut = useShortcutLabel();
   const [cursor, setCursor] = useState(0);
@@ -75,29 +84,31 @@ export function CommandPalette({
   const show = useCallback(() => {
     setQuery("");
     setCursor(0);
-    setOpen(true);
-  }, []);
+    onOpenChange(true);
+  }, [onOpenChange]);
 
-  const close = useCallback(() => setOpen(false), []);
+  const close = useCallback(() => onOpenChange(false), [onOpenChange]);
+
+  // Фон под палитрой стоит на месте: без этого на телефоне страница уезжает
+  // под открытым диалогом, стоит промахнуться мимо списка.
+  useScrollLock(open);
 
   // ⌘K / Ctrl+K открывает откуда угодно.
   useEffect(() => {
     const onKey = (event: KeyboardEvent) => {
       if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === "k") {
         event.preventDefault();
-        setOpen((value) => {
-          if (!value) {
-            setQuery("");
-            setCursor(0);
-          }
-          return !value;
-        });
+        if (open) {
+          close();
+        } else {
+          show();
+        }
       }
-      if (event.key === "Escape") setOpen(false);
+      if (event.key === "Escape") close();
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, []);
+  }, [open, show, close]);
 
   // Фокус на поле, когда палитра появилась в DOM.
   useEffect(() => {
@@ -243,7 +254,16 @@ export function CommandPalette({
 
   let lastGroup = "";
 
-  return (
+  /**
+   * Палитра рисуется порталом в body, и это обязательное условие, а не вкусовщина.
+   *
+   * Кнопка палитры стоит в шапке дашборда, а у той и `backdrop-blur`, и
+   * `will-change` из `.bbc-enter`. Любого из них хватает, чтобы шапка стала
+   * containing block: `position: fixed` внутри неё отсчитывается от шапки, а не
+   * от окна. То есть подложка «на весь экран» была ростом с шапку — затемнялась
+   * и закрывалась по клику одна верхняя полоса.
+   */
+  return createPortal(
     <>
       <button
         type="button"
@@ -256,7 +276,7 @@ export function CommandPalette({
         role="dialog"
         aria-modal="true"
         aria-label="Командная палитра"
-        className="fixed z-50 left-1/2 top-[12vh] w-[min(92vw,560px)] card animate-slide-up"
+        className="bbc-palette fixed z-50 left-1/2 top-[12vh] w-[min(92vw,560px)] card animate-slide-up"
         style={{ transform: "translateX(-50%)", animationDuration: "var(--dur-base)", boxShadow: "var(--shadow-float)" }}
       >
         <input
@@ -273,7 +293,7 @@ export function CommandPalette({
           aria-label="Поиск команд"
         />
 
-        <div ref={listRef} className="max-h-[52vh] overflow-y-auto py-1">
+        <div ref={listRef} className="bbc-palette-list max-h-[52svh] overflow-y-auto py-1">
           {matches.length ? (
             matches.map((action, index) => {
               const header = action.group !== lastGroup ? action.group : null;
@@ -307,8 +327,9 @@ export function CommandPalette({
           )}
         </div>
 
+        {/* Подсказки про клавиши — только там, где есть клавиатура. */}
         <div
-          className="px-4 py-2 flex items-center gap-4 mono-meta"
+          className="hidden sm:flex px-4 py-2 items-center gap-4 mono-meta"
           style={{ borderTop: "1px solid var(--border-subtle)" }}
         >
           <span>↑↓ выбрать</span>
@@ -316,6 +337,7 @@ export function CommandPalette({
           <span>Esc закрыть</span>
         </div>
       </div>
-    </>
+    </>,
+    document.body,
   );
 }

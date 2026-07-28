@@ -220,3 +220,39 @@ export function ArrowRightIcon(props: IconProps) {
     </Glyph>
   );
 }
+
+/** Три точки — вход в лист действий на телефоне. */
+export function MoreIcon(props: IconProps) {
+  return (
+    <Glyph {...props}>
+      <circle cx="5" cy="12" r="1.4" fill="currentColor" stroke="none" />
+      <circle cx="12" cy="12" r="1.4" fill="currentColor" stroke="none" />
+      <circle cx="19" cy="12" r="1.4" fill="currentColor" stroke="none" />
+    </Glyph>
+  );
+}
+
+/**
+ * Точка справки. Заменяет `title=` там, где в подсказке лежат данные:
+ * на сенсорном экране `title` не срабатывает никогда.
+ */
+export function InfoIcon(props: IconProps) {
+  return (
+    <Glyph {...props}>
+      <circle cx="12" cy="12" r="8.5" />
+      <path d="M12 11v5" />
+      <circle cx="12" cy="7.9" r="0.9" fill="currentColor" stroke="none" />
+    </Glyph>
+  );
+}
+
+/** Ползунки — «Настроить» из строки контекста. */
+export function SlidersIcon(props: IconProps) {
+  return (
+    <Glyph {...props}>
+      <path d="M4 7h10M18 7h2M4 17h4M12 17h8" />
+      <circle cx="16" cy="7" r="2" />
+      <circle cx="10" cy="17" r="2" />
+    </Glyph>
+  );
+}

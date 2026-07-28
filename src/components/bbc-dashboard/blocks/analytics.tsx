@@ -242,14 +242,21 @@ export function AnalyticsBlock({
         title="Помесячно"
         subtitle="Признанная выручка в разрезе двух циклов начисления."
       >
-        <div className="overflow-x-auto">
-          <table className="w-full text-xs" style={{ borderCollapse: "collapse" }}>
+        {/* Единственная таблица дашборда, которая на телефоне помещается как
+            есть: четыре колонки против семи-девяти у остальных. Карточками она
+            стала бы втрое выше при тех же данных, поэтому остаётся таблицей —
+            только с нижней границей ширины, чтобы прокручиваться, а не
+            сжиматься. */}
+        <div className="bbc-scroll-x">
+          <table className="w-full text-xs" style={{ borderCollapse: "collapse", minWidth: 320 }}>
             <thead>
               <tr>
-                {["Месяц", "Цикл 1", "Цикл 2", "Итого"].map((header) => (
+                {["Месяц", "Цикл 1", "Цикл 2", "Итого"].map((header, column) => (
                   <th
                     key={header}
-                    className="text-left font-medium px-2 py-1.5"
+                    className={`font-medium px-2 py-1.5 whitespace-nowrap ${
+                      column === 0 ? "text-left" : "text-right"
+                    }`}
                     style={{ color: "var(--text-muted)", borderBottom: "1px solid var(--border-subtle)" }}
                   >
                     {header}
@@ -328,8 +335,12 @@ function ServiceMix({
 
   return (
     <div className="flex items-center gap-5 flex-wrap">
-      <Donut slices={slices} />
-      <ul className="flex flex-col gap-1.5 flex-1 min-w-[160px]">
+      {/* На телефоне кольцо крупнее и стоит в своей строке: подписей внутри
+          него нет, всё читается по легенде ниже. */}
+      <div className="w-full sm:w-auto flex justify-center sm:block">
+        <Donut slices={slices} />
+      </div>
+      <ul className="flex flex-col gap-1.5 flex-1 w-full sm:w-auto sm:min-w-[160px]">
         {slices.map((slice) => (
           <li key={slice.label} className="flex items-center gap-2 text-xs">
             <span
@@ -350,7 +361,12 @@ function ServiceMix({
             <span className="truncate" style={{ color: "var(--text-secondary)" }}>
               {slice.label}
             </span>
-            <span className="ml-auto bbc-num" style={{ color: "var(--text-primary)" }}>
+            {/* Сумма была только в SVG `<title>` кольца — то есть с телефона
+                недостижима. Теперь она в легенде и видна всегда. */}
+            <span className="ml-auto bbc-num shrink-0" style={{ color: "var(--text-muted)" }}>
+              {moneyShort(slice.value)}
+            </span>
+            <span className="bbc-num shrink-0" style={{ color: "var(--text-primary)" }}>
               {percent(total ? slice.value / total : 0)}
             </span>
           </li>

@@ -76,6 +76,31 @@
   --dur-slow:      360ms;
   --dur-tell:      560ms;   /* the variant morph — the one animation that narrates */
   --dur-stagger:   35ms;
+
+  /* ── Mobile scale ──────────────────────────────────────────────────────────
+     На десктопе эти значения — тождество: отступов не добавляют, размеров не
+     меняют. Всё, что делает мобильный облик мобильным, живёт в одном
+     медиа-запросе ниже по файлу. Компоненты читают токен и никогда не
+     упоминают брейкпоинт.                                                     */
+  --ios-gutter:        1rem;
+  --ios-inset:         0;
+  --ios-divider-inset: 0;
+  --ios-row-min:       0;
+  --ios-tap:           44px;
+  --ios-label:         0.72rem;
+  --ios-value:         0.8125rem;
+  --ios-section:       0.8125rem;
+  --ios-title:         0.875rem;
+  --ios-sheet-radius:  1.25rem;
+  --ios-bar-h:         56px;
+
+  /* Безопасные зоны объявлены здесь намеренно: неизвестная переменная внутри
+     calc() рушит всё объявление целиком, поэтому запасной ноль обязателен.
+     Работают они только вместе с viewportFit: "cover" в layout.tsx.           */
+  --safe-t: env(safe-area-inset-top, 0px);
+  --safe-b: env(safe-area-inset-bottom, 0px);
+  --safe-l: env(safe-area-inset-left, 0px);
+  --safe-r: env(safe-area-inset-right, 0px);
 }
 
 /* ─── Light theme — the paper vault ───────────────────────────── */
@@ -475,10 +500,31 @@ body {
   }
 }
 
+/* Внимание: `will-change` делает элемент containing block для потомков с
+   position: fixed. Всё, что должно закрывать экран целиком (палитра, шиты,
+   диалоги), обязано рисоваться порталом в body, а не внутри `.bbc-enter`.   */
 .bbc-enter {
   animation: bbc-enter var(--dur-slow) var(--ease-out) both;
   animation-delay: calc(var(--enter-index, 0) * 70ms);
   will-change: transform, opacity, filter;
+}
+
+/* Палитра команд: на телефоне — лист снизу, а не диалог посреди экрана.
+   Диалог с полем ввода наверху воюет с экранной клавиатурой, которая как раз
+   оттуда и выезжает.                                                        */
+@media (max-width: 639.98px) {
+  .bbc-palette {
+    top: auto;
+    bottom: 0;
+    left: 0;
+    width: 100%;
+    transform: none;
+    border-radius: var(--ios-sheet-radius) var(--ios-sheet-radius) 0 0;
+    padding-bottom: max(0.5rem, var(--safe-b));
+  }
+  .bbc-palette-list { max-height: 60svh; }
+  /* Меньше 16px — и iOS зумит страницу при фокусе, обратно уже не отъезжая. */
+  .bbc-palette input { font-size: max(16px, 1rem); }
 }
 
 /* Экран ожидания дышит, пока читается таблица: страница жива, а не подвисла. */
@@ -497,6 +543,187 @@ body {
   border-radius: inherit;
   opacity: 0.025;
   background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='120' height='120'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='3'/%3E%3C/filter%3E%3Crect width='120' height='120' filter='url(%23n)'/%3E%3C/svg%3E");
+}
+
+/* ─── BBC: мобильный облик ────────────────────────────────────────
+   Всё, что делает дашборд на телефоне похожим на приложение, а не на сжатую
+   страницу. Часть классов нужна и на десктопе (шапка, скролл таблиц), поэтому
+   секция не завёрнута в медиа-запрос целиком — узкие правила помечены внутри.
+
+   Живёт в конце BBC-модуля намеренно: удалить дашборд по инструкции из
+   README по-прежнему значит вырезать один непрерывный кусок файла.           */
+
+/* Шапка. На десктопе залипает целиком; на телефоне залипает только верхняя
+   строка, а лента вкладок, баннер отдела и строка контекста уезжают со
+   страницей — иначе четыре ряда съедают пятую часть экрана и не отдают.     */
+.bbc-header {
+  position: sticky;
+  top: 0;
+  z-index: 40;
+  -webkit-backdrop-filter: blur(12px);
+  backdrop-filter: blur(12px);
+}
+.bbc-header-bar { min-height: 48px; }
+
+/* Горизонтальная прокрутка таблиц: доскроллив до края, палец не должен
+   начинать тащить страницу.                                                  */
+.bbc-scroll-x {
+  overflow-x: auto;
+  overscroll-behavior-x: contain;
+}
+
+/* Сгруппированный список — основная форма данных на телефоне.
+   Волосяная линия начинается после отступа, как в iOS, и не рисуется у
+   первой строки.                                                            */
+.bbc-glist { display: flex; flex-direction: column; }
+.bbc-glist > *  { position: relative; min-height: var(--ios-row-min); }
+.bbc-glist > * + *::before {
+  content: "";
+  position: absolute;
+  top: 0;
+  left: var(--ios-divider-inset);
+  right: 0;
+  height: 1px;
+  background: var(--border-subtle);
+}
+
+/* Строка «подпись — значение». */
+.bbc-mrow {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 0.75rem;
+  padding: 0.5rem var(--ios-inset);
+}
+.bbc-mrow > dt {
+  flex: 0 0 auto;
+  font-size: var(--ios-label);
+  color: var(--text-muted);
+}
+.bbc-mrow > dd {
+  font-size: var(--ios-value);
+  color: var(--text-primary);
+  text-align: right;
+  /* Значение переносится, а не обрезается: обрезка на телефоне некуда не
+     раскрывается — `title` пальцем не достаётся.                            */
+  overflow-wrap: anywhere;
+}
+
+/* Мелкий текст. Классы вместо арбитражных text-[0.6rem]: CSS не может
+   переопределить утилиту Tailwind без !important.                           */
+.bbc-micro { font-size: 0.65rem; }
+.bbc-mini  { font-size: 0.70rem; }
+
+/* Тепловая карта. Ячейки — кнопки, поэтому на телефоне они дорастают до
+   пальца, а подписи строк, наоборот, ужимаются: место нужно самой матрице. */
+.bbc-heat-cell  { height: 1.75rem; }
+.bbc-heat-label { max-width: 220px; }
+
+/* Колонки месяцев: на десктопе делят ширину поровну, на телефоне получают
+   твёрдые 56px и прокрутку — иначе на двенадцати месяцах они схлопываются
+   в полоски уже 19px. Высота там больше: две строки подписей под колонкой
+   съедают заметную часть относительной высоты.                              */
+.bbc-cycle-cols     { display: flex; align-items: stretch; gap: 0.5rem; height: 12rem; }
+.bbc-cycle-cols > * { flex: 1 1 0; min-width: 0; }
+
+.bbc-donut { width: 100%; aspect-ratio: 1; height: auto; }
+
+/* Точка справки видна только там, где нет наведения. */
+.bbc-hint-dot { display: none; }
+
+/* Нижний таб-бар. */
+.bbc-tabbar {
+  position: fixed;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  z-index: 45;
+  display: flex;
+  background: var(--header-bg);
+  -webkit-backdrop-filter: blur(12px);
+  backdrop-filter: blur(12px);
+  border-top: 1px solid var(--border-subtle);
+  padding-bottom: var(--safe-b);
+  padding-left: var(--safe-l);
+  padding-right: var(--safe-r);
+}
+.bbc-tabbar button {
+  flex: 1 1 0;
+  min-width: 0;
+  min-height: var(--ios-bar-h);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 0.125rem;
+  position: relative;
+  color: var(--text-muted);
+  transition: color var(--dur-fast);
+}
+.bbc-tabbar button[aria-current="page"] { color: var(--dept-tone, var(--accent)); }
+.bbc-tabbar .bbc-tabbar-label {
+  font-size: 0.625rem;
+  line-height: 1.1;
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* Лист снизу: въезд и отклик на нажатие. */
+@keyframes bbc-sheet-in {
+  from { transform: translateY(100%); }
+  to   { transform: translateY(0); }
+}
+.bbc-sheet { animation: bbc-sheet-in var(--dur-base) var(--ease-out); }
+.bbc-sheet-backdrop { animation: fade-in var(--dur-fast) var(--ease-out); }
+
+/* Ввод внутри листа — не меньше 16px, иначе iOS зумит страницу при фокусе и
+   обратно уже не отъезжает.                                                 */
+.bbc-sheet input,
+.bbc-sheet textarea,
+.bbc-sheet select { font-size: max(16px, 1rem); }
+
+@media (hover: none) {
+  .bbc-hint-dot { display: inline-flex; }
+
+  /* Списки в iOS отвечают на палец мгновенно. */
+  .bbc-glist > button:active,
+  .bbc-tabbar button:active,
+  .bbc-mrow:active { background: var(--bg-hover); }
+}
+
+@media (max-width: 639.98px) {
+  .bbc-header {
+    position: static;
+    -webkit-backdrop-filter: none;
+    backdrop-filter: none;
+  }
+  .bbc-header-bar {
+    position: sticky;
+    top: 0;
+    z-index: 40;
+    background: var(--header-bg);
+    -webkit-backdrop-filter: blur(12px);
+    backdrop-filter: blur(12px);
+    padding-top: var(--safe-t);
+  }
+
+  /* Просвет под закреплённым баром: последняя строка данных не должна
+     оказаться под ним.                                                      */
+  .bbc-main { padding-bottom: calc(var(--ios-bar-h) + var(--safe-b) + 1.5rem); }
+
+  .bbc-micro { font-size: 0.75rem; }
+  .bbc-mini  { font-size: 0.8125rem; }
+
+  .bbc-heat-cell  { height: var(--ios-tap); }
+  .bbc-heat-label { max-width: 120px; }
+
+  .bbc-cycle-cols     { height: 14rem; overflow-x: auto; overscroll-behavior-x: contain; }
+  .bbc-cycle-cols > * { flex: 0 0 56px; }
+
+  /* Заголовок секции — над карточкой, как в сгруппированных списках iOS. */
+  .bbc-section-header { font-size: var(--ios-section); }
 }
 
 /* ─── Animations ──────────────────────────────────────────────── */
@@ -546,6 +773,14 @@ body {
 .row-inflow  { background: var(--inflow-bg); }
 .row-outflow { background: var(--outflow-bg); }
 
+/* В карточке приход и расход помечаются полосой слева, а не заливкой.
+   Строка таблицы, залитая целиком, читается спокойно; карточка во всю ширину
+   в том же цвете — уже как состояние ошибки.                                 */
+.card-inner.row-inflow,
+.card-inner.row-outflow { background: var(--bg-surface); }
+.card-inner.row-inflow  { border-left: 3px solid var(--accent-emerald); }
+.card-inner.row-outflow { border-left: 3px solid var(--accent-rose); }
+
 /* ─── Hide scrollbar utility ─────────────────────────────────── */
 .scrollbar-hidden::-webkit-scrollbar { display: none; }
 
@@ -584,7 +819,10 @@ body {
 :root[data-theme="light"] .banner-amber   { background: rgba(217,119,6,0.06); border-color: rgba(217,119,6,0.20); color: #78350f; }
 :root[data-theme="light"] .banner-rose    { background: rgba(225,29,72,0.06); border-color: rgba(225,29,72,0.18); color: #881337; }
 
-/* ─── Mobile optimisations ────────────────────────────────────── */
+/* ─── Mobile optimisations ──────────────────────────────────────
+   Брейкпоинт здесь — 639.98px, а не 640px, и это не придирка: у Tailwind
+   `sm:` начинается с min-width 640px, поэтому ровно на 640 старый запрос и
+   утилиты `sm:` применялись одновременно и красили одно и то же дважды.     */
 
 /* Prevent iOS auto-zoom on focus */
 .input-field,
@@ -599,12 +837,49 @@ textarea.input-field {
   min-height: 44px;
 }
 
-@media (max-width: 640px) {
+/* Безопасные зоны. Вне медиа-запроса: там, где вырезов нет, env() отдаёт
+   ноль, и правило само по себе ничего не делает.                            */
+.pb-safe { padding-bottom: max(var(--ios-gutter), var(--safe-b)); }
+.pt-safe { padding-top:    var(--safe-t); }
+.px-safe {
+  padding-left:  max(var(--ios-gutter), var(--safe-l));
+  padding-right: max(var(--ios-gutter), var(--safe-r));
+}
+
+/* Страница не должна ездить вбок. Именно `clip`, а не `hidden`: `hidden` на
+   html/body заводит скролл-контейнер и отключает position:sticky у всех
+   потомков — то есть погасил бы разом все четыре залипающие шапки.          */
+html, body { overflow-x: clip; }
+
+.workbench-toast { bottom: calc(1.25rem + var(--safe-b)); }
+
+@media (max-width: 639.98px) {
+  /* Радиусы правим через токены, а не через .card напрямую: так они заодно
+     достают до .card-inner, .row-item, .input-field и баннеров.             */
+  :root {
+    --radius-card:       0.875rem;
+    --radius-inner:      0.75rem;
+
+    --ios-inset:         1rem;
+    --ios-divider-inset: 1rem;
+    --ios-row-min:       44px;
+    --ios-label:         0.8125rem;
+    --ios-value:         0.9375rem;
+    --ios-section:       0.8125rem;
+    --ios-title:         1rem;
+  }
+
+  /* Эти два класса несут почти весь мелкий текст продукта — поднять их
+     полезнее, чем править арбитражные размеры по одному.                   */
+  .eyebrow   { font-size: 0.72rem; letter-spacing: 0.10em; }
+  .mono-meta { font-size: 0.80rem; }
+
   .animate-toast-in { animation-name: toast-in-mobile; }
 
-  /* Tighter cards on small screens */
-  .card { border-radius: 0.85rem; }
-  .card-inner { border-radius: 0.7rem; }
+  /* Уведомление поднимается над закреплённым таб-баром воркбенча. */
+  .workbench-toast {
+    bottom: calc(var(--ios-bar-h) + var(--safe-b) + 0.75rem);
+  }
 
   .variant-group-toggle {
     width: 100%;
@@ -680,6 +955,74 @@ textarea.input-field {
   [data-bbc-density="compact"] .bbc-block-view > div > .card:has(table),
   [data-bbc-density="compact"] .bbc-block-view > div > .card:has(.grid) {
     grid-column: 1 / -1;
+  }
+}
+
+/* ─── BBC: KPI на телефоне ────────────────────────────────────────
+   Стоит после блока плотности намеренно, и это не косметика: правила
+   плотности идут выше и имеют вес (0,2,0), поэтому голое `.bbc-kpi-grid`
+   раньше по файлу они бы перебили. Здесь — тот же вес, но позже.
+
+   Форма — сгруппированный список в одну колонку: подпись слева, точное число
+   справа. Две колонки плиток на 375px дают ~168px на плитку, куда при крупном
+   шрифте не влезает ни «1 240 000 ₸», ни даже подпись целиком. А точное число
+   показать обязательно: в плитке оно сокращено до «189 млн», и добрать полное
+   было неоткуда — `title` пальцем не открывается.
+
+   Точное значение по умолчанию скрыто и включается только здесь: на десктопе
+   с наведением `title` работает, и дублировать его строкой незачем.           */
+.bbc-kpi-exact { display: none; }
+
+@media (max-width: 639.98px) {
+  .bbc-kpi-grid,
+  [data-bbc-density="compact"] .bbc-kpi-grid {
+    grid-template-columns: 1fr;
+    gap: 0;
+    /* Один список в общей рамке, а не шесть отдельных карточек подряд. */
+    border: 1px solid var(--border-subtle);
+    border-radius: var(--radius-card);
+    background: var(--bg-surface);
+    overflow: hidden;
+  }
+
+  .bbc-kpi-grid .bbc-kpi-tile,
+  [data-bbc-density="compact"] .bbc-kpi-grid .bbc-kpi-tile {
+    display: grid;
+    grid-template-columns: 1fr auto;
+    align-items: baseline;
+    gap: 0.5rem 0.75rem;
+    padding: 0.625rem var(--ios-inset);
+    min-height: var(--ios-row-min);
+    border: 0;
+    border-radius: 0;
+    background: transparent;
+    box-shadow: none;
+  }
+
+  /* Волосяная линия с отступом слева — как в сгруппированных списках iOS. */
+  .bbc-kpi-grid .bbc-kpi-tile + .bbc-kpi-tile {
+    border-top: 1px solid var(--border-subtle);
+  }
+
+  .bbc-kpi-grid .bbc-kpi-tile .eyebrow {
+    margin-bottom: 0;
+    grid-column: 1;
+    align-self: center;
+  }
+
+  /* Сокращённое число уступает место точному: два числа в строке читались бы
+     как разные показатели. */
+  .bbc-kpi-grid .bbc-kpi-value,
+  [data-bbc-density="compact"] .bbc-kpi-grid .bbc-kpi-value { display: none; }
+
+  .bbc-kpi-grid .bbc-kpi-exact {
+    display: block;
+    grid-column: 2;
+    text-align: right;
+    font-size: var(--ios-value);
+    font-weight: 600;
+    color: var(--text-primary);
+    white-space: nowrap;
   }
 }
 

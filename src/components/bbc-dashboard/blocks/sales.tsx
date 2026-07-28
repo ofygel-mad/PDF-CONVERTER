@@ -12,8 +12,84 @@ import { useCallback, useEffect, useState } from "react";
 
 import { BbcApiError, fetchSales } from "../api";
 import { money, moneyShort, percent, plural } from "../format";
-import type { BbcSalesReport } from "../types";
+import { SpecList, type FieldSpec } from "../mobile/card-list";
+import type { BbcPayrollLine, BbcSalesReport } from "../types";
 import { SectionCard } from "./shared";
+
+/**
+ * Колонки ФОТ.
+ *
+ * План лежит отдельным списком, а дельта считается из плана и факта сразу —
+ * поэтому план приходит в колонки контекстом, а не полем строки.
+ *
+ * Фикс и план бонуса помечены `optional`: сравнивают всегда факт с дельтой,
+ * а исходные суммы нужны реже. Дельта не помечена никогда — ради неё в этот
+ * список и заходят.
+ */
+const PAYROLL_COLUMNS: FieldSpec<BbcPayrollLine, BbcPayrollLine[]>[] = [
+  {
+    key: "name",
+    header: "Сотрудник",
+    primary: true,
+    tone: "var(--text-primary)",
+    render: (line) => line.name,
+  },
+  {
+    key: "role",
+    header: "Роль",
+    secondary: true,
+    render: (line) => line.role,
+  },
+  {
+    key: "fixed",
+    header: "Фикс",
+    align: "right",
+    optional: true,
+    cellClass: "text-right bbc-num",
+    render: (line) => money(line.fixed),
+  },
+  {
+    key: "bonusPlan",
+    header: "Бонус план",
+    align: "right",
+    optional: true,
+    cellClass: "text-right bbc-num",
+    tone: "var(--text-muted)",
+    render: (line, plan) => money(plan.find((item) => item.name === line.name)?.bonus ?? 0),
+  },
+  {
+    key: "bonusFact",
+    header: "Бонус факт",
+    align: "right",
+    cellClass: "text-right bbc-num",
+    tone: "var(--text-primary)",
+    render: (line) => money(line.bonus),
+  },
+  {
+    key: "bonusDelta",
+    header: "Δ бонуса",
+    align: "right",
+    cellClass: "text-right bbc-num",
+    // Цвет здесь зависит от знака, поэтому красит сам render, а не `tone`.
+    render: (line, plan) => {
+      const delta = line.bonus - (plan.find((item) => item.name === line.name)?.bonus ?? 0);
+      return (
+        <span style={{ color: delta >= 0 ? "var(--accent-emerald)" : "var(--accent-rose)" }}>
+          {delta >= 0 ? "+" : "−"}
+          {money(Math.abs(delta))}
+        </span>
+      );
+    },
+  },
+  {
+    key: "total",
+    header: "Всего факт",
+    align: "right",
+    cellClass: "text-right bbc-num",
+    tone: "var(--text-primary)",
+    render: (line) => money(line.total),
+  },
+];
 
 export function SalesBlock() {
   const [report, setReport] = useState<BbcSalesReport | null>(null);
@@ -139,73 +215,18 @@ export function SalesBlock() {
         title="ФОТ: фикс и бонус"
         subtitle="Готовая база для KPI и премий — план против факта по каждому сотруднику."
       >
-        <div className="overflow-x-auto">
-          <table className="w-full text-xs" style={{ borderCollapse: "collapse" }}>
-            <thead>
-              <tr>
-                {["Сотрудник", "Роль", "Фикс", "Бонус план", "Бонус факт", "Δ бонуса", "Всего факт"].map(
-                  (header, column) => (
-                    <th
-                      key={header}
-                      // Первые две колонки текстовые, остальные денежные — и
-                      // подпись должна стоять над своим числом, а не у левого
-                      // края пустого столбца.
-                      className={`font-medium px-2 py-1.5 whitespace-nowrap ${
-                        column < 2 ? "text-left" : "text-right"
-                      }`}
-                      style={{ color: "var(--text-muted)", borderBottom: "1px solid var(--border-subtle)" }}
-                    >
-                      {header}
-                    </th>
-                  ),
-                )}
-              </tr>
-            </thead>
-            <tbody>
-              {report.payroll_fact.map((line, index) => {
-                const plan = report.payroll_plan.find((item) => item.name === line.name);
-                const delta = line.bonus - (plan?.bonus ?? 0);
-                return (
-                  <tr
-                    key={line.name}
-                    className="animate-fade-in"
-                    style={{
-                      animationDuration: "var(--dur-fast)",
-                      animationDelay: `calc(${index} * var(--dur-stagger))`,
-                      animationFillMode: "backwards",
-                    }}
-                  >
-                    <td className="px-2 py-1.5" style={{ color: "var(--text-primary)" }}>
-                      {line.name}
-                    </td>
-                    <td className="px-2 py-1.5" style={{ color: "var(--text-secondary)" }}>
-                      {line.role}
-                    </td>
-                    <td className="px-2 py-1.5 text-right bbc-num" style={{ color: "var(--text-secondary)" }}>
-                      {money(line.fixed)}
-                    </td>
-                    <td className="px-2 py-1.5 text-right bbc-num" style={{ color: "var(--text-muted)" }}>
-                      {money(plan?.bonus ?? 0)}
-                    </td>
-                    <td className="px-2 py-1.5 text-right bbc-num" style={{ color: "var(--text-primary)" }}>
-                      {money(line.bonus)}
-                    </td>
-                    <td
-                      className="px-2 py-1.5 text-right bbc-num"
-                      style={{ color: delta >= 0 ? "var(--accent-emerald)" : "var(--accent-rose)" }}
-                    >
-                      {delta >= 0 ? "+" : "−"}
-                      {money(Math.abs(delta))}
-                    </td>
-                    <td className="px-2 py-1.5 text-right bbc-num" style={{ color: "var(--text-primary)" }}>
-                      {money(line.total)}
-                    </td>
-                  </tr>
-                );
-              })}
-            </tbody>
-          </table>
-        </div>
+        {/* Первые две колонки текстовые, остальные денежные: подпись стоит над
+            своим числом, а не у левого края пустого столбца. */}
+        <SpecList
+          columns={PAYROLL_COLUMNS}
+          rows={report.payroll_fact}
+          // План живёт в соседнем списке, а дельта считается из обоих — поэтому
+          // он и передаётся колонкам как контекст.
+          ctx={report.payroll_plan}
+          rowKey={(line) => line.name}
+          limit={report.payroll_fact.length}
+          mobileLimit={report.payroll_fact.length}
+        />
       </SectionCard>
 
       <SectionCard

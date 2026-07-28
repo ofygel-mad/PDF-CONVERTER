@@ -189,16 +189,20 @@ export function CycleColumns({
   if (!data.length) return <EmptyChart />;
 
   return (
-    <div className="flex items-stretch gap-2 h-48" role="img" aria-label="Признанная выручка по месяцам">
+    // Резиновые колонки работают до тех пор, пока их немного: на 390px за
+    // вычетом отступов страницы и карточки остаётся ~326px, и на двенадцати
+    // месяцах это 19px на колонку при подписи шириной 35px. Поэтому на телефоне
+    // колонка получает твёрдые 56px, а сам ряд — прокрутку.
+    <div className="bbc-cycle-cols" role="img" aria-label="Признанная выручка по месяцам">
       {data.map((item, index) => (
-        <div key={item.month} className="flex-1 flex flex-col items-center gap-1.5 min-w-0">
+        <div key={item.month} className="flex flex-col items-center gap-1.5 min-w-0">
           {/* Область роста колонки: даёт столбцу определённую высоту, иначе
               процентная высота внутри flex-элемента схлопывается в ноль.
               Подпись живёт здесь же, прямо над столбцом: у верхнего края карточки
               она отрывалась от коротких месяцев и читалась как чужая. */}
           <div className="flex-1 w-full flex flex-col justify-end min-h-0">
             <span
-              className="text-[0.65rem] bbc-num text-center mb-1"
+              className="bbc-micro bbc-num text-center mb-1"
               style={{ color: "var(--text-secondary)" }}
             >
               {moneyShort(item.total)}
@@ -240,12 +244,12 @@ export function CycleColumns({
             )}
             </div>
           </div>
-          <span className="text-[0.62rem] truncate w-full text-center" style={{ color: "var(--text-muted)" }}>
+          <span className="bbc-micro truncate w-full text-center" style={{ color: "var(--text-muted)" }}>
             {monthShort(item.month)}
           </span>
           {/* Доля месяца в периоде: без неё высота столбца читается как
               «столько-то процентов», хотя она задана относительно максимума. */}
-          <span className="text-[0.6rem] bbc-num" style={{ color: "var(--text-muted)" }}>
+          <span className="bbc-micro bbc-num" style={{ color: "var(--text-muted)" }}>
             {total ? percent(item.total / total) : "—"}
           </span>
         </div>
@@ -268,7 +272,7 @@ export function Sparkline({
   tone?: "accent" | "emerald" | "rose" | "muted";
 }) {
   if (values.length < 2) {
-    return <div style={{ width, height }} aria-hidden="true" />;
+    return <div style={{ width: "100%", maxWidth: width, height }} aria-hidden="true" />;
   }
 
   const max = Math.max(...values, 1);
@@ -279,8 +283,17 @@ export function Sparkline({
     .map((value, index) => `${index * step},${height - ((value - min) / span) * height}`)
     .join(" ");
 
+  // `width`/`height` остаются системой координат viewBox — по ним считается
+  // шаг между точками. Меняется только нарисованный бокс: он тянется по
+  // контейнеру, а не держит 96px, из-за которых линия в строке списка
+  // занимала треть доступного места.
   return (
-    <svg width={width} height={height} viewBox={`0 0 ${width} ${height}`} aria-hidden="true">
+    <svg
+      viewBox={`0 0 ${width} ${height}`}
+      preserveAspectRatio="none"
+      style={{ width: "100%", height, display: "block" }}
+      aria-hidden="true"
+    >
       <polyline
         points={points}
         fill="none"
@@ -288,6 +301,9 @@ export function Sparkline({
         strokeWidth={1.5}
         strokeLinecap="round"
         strokeLinejoin="round"
+        // Растяжение по ширине не должно утолщать линию: без этого при
+        // `preserveAspectRatio="none"` она поехала бы вместе с координатами.
+        vectorEffect="non-scaling-stroke"
         // Draw-in: the line traces itself instead of appearing at once.
         style={{
           strokeDasharray: 1000,
@@ -318,11 +334,20 @@ export function Heatmap({
   if (!rows.length) return <EmptyChart />;
 
   return (
-    <div className="overflow-x-auto">
-      <table className="w-full text-xs" style={{ borderCollapse: "separate", borderSpacing: 2 }}>
+    <>
+    <div className="bbc-scroll-x">
+      <table
+        className="text-xs"
+        style={{ borderCollapse: "separate", borderSpacing: 2, minWidth: 120 + columns.length * 64 }}
+      >
         <thead>
           <tr>
-            <th className="text-left font-medium px-2 py-1" style={{ color: "var(--text-muted)" }} />
+            {/* Подпись строки замораживается: без неё, уехав вбок, уже не
+                понять, чья это строка. */}
+            <th
+              className="text-left font-medium px-2 py-1 sticky left-0"
+              style={{ color: "var(--text-muted)", background: "var(--bg-surface)", zIndex: 2 }}
+            />
             {columns.map((column) => (
               <th
                 key={column}
@@ -338,8 +363,13 @@ export function Heatmap({
           {rows.map((row, rowIndex) => (
             <tr key={row}>
               <td
-                className="px-2 py-1 max-w-[220px] truncate"
-                style={{ color: "var(--text-secondary)" }}
+                className="bbc-heat-label px-2 py-1 truncate sticky left-0"
+                style={{
+                  color: "var(--text-secondary)",
+                  background: "var(--bg-surface)",
+                  boxShadow: "1px 0 0 var(--border-subtle)",
+                  zIndex: 1,
+                }}
                 title={row}
               >
                 {row}
@@ -353,7 +383,7 @@ export function Heatmap({
                       type="button"
                       onClick={() => onCell?.(row, column)}
                       disabled={!onCell}
-                      className="w-full h-7 rounded bbc-cell-in bbc-num text-[0.68rem]"
+                      className="bbc-heat-cell w-full rounded bbc-cell-in bbc-num bbc-micro"
                       style={{
                         // A diagonal wave: delay grows with row + column.
                         animationDelay: `calc(${rowIndex + columnIndex} * var(--dur-stagger))`,
@@ -377,6 +407,10 @@ export function Heatmap({
         </tbody>
       </table>
     </div>
+    <p className="mono-meta mt-1.5 sm:hidden" style={{ color: "var(--text-muted)" }}>
+      → таблицу можно листать вбок
+    </p>
+    </>
   );
 }
 
@@ -407,8 +441,16 @@ export function Donut({
       fractions.slice(0, index).reduce((sum, fraction) => sum + fraction, 0) * circumference,
   }));
 
+  // Кольцо тянется по контейнеру до своего размера, а на телефоне становится
+  // крупнее: подписей у него нет — только SVG `<title>`, а он на сенсорном
+  // экране не срабатывает. Читаются доли по легенде рядом.
   return (
-    <svg width={size} height={size} viewBox={`0 0 ${size} ${size}`} role="img">
+    <svg
+      viewBox={`0 0 ${size} ${size}`}
+      className="bbc-donut"
+      style={{ maxWidth: size }}
+      role="img"
+    >
       {arcs.map((arc) => (
         <circle
           key={arc.label}

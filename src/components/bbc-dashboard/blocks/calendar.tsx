@@ -15,6 +15,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 
 import { BbcApiError, fetchCalendar } from "../api";
 import { money, moneyShort, monthLabel, percent, plural } from "../format";
+import { SpecList, type FieldSpec } from "../mobile/card-list";
 import type { BbcCalendar, BbcCalendarMethod, BbcExpectation } from "../types";
 import { SectionCard } from "./shared";
 
@@ -188,6 +189,65 @@ function UpcomingCard({ calendar }: { calendar: BbcCalendar }) {
   );
 }
 
+/**
+ * Колонки просрочки.
+ *
+ * Просрочка — единственное, ради чего в этот список заходят, поэтому она не
+ * помечена `optional` и на телефоне видна сразу, вместе с суммой и датой.
+ */
+const OVERDUE_COLUMNS: FieldSpec<BbcExpectation, null>[] = [
+  {
+    key: "row_index",
+    header: "№",
+    optional: true,
+    cellClass: "mono-meta",
+    render: (item) => item.row_index,
+  },
+  {
+    key: "client",
+    header: "Клиент",
+    primary: true,
+    cellClass: "max-w-[220px] truncate",
+    tone: "var(--text-primary)",
+    hint: (item) => item.client || undefined,
+    render: (item) => item.client,
+  },
+  {
+    key: "departments",
+    header: "Отдел",
+    secondary: true,
+    render: (item) => item.departments.join(", ") || "—",
+  },
+  {
+    key: "expected_at",
+    header: "Ждали",
+    cellClass: "mono-meta whitespace-nowrap",
+    render: (item) => new Date(item.expected_at).toLocaleDateString("ru-RU"),
+  },
+  {
+    key: "days_overdue",
+    header: "Просрочка",
+    cellClass: "bbc-num whitespace-nowrap",
+    tone: (item) => (item.days_overdue > 30 ? "var(--accent-rose)" : "var(--accent-amber)"),
+    render: (item) => `${item.days_overdue} ${plural(item.days_overdue, "день", "дня", "дней")}`,
+  },
+  {
+    key: "amount",
+    header: "Сумма",
+    align: "right",
+    cellClass: "text-right bbc-num",
+    tone: "var(--text-primary)",
+    render: (item) => money(item.amount),
+  },
+  {
+    key: "basis",
+    header: "Основание",
+    optional: true,
+    tone: "var(--text-muted)",
+    render: (item) => BASIS_LABEL[item.basis],
+  },
+];
+
 function OverdueCard({ calendar }: { calendar: BbcCalendar }) {
   const overdue = useMemo(
     () =>
@@ -213,63 +273,15 @@ function OverdueCard({ calendar }: { calendar: BbcCalendar }) {
       title="Просрочено"
       subtitle="Деньги ждали раньше, чем сегодня. Сверху — самые давние."
     >
-      <div className="overflow-x-auto">
-        <table className="w-full text-xs" style={{ borderCollapse: "collapse" }}>
-          <thead>
-            <tr>
-              {["№", "Клиент", "Отдел", "Ждали", "Просрочка", "Сумма", "Основание"].map((header) => (
-                <th
-                  key={header}
-                  className="text-left font-medium px-2 py-1.5 whitespace-nowrap"
-                  style={{ color: "var(--text-muted)", borderBottom: "1px solid var(--border-subtle)" }}
-                >
-                  {header}
-                </th>
-              ))}
-            </tr>
-          </thead>
-          <tbody>
-            {overdue.map((item, index) => (
-              <tr
-                key={item.row_index}
-                className="animate-fade-in"
-                style={{
-                  animationDuration: "var(--dur-fast)",
-                  animationDelay: `calc(${Math.min(index, 15)} * var(--dur-stagger) / 2)`,
-                  animationFillMode: "backwards",
-                }}
-              >
-                <td className="px-2 py-1.5 mono-meta">{item.row_index}</td>
-                <td
-                  className="px-2 py-1.5 max-w-[220px] truncate"
-                  style={{ color: "var(--text-primary)" }}
-                  title={item.client}
-                >
-                  {item.client}
-                </td>
-                <td className="px-2 py-1.5" style={{ color: "var(--text-secondary)" }}>
-                  {item.departments.join(", ") || "—"}
-                </td>
-                <td className="px-2 py-1.5 mono-meta whitespace-nowrap">
-                  {new Date(item.expected_at).toLocaleDateString("ru-RU")}
-                </td>
-                <td
-                  className="px-2 py-1.5 bbc-num whitespace-nowrap"
-                  style={{ color: item.days_overdue > 30 ? "var(--accent-rose)" : "var(--accent-amber)" }}
-                >
-                  {item.days_overdue} {plural(item.days_overdue, "день", "дня", "дней")}
-                </td>
-                <td className="px-2 py-1.5 text-right bbc-num" style={{ color: "var(--text-primary)" }}>
-                  {money(item.amount)}
-                </td>
-                <td className="px-2 py-1.5" style={{ color: "var(--text-muted)" }}>
-                  {BASIS_LABEL[item.basis]}
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
+      <SpecList
+        columns={OVERDUE_COLUMNS}
+        rows={overdue}
+        ctx={null}
+        rowKey={(item) => item.row_index}
+        // Список уже обрезан двадцатью самыми давними — второй раз незачем.
+        limit={overdue.length}
+        mobileLimit={overdue.length}
+      />
       {calendar.overdue_count > overdue.length ? (
         <p className="mono-meta mt-2">
           показано {overdue.length} из {calendar.overdue_count}

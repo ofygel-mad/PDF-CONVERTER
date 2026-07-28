@@ -18,10 +18,20 @@ export const metadata: Metadata = {
   description: "Интеллектуальный анализ банковских выписок и экспорт в Excel.",
 };
 
+/**
+ * Вьюпорт: масштаб не запрещаем, безопасные зоны включаем.
+ *
+ * `maximumScale: 1` отнимал пинч-зум — а на телефоне это последний способ
+ * прочитать плотную таблицу, и заодно нарушение WCAG 1.4.4.
+ *
+ * `viewportFit: "cover"` обязателен, а не украшение: без него iOS отдаёт во все
+ * `env(safe-area-inset-*)` ноль, и вся вёрстка вокруг «чёлки» и домашней
+ * полоски молча превращается в пустые отступы.
+ */
 export const viewport: Viewport = {
   width: "device-width",
   initialScale: 1,
-  maximumScale: 1,
+  viewportFit: "cover",
 };
 
 /* Prevent flash-of-wrong-theme: runs before React hydration */

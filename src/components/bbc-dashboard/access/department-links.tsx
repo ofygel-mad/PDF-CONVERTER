@@ -16,7 +16,9 @@
  * ссылку в адресной строке бессмысленно.
  */
 import { useCallback, useEffect, useMemo, useState } from "react";
+import { createPortal } from "react-dom";
 
+import { useScrollLock } from "../../use-scroll-lock";
 import { BbcApiError, createLink, fetchLinks, revokeLink, updateLinkExpiry } from "../api";
 import { CheckIcon, ClockIcon, CopyIcon, LinkIcon } from "../icon";
 import { dateLabel, plural, relativeTime } from "../format";
@@ -454,7 +456,12 @@ function ExpiryDialog({
     return () => window.removeEventListener("keydown", onKey);
   }, [onClose]);
 
-  return (
+  useScrollLock(true);
+
+  // Порталом в body — как и палитра: любой предок с backdrop-filter или
+  // will-change превращает `position: fixed` в отсчёт от себя, и подложка
+  // перестаёт закрывать экран.
+  return createPortal(
     <>
       <button
         type="button"
@@ -467,8 +474,8 @@ function ExpiryDialog({
         role="dialog"
         aria-modal="true"
         aria-label={`Срок действия ссылки для отдела ${code}`}
-        className="fixed z-50 left-1/2 top-[18vh] w-[min(92vw,420px)] card p-5 animate-slide-up"
-        style={{ transform: "translateX(-50%)", boxShadow: "var(--shadow-float)" }}
+        className="bbc-dialog fixed z-50 left-1/2 top-[18vh] w-[min(92vw,420px)] card p-5 animate-slide-up overflow-y-auto"
+        style={{ transform: "translateX(-50%)", boxShadow: "var(--shadow-float)", maxHeight: "88svh" }}
       >
         <div className="flex items-center gap-2 mb-1">
           <ClockIcon size={15} />
@@ -546,6 +553,7 @@ function ExpiryDialog({
           </button>
         </div>
       </div>
-    </>
+    </>,
+    document.body,
   );
 }

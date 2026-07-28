@@ -130,8 +130,10 @@ function WorkbenchInner() {
     return null;
   };
 
+  // svh, а не dvh: снизу закреплён таб-бар, а при dvh высота раскладки едет
+  // вместе с исчезающей адресной строкой Safari.
   return (
-    <div className="min-h-screen flex flex-col" style={{ background: "var(--page-bg)" }}>
+    <div className="min-h-screen min-h-[100svh] flex flex-col" style={{ background: "var(--page-bg)" }}>
       <header
         className="sticky top-0 z-40 flex items-center justify-between gap-2 px-4 py-2.5 border-b backdrop-blur-md"
         style={{ background: "var(--header-bg)", borderColor: "var(--border-subtle)" }}
@@ -281,7 +283,10 @@ function WorkbenchInner() {
                 <CloseIcon size={16} />
               </button>
             </div>
-            <div className="flex-1 overflow-y-auto p-4 space-y-4 pb-8">
+            <div
+              className="flex-1 overflow-y-auto p-4 space-y-4"
+              style={{ paddingBottom: "max(2rem, var(--safe-b))" }}
+            >
               <HistoryPanel
                 history={history}
                 loading={isLoadingSession}

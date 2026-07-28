@@ -7,6 +7,8 @@ import { useCountUp } from "../use-count-up";
 import { useChangedKeys } from "../use-live";
 
 import { dateLabel, money, moneyShort, percent } from "../format";
+import { SpecList, type FieldSpec } from "../mobile/card-list";
+import { Hint } from "../mobile/hint";
 import type { BbcMode, BbcRow } from "../types";
 
 export function SectionCard({
@@ -126,6 +128,12 @@ function KpiTile({
             ? Math.round(shown).toLocaleString("ru-RU")
             : moneyShort(shown)}
       </p>
+      {/* Точное значение. В плитке число сокращено до «189 млн», а полное
+          лежало только в `title` — то есть с телефона было недостижимо.
+          Показывается там же, где `title` не работает; CSS решает где. */}
+      <p className="bbc-kpi-exact bbc-num" style={{ color: "var(--text-muted)" }}>
+        {exact}
+      </p>
     </div>
   );
 }
@@ -135,94 +143,34 @@ export function RowTable({
   rows,
   mode,
   limit = 60,
-  onDrill,
 }: {
   rows: BbcRow[];
   mode: BbcMode;
   limit?: number;
-  onDrill?: (rows: BbcRow[], title: string) => void;
 }) {
-  if (!rows.length) {
-    return (
-      <p className="text-xs" style={{ color: "var(--text-muted)" }}>
-        Нет строк в этом срезе.
-      </p>
-    );
-  }
-
   return (
-    <div className="overflow-x-auto -mx-1">
-      <table className="w-full text-xs" style={{ borderCollapse: "collapse" }}>
-        <thead>
-          <tr>
-            {COLUMNS.map((column) => (
-              <th
-                key={column.key}
-                data-optional={column.optional ? "" : undefined}
-                className={`font-medium px-2 py-1.5 whitespace-nowrap ${
-                  column.align === "right" ? "text-right" : "text-left"
-                }`}
-                style={{ color: "var(--text-muted)", borderBottom: "1px solid var(--border-subtle)" }}
-              >
-                {column.header}
-              </th>
-            ))}
-          </tr>
-        </thead>
-        <tbody>
-          {rows.slice(0, limit).map((row, index) => (
-            <tr
-              key={row.index}
-              className="animate-fade-in"
-              style={{
-                animationDuration: "var(--dur-fast)",
-                animationDelay: `calc(${Math.min(index, 20)} * var(--dur-stagger) / 2)`,
-                animationFillMode: "backwards",
-              }}
-            >
-              {COLUMNS.map((column) => (
-                <td
-                  key={column.key}
-                  data-optional={column.optional ? "" : undefined}
-                  className={`px-2 py-1.5 ${column.cellClass ?? ""}`}
-                  style={{ color: column.tone ?? "var(--text-secondary)" }}
-                  title={column.title?.(row)}
-                >
-                  {column.render(row, mode)}
-                </td>
-              ))}
-            </tr>
-          ))}
-        </tbody>
-      </table>
-
-      {rows.length > limit ? (
-        <p className="mono-meta mt-2 px-2">
-          показано {limit} из {rows.length}
-          {onDrill ? " — уточните фильтр, чтобы увидеть остальные" : ""}
-        </p>
-      ) : null}
-    </div>
+    <SpecList
+      columns={COLUMNS}
+      rows={rows}
+      ctx={mode}
+      rowKey={(row) => row.index}
+      limit={limit}
+    />
   );
 }
 
 /**
  * Колонки реестра, описанные один раз.
  *
- * `optional` — то, без чего строку всё ещё можно прочитать: в компактном режиме
- * эти колонки уходят, и на экран влезает вдвое больше строк. Договор, оплата и
+ * `optional` — то, без чего строку всё ещё можно прочитать. На десктопе в
+ * компактном режиме эти колонки уходят, и на экран влезает вдвое больше строк;
+ * на телефоне они прячутся под раскрытие в карточке. Договор, оплата и
  * признание не помечены никогда — ради них таблицу и открывают.
+ *
+ * `primary`/`secondary` нужны только карточке: из чего собрать её заголовок и
+ * подпись под ним. На таблицу они не влияют.
  */
-type RowColumn = {
-  key: string;
-  header: string;
-  align?: "left" | "right";
-  optional?: boolean;
-  cellClass?: string;
-  tone?: string;
-  title?: (row: BbcRow) => string | undefined;
-  render: (row: BbcRow, mode: BbcMode) => ReactNode;
-};
+type RowColumn = FieldSpec<BbcRow, BbcMode>;
 
 const COLUMNS: RowColumn[] = [
   {
@@ -235,26 +183,30 @@ const COLUMNS: RowColumn[] = [
   {
     key: "client",
     header: "Клиент",
+    primary: true,
     cellClass: "max-w-[220px] truncate",
     tone: "var(--text-primary)",
-    title: (row) => row.client || undefined,
+    hint: (row) => row.client || undefined,
     render: (row) => row.client || "—",
   },
   {
     key: "departments",
     header: "Отдел",
     optional: true,
+    secondary: true,
     render: (row) => row.departments.join(", ") || "—",
   },
   {
     key: "service",
     header: "Услуга",
     optional: true,
+    secondary: true,
     render: (row) => row.service_kind || "—",
   },
   {
     key: "period",
     header: "Период",
+    secondary: true,
     cellClass: "mono-meta whitespace-nowrap",
     render: (row) =>
       `${row.period_start ? dateLabel(row.period_start) : "—"}${
@@ -291,10 +243,12 @@ const COLUMNS: RowColumn[] = [
         return <span style={{ color: "var(--accent-emerald)" }}>{money(recognized)}</span>;
       }
       if (wip) {
+        // Причина, по которой сумма ещё не признана, раньше лежала в `title` —
+        // то есть на телефоне была недостижима.
         return (
-          <span style={{ color: "var(--accent-amber)" }} title="Ожидает: нет дат периода">
-            {money(wip)} · WIP
-          </span>
+          <Hint text="Ожидает: нет дат периода">
+            <span style={{ color: "var(--accent-amber)" }}>{money(wip)} · WIP</span>
+          </Hint>
         );
       }
       return <span style={{ color: "var(--text-muted)" }}>—</span>;

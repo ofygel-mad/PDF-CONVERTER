@@ -287,7 +287,7 @@ function PresetCard({
         ) : null}
       </div>
 
-      <p className="text-[0.68rem] leading-snug" style={{ color: "var(--text-muted)" }}>
+      <p className="bbc-micro leading-snug" style={{ color: "var(--text-muted)" }}>
         {description}
       </p>
 
@@ -356,7 +356,7 @@ function SavedViews({
       {views.map((view) => (
         <span
           key={view.id}
-          className="flex items-center gap-1 text-[0.7rem] rounded-lg"
+          className="flex items-center gap-1 bbc-mini rounded-lg"
           style={{ background: "var(--bg-active)", color: "var(--text-secondary)" }}
         >
           <button
@@ -395,7 +395,7 @@ function SavedViews({
             onChange={(event) => setName(event.target.value)}
             onBlur={() => setNaming(false)}
             placeholder="Название вида"
-            className="input-field text-xs max-w-[160px]"
+            className="input-field text-xs w-full sm:w-auto sm:max-w-[160px]"
             aria-label="Название сохранённого вида"
           />
           <button type="submit" className="btn-ghost text-xs px-2 py-1">
@@ -405,7 +405,7 @@ function SavedViews({
       ) : (
         <button
           type="button"
-          className="btn-ghost text-[0.7rem] px-2.5 py-1 flex items-center gap-1.5"
+          className="btn-ghost bbc-mini px-2.5 py-1 flex items-center gap-1.5"
           onClick={() => setNaming(true)}
           title="Сохранить текущие фильтры и режим"
         >

@@ -544,16 +544,29 @@ function ReportTable({ months, rows }: { months: string[]; rows: ReportRow[] }) 
   }
 
   return (
-    <div className="overflow-x-auto">
-      <table className="w-full text-xs" style={{ borderCollapse: "collapse" }}>
+    <>
+    <div className="bbc-scroll-x">
+      {/* Ширина задана снизу, а не отдана содержимому: без неё таблица
+          сжималась в кашу вместо того, чтобы прокручиваться, — 84px это
+          минимум, ниже которого сумма ломается на две строки цифр. */}
+      <table
+        className="text-xs"
+        style={{ borderCollapse: "separate", borderSpacing: 0, minWidth: 140 + months.length * 84 }}
+      >
         <thead>
           <tr>
             <th
+              // z-index обязателен: без него залипающая ячейка красится под
+              // фоном следующих. И `borderCollapse: separate` вместо
+              // `collapse` — при схлопнутых границах Chrome теряет рамку у
+              // sticky-ячеек, и разделитель замороженной колонки исчезал.
               className="text-left font-medium px-2 py-1.5 sticky left-0 whitespace-nowrap"
               style={{
                 color: "var(--text-muted)",
                 background: "var(--bg-surface)",
                 borderBottom: "1px solid var(--border-subtle)",
+                boxShadow: "1px 0 0 var(--border-base)",
+                zIndex: 2,
               }}
             >
               Статья
@@ -579,6 +592,8 @@ function ReportTable({ months, rows }: { months: string[]; rows: ReportRow[] }) 
                   fontWeight: row.tone === "total" ? 600 : 400,
                   background: "var(--bg-surface)",
                   borderTop: row.tone === "total" ? "1px solid var(--border-base)" : undefined,
+                  boxShadow: "1px 0 0 var(--border-base)",
+                  zIndex: 1,
                 }}
                 title={row.note}
               >
@@ -614,5 +629,9 @@ function ReportTable({ months, rows }: { months: string[]; rows: ReportRow[] }) 
         </tbody>
       </table>
     </div>
+    <p className="mono-meta mt-1.5 sm:hidden" style={{ color: "var(--text-muted)" }}>
+      → таблицу можно листать вбок
+    </p>
+    </>
   );
 }

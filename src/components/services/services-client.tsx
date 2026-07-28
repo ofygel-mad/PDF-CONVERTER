@@ -61,7 +61,7 @@ export function ServicesClient() {
   const [openService, setOpenService] = useState<string | null>(null);
 
   return (
-    <div className="min-h-screen flex flex-col" style={{ background: "var(--page-bg)" }}>
+    <div className="min-h-screen min-h-[100dvh] flex flex-col" style={{ background: "var(--page-bg)" }}>
       <header
         className="sticky top-0 z-40 flex items-center justify-between gap-2 px-4 py-2.5 border-b backdrop-blur-md"
         style={{ background: "var(--header-bg)", borderColor: "var(--border-subtle)" }}
