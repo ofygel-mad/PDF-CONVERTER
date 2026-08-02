@@ -82,7 +82,7 @@ export function BarRow({
   );
 }
 
-function toneColour(tone: string): string {
+export function toneColour(tone: string): string {
   switch (tone) {
     case "emerald":
       return "var(--accent-emerald)";

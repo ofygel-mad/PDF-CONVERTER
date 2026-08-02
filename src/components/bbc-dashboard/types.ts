@@ -67,6 +67,8 @@ export type BbcRow = {
   /** 1-based row number in the sheet — used by the warnings block. */
   index: number;
   month: number | null;
+  /** «ИЮНЬ 2026» либо «Старые (до Мая/Июня 2026)» — строка входящего остатка. */
+  period_label: string;
   client: string;
   contract_no: string;
   subject: string;
@@ -95,6 +97,19 @@ export type BbcRow = {
   period_end: string | null;
   signed_at: string | null;
 
+  /**
+   * Долг строки — колонка «Дебет / Кредит (в т.ч без АВР)».
+   * Считает книга, а не мы: начальный остаток плюс суммы договоров по
+   * наступившим периодам, минус оплаты.
+   */
+  debt: number | null;
+  /** Период не наступил («Еще рано»). Это предстоящее, а не долг. */
+  debt_pending: boolean;
+  /** В колонке долга формульная ошибка — строка идёт в «Предупреждения». */
+  debt_broken: boolean;
+  /** Долг до учётных периодов. Есть только у строки «Старые…». */
+  carry_in: number | null;
+
   recognition: Record<BbcMode, BbcRecognition>;
 };
 
@@ -119,6 +134,9 @@ export type BbcCoverage = {
   paid: number;
   one_off_without_end: number;
   unassigned_rows: number;
+  with_debt: number;
+  debt_pending_rows: number;
+  debt_broken_rows: number;
 };
 
 export type BbcSeverity = "critical" | "important" | "info";

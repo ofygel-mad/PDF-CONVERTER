@@ -568,7 +568,18 @@ export function BbcDashboardClient() {
                     tone={tone}
                   />
                 ) : null}
-                {activeBlock.key === "receivables" ? <ReceivablesBlock rows={rows} mode={mode} /> : null}
+                {activeBlock.key === "receivables" ? (
+                  <ReceivablesBlock
+                    dataset={dataset}
+                    rows={rows}
+                    mode={mode}
+                    filters={filters}
+                    onToggleFilter={toggleFilter}
+                    onSearch={(value) => setFilters((current) => ({ ...current, search: value }))}
+                    onClearFilters={clearFilters}
+                    activeFilterCount={activeFilterCount}
+                  />
+                ) : null}
                 {activeBlock.key === "reports" ? <ReportsBlock rows={rows} mode={mode} /> : null}
                 {activeBlock.key === "analytics" ? (
                   <AnalyticsBlock rows={rows} mode={mode} onFilter={toggleFilter} />

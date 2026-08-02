@@ -221,6 +221,25 @@ export function ArrowRightIcon(props: IconProps) {
   );
 }
 
+/** Шеврон — раскрытие строки клиента в реестре дебиторки. */
+export function ChevronRightIcon(props: IconProps) {
+  return (
+    <Glyph size={14} {...props}>
+      <path d="M9 6l6 6-6 6" />
+    </Glyph>
+  );
+}
+
+/** Круговая диаграмма — вход в «Итоги» дебиторки. */
+export function PieChartIcon(props: IconProps) {
+  return (
+    <Glyph {...props}>
+      <path d="M12 3v9h9" />
+      <circle cx="12" cy="12" r="9" />
+    </Glyph>
+  );
+}
+
 /** Три точки — вход в лист действий на телефоне. */
 export function MoreIcon(props: IconProps) {
   return (

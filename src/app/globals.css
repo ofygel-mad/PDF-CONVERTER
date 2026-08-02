@@ -1076,6 +1076,75 @@ html, body { overflow-x: clip; }
   .only-desktop { display: none !important; }
 }
 
+/* ─── Реестр дебиторки ────────────────────────────────────────────
+   Одна сетка на все ширины. На десктопе четыре колонки: клиент, возраст,
+   отделы, долг. На телефоне отделы и полоска возраста уходят во вторую
+   строку, а клиент и сумма остаются рядом — это те два значения, ради
+   которых в реестр и заходят.
+
+   Прятать здесь нечего: строка не исчезает, а переставляется. Классы
+   .only-mobile / .only-desktop нужны только шапке таблицы, которой на
+   телефоне не место — там каждое значение подписано в самой строке.      */
+.bbc-reg-head,
+.bbc-reg-row {
+  display: grid;
+  grid-template-columns: minmax(0, 2.4fr) minmax(0, 1.6fr) minmax(0, 1fr) minmax(0, 1fr);
+  align-items: center;
+  gap: 0.75rem;
+  padding: 0.625rem 0.875rem;
+}
+
+/* Один отдел в области видимости — колонки «Отделы» нет, и её место
+   отдаётся имени клиента, а не пустоте. */
+.bbc-reg-head[data-no-dept],
+.bbc-reg-row[data-no-dept] {
+  grid-template-columns: minmax(0, 3.4fr) minmax(0, 1.6fr) minmax(0, 1fr);
+}
+
+.bbc-reg-row {
+  transition: background var(--dur-fast) var(--ease-out);
+}
+.bbc-reg-row:hover { background: var(--bg-hover); }
+.bbc-reg-row:active { background: var(--bg-active); }
+
+@media (max-width: 639.98px) {
+  /* Две строки: сверху имя и сумма — ровно те два значения, ради которых
+     в реестр заходят; снизу возраст и отделы. Позиции проставлены явно,
+     иначе сумма (четвёртый потомок) уезжает на третью строку и имя остаётся
+     стоять рядом с пустотой. */
+  .bbc-reg-row {
+    grid-template-columns: minmax(0, 1fr) auto;
+    row-gap: 0.25rem;
+  }
+  .bbc-reg-name { grid-area: 1 / 1; }
+  .bbc-reg-sum { grid-area: 1 / 2; }
+  .bbc-reg-age { grid-area: 2 / 1; }
+  .bbc-reg-dept { grid-area: 2 / 2; text-align: right; }
+}
+
+/* Полоска возраста. Графитовая целиком — цвет появляется только на
+   просрочке. Постоянный зелёный «всё хорошо» здесь запрещён: он
+   перестаёт читаться ровно к тому моменту, когда должен был напугать. */
+.bbc-age-track {
+  display: flex;
+  height: 4px;
+  width: 100%;
+  max-width: 120px;
+  min-width: 48px;
+  border-radius: 999px;
+  overflow: hidden;
+  background: var(--bg-active);
+}
+
+.bbc-age-seg {
+  height: 100%;
+  background: var(--border-strong);
+}
+
+.bbc-age-seg[data-overdue] {
+  background: var(--accent-rose);
+}
+
 /* ─── Reduced motion ──────────────────────────────────────────────
    Accessibility requirement, not an option: when the OS asks for less
    motion, animation stops entirely while every state stays correct.
