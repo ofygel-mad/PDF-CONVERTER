@@ -109,6 +109,7 @@ function ClientRow({
             <span className="block text-xs truncate" style={{ color: "var(--text-muted)" }}>
               {client.contracts.length}{" "}
               {plural(client.contracts.length, "договор", "договора", "договоров")}
+              {client.parked > 0 ? ` · не в силе ${money(client.parked)} ₸` : ""}
               {client.broken ? " · долг посчитан не полностью" : ""}
             </span>
           </span>

@@ -13,7 +13,7 @@ import { dateLabel, money, plural } from "../../format";
 import { department } from "../../department";
 import type { BbcRow } from "../../types";
 import { AgeLabel, ageOfRow } from "./age-track";
-import { rowDebt, type ClientDebt } from "./debt";
+import { rowDebt, rowParked, type ClientDebt } from "./debt";
 
 type GroupBy = "dept" | "contract";
 
@@ -159,7 +159,11 @@ function DetailRow({ row, groupBy }: { row: BbcRow; groupBy: GroupBy }) {
         {row.invoiced ? row.invoice_no || "выставлен" : "—"}
       </td>
       <td className="px-2 py-1 text-right">
-        {row.debt_pending ? (
+        {!row.in_force ? (
+          <span className="text-xs" style={{ color: "var(--text-muted)" }}>
+            не в силе
+          </span>
+        ) : row.debt_pending ? (
           <span className="text-xs" style={{ color: "var(--text-muted)" }}>
             срок не наступил
           </span>
@@ -171,6 +175,13 @@ function DetailRow({ row, groupBy }: { row: BbcRow; groupBy: GroupBy }) {
         {row.debt_broken ? (
           <span title="В книге ошибка формулы — долг не посчитан" style={{ color: "var(--accent-rose)" }}>
             не посчитан
+          </span>
+        ) : !row.in_force ? (
+          <span
+            style={{ color: "var(--text-muted)" }}
+            title="«Вид Услуги» = «нет»: договор зафиксирован, но в силу не вступил"
+          >
+            {money(rowParked(row))} ₸
           </span>
         ) : row.debt_pending ? (
           <span style={{ color: "var(--text-muted)" }}>

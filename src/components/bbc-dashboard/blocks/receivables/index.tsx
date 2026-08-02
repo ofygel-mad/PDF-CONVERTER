@@ -85,6 +85,9 @@ export function ReceivablesBlock({
             должны {totals.debtors}{" "}
             {plural(totals.debtors, "клиент", "клиента", "клиентов")} из {totals.clients}
             {totals.pending > 0 ? ` · предстоит ${money(totals.pending)} ₸` : ""}
+            {/* Подвешенные договоры в долг не входят, но и не исчезают: сумма
+                на виду, иначе про договор на 4 млн просто забудут. */}
+            {totals.parked > 0 ? ` · не в силе ${money(totals.parked)} ₸` : ""}
             {/* Неполнота — это не мелочь: итог занижен ровно на эти строки. */}
             {totals.broken > 0
               ? ` · у ${totals.broken} ${plural(totals.broken, "клиента", "клиентов", "клиентов")} долг посчитан не полностью`

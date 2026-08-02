@@ -23,6 +23,8 @@ export type ContractDebt = {
   debt: number;
   /** Периоды, срок которых ещё не пришёл. Это не долг. */
   pending: number;
+  /** Договоры, не вступившие в силу. Тоже не долг, но по другой причине. */
+  parked: number;
   /** Дней с начала самого старого неоплаченного периода. */
   ageDays: number | null;
   broken: boolean;
@@ -34,6 +36,7 @@ export type ClientDebt = {
   client: string;
   debt: number;
   pending: number;
+  parked: number;
   ageDays: number | null;
   departments: string[];
   contracts: ContractDebt[];
@@ -41,7 +44,18 @@ export type ClientDebt = {
   rows: BbcRow[];
 };
 
+/**
+ * Долг строки. У договора, не вступившего в силу, долга нет: сумма
+ * зафиксирована, но платить по ней пока не за что — см. `rowParked`.
+ */
 export function rowDebt(row: BbcRow): number {
+  if (!row.in_force) return 0;
+  return (row.debt ?? 0) + (row.carry_in ?? 0);
+}
+
+/** Сумма подвешенного договора — не долг, но и не ноль. */
+export function rowParked(row: BbcRow): number {
+  if (row.in_force) return 0;
   return (row.debt ?? 0) + (row.carry_in ?? 0);
 }
 
@@ -69,9 +83,13 @@ function unique(values: string[]): string[] {
   return [...new Set(values.filter(Boolean))].sort();
 }
 
+function parkedOf(rows: BbcRow[]): number {
+  return rows.reduce((sum, row) => sum + rowParked(row), 0);
+}
+
 function pendingOf(rows: BbcRow[]): number {
   return rows
-    .filter((row) => row.debt_pending)
+    .filter((row) => row.debt_pending && row.in_force)
     .reduce((sum, row) => sum + (row.contract_amount ?? 0), 0);
 }
 
@@ -98,6 +116,7 @@ function buildContract(key: string, rows: BbcRow[]): ContractDebt {
     departments: unique(rows.flatMap((row) => row.departments)),
     debt: rows.reduce((sum, row) => sum + rowDebt(row), 0),
     pending: pendingOf(rows),
+    parked: parkedOf(rows),
     ageDays: ageOf(rows),
     broken: rows.some((row) => row.debt_broken),
     rows,
@@ -146,6 +165,7 @@ export function buildRegistry(rows: BbcRow[]): ClientDebt[] {
         client,
         debt: clientRows.reduce((sum, row) => sum + rowDebt(row), 0),
         pending: pendingOf(clientRows),
+        parked: parkedOf(clientRows),
         ageDays: ageOf(clientRows),
         departments: unique(clientRows.flatMap((row) => row.departments)),
         contracts,
@@ -165,6 +185,7 @@ export function registryTotals(clients: ClientDebt[]) {
     debtors: clients.filter((client) => client.debt > 0).length,
     debt: clients.reduce((sum, client) => sum + client.debt, 0),
     pending: clients.reduce((sum, client) => sum + client.pending, 0),
+    parked: clients.reduce((sum, client) => sum + client.parked, 0),
     broken: clients.filter((client) => client.broken).length,
   };
 }

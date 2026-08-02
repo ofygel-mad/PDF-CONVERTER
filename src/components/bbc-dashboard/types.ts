@@ -109,6 +109,12 @@ export type BbcRow = {
   debt_broken: boolean;
   /** Долг до учётных периодов. Есть только у строки «Старые…». */
   carry_in: number | null;
+  /**
+   * Договор вступил в силу. «Вид Услуги» = «нет» означает, что услуга ещё не
+   * определена: договор зафиксирован в реестре, но платить по нему не за что.
+   * Такие суммы в дебиторку не входят — их и отделы у себя не считают.
+   */
+  in_force: boolean;
 
   recognition: Record<BbcMode, BbcRecognition>;
 };
@@ -137,6 +143,7 @@ export type BbcCoverage = {
   with_debt: number;
   debt_pending_rows: number;
   debt_broken_rows: number;
+  not_in_force_rows: number;
 };
 
 export type BbcSeverity = "critical" | "important" | "info";
