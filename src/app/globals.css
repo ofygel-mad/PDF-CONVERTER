@@ -1051,6 +1051,31 @@ html, body { overflow-x: clip; }
   a[href]::after { content: ""; }
 }
 
+/* ─── Видимость по брейкпоинту ────────────────────────────────────
+   Свои классы вместо hidden / sm:hidden от Tailwind.
+
+   Не блажь, а обход ловушки каскада. Tailwind 4 кладёт утилиты в
+   `@layer utilities`, а правила этого файла не в слое вовсе — а неслоёный
+   стиль по каскаду бьёт любой слой, независимо от специфичности и порядка.
+   Поэтому у элемента с компонентным классом `display` всегда берётся из
+   компонента, а `hidden`/`sm:hidden` рядом молча не работает.
+
+   Стоило это трёх дефектов на проде, проверенных в браузере: нижний таб-бар
+   (.bbc-tabbar) висел на всех ширинах вплоть до 1440 и дублировал верхнюю
+   ленту вкладок; значок логотипа (.logo-badge) занимал место в однострочной
+   шапке телефона, из-за чего заголовок обрезался; кнопки «Назад» и «Действия»
+   (.btn-ghost) показывались там, где предназначались другому экрану.
+
+   !important здесь по делу: эти два класса делают ровно одно — прячут, — и
+   должны выигрывать у любого компонентного display, не считаясь ни с чем.
+   Ставить их можно только рядом с классом, который сам задаёт display.       */
+@media (min-width: 640px) {
+  .only-mobile { display: none !important; }
+}
+@media (max-width: 639.98px) {
+  .only-desktop { display: none !important; }
+}
+
 /* ─── Reduced motion ──────────────────────────────────────────────
    Accessibility requirement, not an option: when the OS asks for less
    motion, animation stops entirely while every state stays correct.
@@ -1080,3 +1105,26 @@ html, body { overflow-x: clip; }
   from { stroke-dashoffset: 1000; }
   to   { stroke-dashoffset: 0; }
 }
+
+/* ─── Пульс живой связи (BBC Dashboard) ────────────────────────────
+   Трасса сдвигается на один удар за один успешный опрос — раз в 5 секунд,
+   а не бесконечным лупом. Движение здесь означает «данные пришли», и врать
+   об этом нельзя: замерла линия — замер опрос, и это единственное, по чему
+   отказ виден без подписи. Всплеск сапфиром — правка в таблице, он не
+   декоративный и рисуется только при сдвиге revision.
+
+   Обе анимации разовые и с fill both, поэтому глушилка prefers-reduced-motion
+   внизу файла даёт ровно то, что нужно: движение исчезает, конечное состояние
+   (нулевой сдвиг, графитовый штрих) остаётся верным. Ветки в компоненте не
+   нужны. will-change не ставим — та же ловушка, что описана у .bbc-enter. */
+@keyframes bbc-pulse-shift {
+  from { transform: translateX(var(--bbc-pulse-step, 9px)); }
+  to   { transform: translateX(0); }
+}
+@keyframes bbc-pulse-spike {
+  0%,
+  55% { stroke: var(--accent); }
+  100% { stroke: var(--text-muted); }
+}
+.bbc-pulse-shift { animation: bbc-pulse-shift var(--dur-slow) var(--ease-out) both; }
+.bbc-pulse-spike { animation: bbc-pulse-spike var(--dur-tell) var(--ease-out) both; }

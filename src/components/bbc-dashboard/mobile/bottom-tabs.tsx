@@ -76,8 +76,10 @@ export function BottomTabs({
   const { tabs, rest } = splitTabs(blocks);
   const showMore = rest.length > 0;
 
+  // only-mobile, а не sm:hidden: утилита Tailwind проигрывает .bbc-tabbar по
+  // каскаду слоёв, и бар висел на десктопе поверх ленты вкладок.
   return (
-    <nav className="bbc-tabbar sm:hidden" aria-label="Разделы">
+    <nav className="bbc-tabbar only-mobile" aria-label="Разделы">
       {tabs.map((item) => {
         const Icon = item.icon;
         const active = activeKey === item.key;

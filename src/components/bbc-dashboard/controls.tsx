@@ -16,6 +16,7 @@ import { Hint } from "./mobile/hint";
 import { plural, relativeTime } from "./format";
 import type { BbcDataset, BbcMode } from "./types";
 import type { Filters } from "./use-dataset";
+import { LivePulse } from "./live-pulse";
 import type { LiveState } from "./use-live";
 
 /* ── Live indicator ──────────────────────────────────────────────────────────── */
@@ -25,7 +26,7 @@ export function LiveIndicator({
   compact = false,
 }: {
   live: LiveState;
-  /** В однострочной шапке телефона — только точка. */
+  /** В однострочной шапке телефона — только трасса, без подписи. */
   compact?: boolean;
 }) {
   // Три состояния, а не два. «Нет связи» — не отвечает наш бэкенд. «Источник не
@@ -34,12 +35,6 @@ export function LiveIndicator({
   // лист, кончилась квота. Раньше это выглядело как полный порядок — зелёная
   // точка и «правка 4 часа назад», хотя цифры молча застыли.
   const failing = live.online && !!live.sourceError;
-
-  const tone = !live.online
-    ? "var(--accent-amber)"
-    : failing
-      ? "var(--accent-rose)"
-      : "var(--accent-emerald)";
 
   const label = !live.online
     ? "нет связи"
@@ -66,30 +61,24 @@ export function LiveIndicator({
       style={failing ? { color: "var(--accent-rose)" } : undefined}
       role={failing ? "alert" : undefined}
     >
-      <span
-        aria-hidden="true"
-        style={{
-          width: 6,
-          height: 6,
-          borderRadius: "50%",
-          background: tone,
-          boxShadow:
-            live.online && !failing
-              ? `0 0 0 3px color-mix(in srgb, ${tone} 22%, transparent)`
-              : "none",
-        }}
-      />
+      <LivePulse live={live} compact={compact} />
       {/* Сбой источника нельзя прятать на узком экране — это единственное
           состояние, где цифрам на экране верить нельзя. В компактном виде
           подпись убрана даже для сбоя: на телефоне он выведен отдельной
-          строкой-баннером под шапкой, где заметнее, а не мельче. */}
-      {compact ? null : <span className={failing ? "" : "hidden sm:inline"}>{label}</span>}
+          строкой-баннером под шапкой, где заметнее, а не мельче. Но трасса
+          для скринридера — пустое место, поэтому состояние всё равно уходит
+          текстом. */}
+      {compact ? (
+        <span className="sr-only">{label}</span>
+      ) : (
+        <span className={failing ? "" : "hidden sm:inline"}>{label}</span>
+      )}
     </span>
   );
 }
 
 /**
- * Сбой источника на телефоне — отдельной строкой, а не подписью у точки.
+ * Сбой источника на телефоне — отдельной строкой, а не подписью у индикатора.
  *
  * В однострочной шапке для текста места нет, но это единственное состояние, где
  * числам на экране верить нельзя, — и прятать его нельзя тем более. Строка под

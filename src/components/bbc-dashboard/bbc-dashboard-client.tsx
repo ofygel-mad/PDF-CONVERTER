@@ -314,15 +314,17 @@ export function BbcDashboardClient() {
           <div className="flex items-center gap-2.5 min-w-0">
             <Link
               href="/services"
-              className="btn-ghost text-xs px-2.5 py-1.5 hidden sm:flex items-center gap-1.5"
+              className="btn-ghost only-desktop text-xs px-2.5 py-1.5 items-center gap-1.5"
               title="К сервисам"
             >
               <ArrowLeftIcon size={15} />
               <span className="hidden sm:inline">Назад</span>
             </Link>
             {/* На телефоне значок уступает место заголовку — тот и так называет
-                раздел, а «Назад» переехало в лист действий. */}
-            <span className="logo-badge hidden sm:inline-flex">
+                раздел, а «Назад» переехало в лист действий. only-desktop, а не
+                hidden: у .logo-badge свой display, и утилита его не перебивала —
+                значок съедал ширину, из-за чего заголовок обрезался. */}
+            <span className="logo-badge only-desktop">
               <BbcDashboardIcon size={16} />
             </span>
             <span
@@ -350,7 +352,7 @@ export function BbcDashboardClient() {
             <button
               type="button"
               onClick={() => setSheet("actions")}
-              className="btn-ghost sm:hidden flex items-center justify-center px-2.5 py-1.5"
+              className="btn-ghost only-mobile items-center justify-center px-2.5 py-1.5"
               aria-label="Действия"
               aria-haspopup="dialog"
             >
