@@ -389,7 +389,19 @@ function Picker({
         aria-haspopup="listbox"
       >
         <span className="truncate">{value || label}</span>
-        <ChevronRightIcon size={12} />
+        {/* Шеврон вниз, а не вправо: вправо он обещает переход на другой экран,
+            а здесь раскрывается список под кнопкой. Поворот, а не вторая
+            иконка — набор значков модуля и так свой, плодить его незачем. */}
+        <span
+          aria-hidden="true"
+          className="shrink-0 flex transition-transform"
+          style={{
+            transform: open ? "rotate(-90deg)" : "rotate(90deg)",
+            transitionDuration: "var(--dur-fast)",
+          }}
+        >
+          <ChevronRightIcon size={12} />
+        </span>
       </button>
 
       {open ? (
