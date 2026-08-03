@@ -10,6 +10,7 @@ import type {
   BbcCalendar,
   BbcCalendarMethod,
   BbcDataset,
+  BbcEmployeeAlias,
   BbcEmployeeCreated,
   BbcEmployeeForm,
   BbcEmployeesPayload,
@@ -139,9 +140,13 @@ export function fetchEmployees(): Promise<BbcEmployeesPayload> {
   return request<BbcEmployeesPayload>("/employees");
 }
 
-/** Написания из колонки «Сотрудник» — чтобы привязать учётку к её клиентам. */
-export function fetchEmployeeAliases(): Promise<{ names: string[] }> {
-  return request<{ names: string[] }>("/employees/aliases");
+/**
+ * Написания из колонки «Сотрудник» — чтобы привязать учётку к её клиентам.
+ * Каждое приходит со своими отделами и числом клиентов: без этого админ
+ * собирает учётку вслепую и может выдать отдел, в котором этого человека нет.
+ */
+export function fetchEmployeeAliases(): Promise<{ names: BbcEmployeeAlias[] }> {
+  return request<{ names: BbcEmployeeAlias[] }>("/employees/aliases");
 }
 
 export function createEmployee(form: BbcEmployeeForm): Promise<BbcEmployeeCreated> {

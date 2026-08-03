@@ -79,6 +79,20 @@ export type BbcRolePreset = {
   data_scope: BbcDataScope;
 };
 
+/**
+ * Написание из колонки «Сотрудник» вместе с тем, что за ним стоит.
+ *
+ * Голого имени мало: отметив человека из НО и выдав отдел ОБО, админ соберёт
+ * учётку с пустым пересечением — она выглядит рабочей и не показывает ни одной
+ * строки. Отделы и число клиентов видны прямо у галочки.
+ */
+export type BbcEmployeeAlias = {
+  name: string;
+  departments: string[];
+  clients: number;
+  rows: number;
+};
+
 export type BbcEmployeesPayload = {
   employees: BbcEmployee[];
   presets: BbcRolePreset[];

@@ -31,10 +31,12 @@ import {
   restoreEmployee,
   updateEmployee,
 } from "../api";
+import { plural } from "../format";
 import { CheckIcon, CopyIcon, LockIcon, UserIcon } from "../icon";
 import type {
   BbcDataScope,
   BbcEmployee,
+  BbcEmployeeAlias,
   BbcEmployeeForm,
   BbcEmployeesPayload,
   BbcRolePreset,
@@ -69,7 +71,7 @@ const EMPTY_FORM: BbcEmployeeForm = {
 
 export function Employees() {
   const [payload, setPayload] = useState<BbcEmployeesPayload | null>(null);
-  const [aliases, setAliases] = useState<string[]>([]);
+  const [aliases, setAliases] = useState<BbcEmployeeAlias[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -327,7 +329,7 @@ function EmployeeEditor({
   presets: BbcRolePreset[];
   departments: string[];
   blocks: string[];
-  aliases: string[];
+  aliases: BbcEmployeeAlias[];
   onClose: () => void;
   onSaved: (login: string, password?: string) => void | Promise<void>;
 }) {
@@ -495,18 +497,29 @@ function EmployeeEditor({
         </fieldset>
 
         {/* Написания из таблицы. Список, а не ввод: в книге встречаются «Дана»,
-            «Дана Ж.» и «Жумабекова Д.», угадать их с клавиатуры нельзя. */}
+            «Дана Ж.» и «Жумабекова Д.», угадать их с клавиатуры нельзя.
+
+            Рядом с каждым — его отделы и число клиентов. Без этого админ
+            собирает учётку вслепую: отметив человека из НО и выдав отдел ОБО,
+            он получит пустое пересечение — аккаунт выглядит рабочим и не
+            показывает ни одной строки. */}
         {form.data_scope === "own" ? (
           <fieldset className="flex flex-col gap-1.5">
             <legend className="eyebrow">Как он записан в колонке «Сотрудник»</legend>
             {aliases.length ? (
-              <div className="flex flex-wrap gap-2 max-h-40 overflow-y-auto">
-                {aliases.map((name) => (
-                  <Check
-                    key={name}
-                    label={name}
-                    checked={form.employee_aliases.includes(name)}
-                    onChange={() => toggle("employee_aliases", name)}
+              <div className="flex flex-col gap-1 max-h-52 overflow-y-auto pr-1">
+                {aliases.map((alias) => (
+                  <AliasRow
+                    key={alias.name}
+                    alias={alias}
+                    checked={form.employee_aliases.includes(alias.name)}
+                    // Отдел не пересекается с выданными — отмечать можно, но
+                    // человек должен видеть, что строк за этим не будет.
+                    orphan={
+                      form.departments.length > 0 &&
+                      !alias.departments.some((code) => form.departments.includes(code))
+                    }
+                    onChange={() => toggle("employee_aliases", alias.name)}
                   />
                 ))}
               </div>
@@ -515,11 +528,7 @@ function EmployeeEditor({
                 Список имён из таблицы сейчас недоступен. Попробуйте обновить страницу.
               </p>
             )}
-            {!form.employee_aliases.length ? (
-              <p className="bbc-micro" style={{ color: "var(--accent-amber)" }}>
-                Отметьте хотя бы одно — иначе сотруднику не будет видно ни одной строки.
-              </p>
-            ) : null}
+            <ScopePreview form={form} aliases={aliases} />
           </fieldset>
         ) : null}
 
@@ -548,6 +557,86 @@ function EmployeeEditor({
         </div>
       </form>
     </div>
+  );
+}
+
+/** Одно написание из таблицы: имя, его отделы и сколько за ним клиентов. */
+function AliasRow({
+  alias,
+  checked,
+  orphan,
+  onChange,
+}: {
+  alias: BbcEmployeeAlias;
+  checked: boolean;
+  orphan: boolean;
+  onChange: () => void;
+}) {
+  return (
+    <label className="flex items-center gap-2 text-xs cursor-pointer min-w-0 py-0.5">
+      <input type="checkbox" checked={checked} onChange={onChange} className="shrink-0" />
+      <span
+        className="truncate min-w-0"
+        style={{ color: checked ? "var(--text-primary)" : "var(--text-secondary)" }}
+      >
+        {alias.name}
+      </span>
+      <span className="bbc-micro shrink-0" style={{ color: "var(--text-muted)" }}>
+        {alias.departments.join(", ") || "без отдела"} · {alias.clients}{" "}
+        {plural(alias.clients, "клиент", "клиента", "клиентов")}
+      </span>
+      {/* Цвет только на несовпадении. Подтверждать «всё хорошо» цветом нечего. */}
+      {orphan && checked ? (
+        <span className="bbc-micro shrink-0 ml-auto" style={{ color: "var(--accent-amber)" }}>
+          не в выданных отделах
+        </span>
+      ) : null}
+    </label>
+  );
+}
+
+/**
+ * Что реально увидит сотрудник при текущих галочках.
+ *
+ * Считается прямо здесь, до сохранения: пустой аккаунт выглядит рабочим, и
+ * узнать о нём иначе можно только от самого сотрудника через неделю.
+ */
+function ScopePreview({
+  form,
+  aliases,
+}: {
+  form: BbcEmployeeForm;
+  aliases: BbcEmployeeAlias[];
+}) {
+  if (!form.employee_aliases.length) {
+    return (
+      <p className="bbc-micro" style={{ color: "var(--accent-amber)" }}>
+        Отметьте хотя бы одно — иначе сотруднику не будет видно ни одной строки.
+      </p>
+    );
+  }
+
+  const matched = aliases.filter(
+    (alias) =>
+      form.employee_aliases.includes(alias.name) &&
+      (!form.departments.length ||
+        alias.departments.some((code) => form.departments.includes(code))),
+  );
+  const clients = matched.reduce((sum, alias) => sum + alias.clients, 0);
+
+  if (!clients) {
+    return (
+      <p className="bbc-micro" style={{ color: "var(--accent-rose)" }}>
+        Ни одно из отмеченных имён не встречается в выданных отделах — сотрудник увидит пустой
+        экран. Проверьте отделы выше.
+      </p>
+    );
+  }
+
+  return (
+    <p className="bbc-micro" style={{ color: "var(--text-muted)" }}>
+      Увидит примерно {clients} {plural(clients, "клиента", "клиентов", "клиентов")}.
+    </p>
   );
 }
 
