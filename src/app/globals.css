@@ -559,6 +559,109 @@ select.input-field optgroup {
 }
 .bbc-boot { animation: bbc-boot var(--dur-base) var(--ease-out) both; }
 
+/* ─── Экран первой загрузки ───────────────────────────────────────
+   Знак продукта в полный рост: столбцы отчёта поднимаются от основания по
+   очереди и дышат, пока идёт чтение. Спиннер до этого крутился одинаково и
+   три секунды, и тридцать — то есть не говорил ничего.
+
+   Анимируется только transform: высота задаётся разметкой один раз, движение
+   идёт по scaleY от нижнего края. Под prefers-reduced-motion всё схлопывается
+   правилом в конце файла, и столбцы просто появляются.                      */
+.bbc-boot-screen { animation: bbc-boot var(--dur-base) var(--ease-out) both; }
+
+/* Размер по высоте окна, а не фиксированный: на 1440 знак в 84px читался как
+   мелкий виджет посреди пустого поля, а не как экран.                       */
+.bbc-boot-chart {
+  display: flex;
+  align-items: flex-end;
+  gap: clamp(0.5rem, 1.1vh, 0.875rem);
+  height: clamp(84px, 17vh, 160px);
+  padding-bottom: 1px;
+  position: relative;
+}
+/* Основание — та же волосяная линия, что и оси в остальном продукте.
+   Шире самой диаграммы: ось продолжается за данные, как на бумажном графике. */
+.bbc-boot-chart::after {
+  content: "";
+  position: absolute;
+  left: clamp(-3rem, -4vh, -1.25rem);
+  right: clamp(-3rem, -4vh, -1.25rem);
+  bottom: 0;
+  height: 1px;
+  background: var(--border-base);
+}
+
+.bbc-boot-bar {
+  width: clamp(9px, 1.5vh, 15px);
+  border-radius: 2px 2px 0 0;
+  background: var(--border-strong);
+  transform-origin: bottom;
+  animation:
+    bbc-boot-rise var(--dur-slow) var(--ease-out) both,
+    bbc-boot-breathe 2.6s var(--ease-in-out) infinite;
+  /* Вторая задержка отсчитывается от нуля, а не от конца первой — поэтому в
+     ней и лежит длительность подъёма. */
+  animation-delay:
+    calc(var(--i) * 80ms),
+    calc(360ms + var(--i) * 80ms);
+}
+/* Единственный цветной — последний. Акцент здесь не статус, а точка, в которую
+   упирается взгляд: столбцы растут слева направо и заканчиваются на нём. */
+.bbc-boot-bar[data-accent] { background: var(--accent); }
+
+@keyframes bbc-boot-rise {
+  from { transform: scaleY(0); opacity: 0; }
+  to   { transform: scaleY(1); opacity: 1; }
+}
+@keyframes bbc-boot-breathe {
+  0%, 100% { transform: scaleY(1); }
+  50%      { transform: scaleY(0.74); }
+}
+
+.bbc-boot-note { animation: fade-in var(--dur-slow) var(--ease-out) both; }
+
+/* Название фазы — то единственное, что тут читают. */
+.bbc-boot-phase {
+  font-size: clamp(0.8125rem, 1.5vh, 0.9375rem);
+  letter-spacing: 0.02em;
+  color: var(--text-primary);
+}
+
+.bbc-boot-mark {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4375rem;
+  font-family: var(--font-plex-mono), ui-monospace, monospace;
+  font-size: 0.66rem;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+  opacity: 0.6;
+}
+
+/* Прощание. Экран не исчезает, а расходится: столбцы складываются вниз,
+   полотно тает — а дашборд под ним в это же время проявляется своим обычным
+   входом. Два движения накладываются и читаются как одно.                   */
+.bbc-boot-farewell {
+  position: fixed;
+  inset: 0;
+  z-index: 55;
+  pointer-events: none;
+  animation: bbc-boot-out 380ms var(--ease-out) both;
+}
+.bbc-boot-farewell .bbc-boot-bar {
+  animation: bbc-boot-fall 300ms var(--ease-out) both;
+  animation-delay: calc(var(--i) * 34ms);
+}
+@keyframes bbc-boot-out {
+  from { opacity: 1; }
+  to   { opacity: 0; }
+}
+@keyframes bbc-boot-fall {
+  from { transform: scaleY(1); }
+  to   { transform: scaleY(0); }
+}
+
 /* Faint grain kills gradient banding without touching the flat-depth tokens. */
 .bbc-grain::after {
   content: "";

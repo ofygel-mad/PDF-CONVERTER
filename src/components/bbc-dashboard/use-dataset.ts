@@ -17,6 +17,9 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { BbcApiError, fetchDataset, fetchMe } from "./api";
 import type { BbcDataset, BbcMe, BbcMode, BbcRow } from "./types";
 
+/** Фаза первой загрузки — что сейчас в полёте. */
+export type BbcLoadPhase = "auth" | "reading" | "done";
+
 export type Filters = {
   months: string[];
   firms: string[];
@@ -214,6 +217,13 @@ export function useDataset() {
   const [block, setBlock] = useState<string>(initial.block ?? "receivables");
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
+  /**
+   * Чем занята первая загрузка. Ровно две фазы, потому что ровно столько фронт
+   * и наблюдает: `/me` в полёте и `/dataset` в полёте. Третью назвать было бы
+   * враньём — всё, что происходит на бэкенде внутри одного запроса, отсюда
+   * неотличимо. Экран загрузки на этом и стоит: он говорит, где именно висим.
+   */
+  const [phase, setPhase] = useState<BbcLoadPhase>("auth");
   const [unauthorized, setUnauthorized] = useState(false);
   const [cooldown, setCooldown] = useState(0);
   const forcedAt = useRef(0);
@@ -228,6 +238,7 @@ export function useDataset() {
    * indistinguishable from a real backend fault.
    */
   const load = useCallback(async (refresh = false) => {
+    setPhase("auth");
     if (refresh) {
       if (Date.now() - forcedAt.current < FORCE_MIN_MS) return;
       forcedAt.current = Date.now();
@@ -250,6 +261,7 @@ export function useDataset() {
       // читается таблица, кнопка возвращается в «Войти», и человек жмёт снова.
       setUnauthorized(false);
       setLoading(true);
+      setPhase("reading");
 
       const payload = await fetchDataset(refresh);
       setDataset(payload);
@@ -269,6 +281,7 @@ export function useDataset() {
       }
     } finally {
       setLoading(false);
+      setPhase("done");
     }
     // `initial.mode` is captured once on mount by design.
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -336,6 +349,7 @@ export function useDataset() {
 
   return {
     dataset,
+    phase,
     me,
     adoptIdentity,
     rows,

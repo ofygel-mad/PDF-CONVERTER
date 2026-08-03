@@ -23,6 +23,7 @@ import { currentLinkToken } from "./api";
 import { DepartmentBanner } from "./access/department-banner";
 import { LoginScreen } from "./access/login-screen";
 import { SetPasswordScreen } from "./access/set-password-screen";
+import { BootScreen, useBootFarewell } from "./shell/boot-screen";
 import { TouchesBlock } from "./blocks/touches";
 import { AnalyticsBlock } from "./blocks/analytics";
 import { CalendarBlock } from "./blocks/calendar";
@@ -35,7 +36,7 @@ import { ReportsBlock } from "./blocks/reports";
 import { WarningsBlock } from "./blocks/warnings";
 import { CommandPalette } from "./command-palette";
 import { ContextStrip, LiveFailureBanner, LiveIndicator } from "./controls";
-import { BbcDashboardIcon, MenuIcon, MoreIcon, UserIcon } from "./icon";
+import { MenuIcon, MoreIcon, UserIcon } from "./icon";
 import { ActionsSheet } from "./mobile/actions-sheet";
 import { ControlSheet } from "./mobile/control-sheet";
 import { MobileDrawer } from "./shell/mobile-drawer";
@@ -89,6 +90,7 @@ export function BbcDashboardClient() {
     setMode,
     block,
     setBlock,
+    phase,
     loading,
     error,
     unauthorized,
@@ -174,6 +176,11 @@ export function BbcDashboardClient() {
     [setFilters, setMode, goToBlock],
   );
 
+  // Хуки — до ранних возвратов: порядок вызова обязан совпадать между
+  // рендерами, а ниже стоят `return` на вход и на смену пароля.
+  const booting = loading && !dataset;
+  const farewell = useBootFarewell(booting);
+
   const onPanel = activeBlock?.key === CONTROL_BLOCK.key;
   const backBlock =
     allowedBlocks.find((item) => item.key === lastDataBlock) ?? allowedBlocks[0];
@@ -203,21 +210,8 @@ export function BbcDashboardClient() {
     );
   }
 
-  if (loading && !dataset) {
-    return (
-      <div
-        className="bbc-boot min-h-screen min-h-[100dvh] flex flex-col items-center justify-center gap-3"
-        style={{ background: "var(--page-bg)" }}
-      >
-        <span className="logo-badge animate-spin-slow">
-          <BbcDashboardIcon size={16} />
-        </span>
-        <p className="mono-meta">Читаем таблицу…</p>
-        <p className="text-xs" style={{ color: "var(--text-muted)" }}>
-          Первая загрузка занимает несколько секунд
-        </p>
-      </div>
-    );
+  if (booting) {
+    return <BootScreen phase={phase} />;
   }
 
   return (
@@ -232,6 +226,15 @@ export function BbcDashboardClient() {
       className={`min-h-screen min-h-[100svh] flex${departmentInfo ? " bbc-dept" : ""}`}
       style={{ background: "var(--page-bg)", ...(tone ? { "--dept-tone": tone } : null) } as CSSProperties}
     >
+      {/* Экран загрузки не исчезает, а расходится: дашборд уже проявляется
+          снизу вверх своим обычным входом, а этот слой в те же 380мс складывает
+          столбцы и тает. Два движения накладываются и читаются как одно. */}
+      {farewell ? (
+        <div className="bbc-boot-farewell">
+          <BootScreen phase="done" />
+        </div>
+      ) : null}
+
       {dataset ? (
         <Sidebar
           blocks={allowedBlocks}
