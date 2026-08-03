@@ -31,6 +31,7 @@ import {
   restoreEmployee,
   updateEmployee,
 } from "../api";
+import { ConfirmDialog } from "../confirm-dialog";
 import { plural } from "../format";
 import { CheckIcon, CopyIcon, LockIcon, UserIcon } from "../icon";
 import type {
@@ -78,6 +79,8 @@ export function Employees() {
   const [editorOpen, setEditorOpen] = useState(false);
   const [editing, setEditing] = useState<BbcEmployee | null>(null);
   const [issued, setIssued] = useState<{ login: string; password: string } | null>(null);
+  /** Сотрудник, по которому открыт вопрос «точно?». `kind` — что именно. */
+  const [pending, setPending] = useState<{ employee: BbcEmployee; kind: "dismiss" | "delete" } | null>(null);
 
   const load = useCallback(async () => {
     setError(null);
@@ -180,11 +183,7 @@ export function Employees() {
                   setIssued({ login, password: pw }),
                 )
               }
-              onDismiss={() => {
-                if (window.confirm(`Уволить ${item.full_name}? Вход закроется, касания останутся.`)) {
-                  void run(() => dismissEmployee(item.id));
-                }
-              }}
+              onDismiss={() => setPending({ employee: item, kind: "dismiss" })}
             />
           ))}
 
@@ -217,15 +216,7 @@ export function Employees() {
                       type="button"
                       className="btn-ghost bbc-micro px-2 py-1"
                       style={{ color: "var(--accent-rose)" }}
-                      onClick={() => {
-                        if (
-                          window.confirm(
-                            `Удалить ${item.full_name} насовсем? Его касания останутся в журнале с его именем.`,
-                          )
-                        ) {
-                          void run(() => deleteEmployee(item.id));
-                        }
-                      }}
+                      onClick={() => setPending({ employee: item, kind: "delete" })}
                     >
                       Удалить
                     </button>
@@ -254,6 +245,29 @@ export function Employees() {
       ) : null}
 
       {issued ? <PasswordOnce {...issued} onClose={() => setIssued(null)} /> : null}
+
+      <ConfirmDialog
+        open={!!pending}
+        title={
+          pending?.kind === "delete"
+            ? `Удалить ${pending.employee.full_name} насовсем?`
+            : `Уволить ${pending?.employee.full_name}?`
+        }
+        body={
+          pending?.kind === "delete"
+            ? "Учётная запись исчезнет. Касания останутся в журнале с его именем — история работы по долгам не должна зависеть от того, кто уже уволился."
+            : "Войти он больше не сможет, но останется в списке уволенных, и все его касания сохранятся. Вернуть можно в любой момент — с новым паролем."
+        }
+        confirmLabel={pending?.kind === "delete" ? "Удалить" : "Уволить"}
+        destructive
+        onConfirm={() => {
+          if (!pending) return;
+          const { employee, kind } = pending;
+          setPending(null);
+          void run(() => (kind === "delete" ? deleteEmployee(employee.id) : dismissEmployee(employee.id)));
+        }}
+        onCancel={() => setPending(null)}
+      />
     </section>
   );
 }

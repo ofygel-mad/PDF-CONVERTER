@@ -1401,6 +1401,39 @@ html, body { overflow-x: clip; }
 .bbc-pill-count { font-size: 0.65rem; color: var(--text-muted); }
 .bbc-pill[data-active] .bbc-pill-count { color: var(--dept-tone, var(--accent)); }
 
+/* Окно подтверждения. Узкое и по центру: в нём один вопрос и два ответа. */
+.bbc-confirm {
+  position: fixed;
+  z-index: 60;
+  left: 50%;
+  top: 50%;
+  transform: translate(-50%, -50%);
+  width: min(24rem, calc(100vw - 2rem));
+  padding: 1.125rem;
+  background: var(--bg-surface);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-card);
+  box-shadow: var(--shadow-float);
+  animation: bbc-modal-in var(--dur-base) var(--ease-out);
+}
+
+/* Разрушительное действие. Единственное место, где красным красится кнопка, а
+   не текст: «Убрать» и «Отмена» рядом должны различаться до чтения подписей. */
+.bbc-btn-danger {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.4rem;
+  min-height: 44px;
+  border-radius: var(--radius-btn);
+  background: var(--accent-rose);
+  color: #1a0509;
+  font-weight: 600;
+  transition: filter var(--dur-fast);
+}
+.bbc-btn-danger:hover { filter: brightness(1.08); }
+.bbc-btn-danger:active { filter: brightness(0.94); }
+
 /* Строка своего выпадающего списка. */
 .bbc-option {
   display: block;

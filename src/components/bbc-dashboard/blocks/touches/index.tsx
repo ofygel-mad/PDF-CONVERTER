@@ -18,6 +18,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import { BbcApiError, deleteTouch, fetchTouchOptions, fetchTouches, touchFileUrl } from "../../api";
+import { ConfirmDialog } from "../../confirm-dialog";
 import { dateLabel, plural } from "../../format";
 import { ChevronRightIcon, TouchesIcon } from "../../icon";
 import type { BbcRow, BbcTouch, BbcTouchOptions } from "../../types";
@@ -48,6 +49,8 @@ export function TouchesBlock({
 
   const [modalOpen, setModalOpen] = useState(false);
   const [editing, setEditing] = useState<BbcTouch | null>(null);
+  /** Касание, для которого открыт вопрос «точно убрать?». */
+  const [pendingDelete, setPendingDelete] = useState<BbcTouch | null>(null);
 
   // Клиенты, по которым этому человеку вообще есть что писать: те же строки,
   // что он видит в дебиторке. Свободный ввод здесь был бы ловушкой — имя должно
@@ -112,14 +115,13 @@ export function TouchesBlock({
   }, [touches]);
 
   async function remove(touch: BbcTouch) {
-    if (!window.confirm(`Убрать касание по «${touch.client}» от ${dateLabel(touch.contacted_at)}?`)) {
-      return;
-    }
     try {
       await deleteTouch(touch.id);
+      setPendingDelete(null);
       void load();
     } catch (err) {
       setError(err instanceof BbcApiError ? err.message : "Не удалось удалить");
+      setPendingDelete(null);
     }
   }
 
@@ -276,11 +278,29 @@ export function TouchesBlock({
                 setEditing(touch);
                 setModalOpen(true);
               }}
-              onDelete={() => void remove(touch)}
+              onDelete={() => setPendingDelete(touch)}
             />
           ))}
         </div>
       )}
+
+      <ConfirmDialog
+        open={!!pendingDelete}
+        title="Убрать касание из журнала?"
+        body={
+          pendingDelete ? (
+            <>
+              {pendingDelete.author} → {pendingDelete.contact_role_name}, {dateLabel(pendingDelete.contacted_at)},
+              «{pendingDelete.client}». Запись исчезнет с экрана, но останется в базе — история работы
+              по долгу это доказательная база, и стереть её насовсем нельзя.
+            </>
+          ) : null
+        }
+        confirmLabel="Убрать"
+        destructive
+        onConfirm={() => pendingDelete && void remove(pendingDelete)}
+        onCancel={() => setPendingDelete(null)}
+      />
 
       <TouchModal
         open={modalOpen}
