@@ -20,6 +20,7 @@
  * `opacity: 0`, а не `display: none`, и остаются в дереве доступности.
  */
 import type { CSSProperties } from "react";
+import Link from "next/link";
 
 import { BbcDashboardIcon } from "../icon";
 import type { BlockDefinition } from "./nav-items";
@@ -41,12 +42,18 @@ export function Sidebar({
     // globals.css, и утилита Tailwind проиграла бы ему по каскаду молча.
     <div className="bbc-rail only-desktop">
       <aside className="bbc-sidebar" aria-label="Разделы">
-        <div className="bbc-sidebar-logo">
+        {/* Логотип — выход к списку сервисов.
+            Раньше это была кнопка «Назад» в шапке, и название врало: читалось
+            как шаг назад по истории, а уводило из дашборда целиком. Клик по
+            логотипу, ведущий на уровень выше, — то, чего от него и ждут, и
+            подпись при раскрытии говорит куда. */}
+        <Link href="/services" className="bbc-sidebar-logo" title="К списку сервисов">
           <span className="bbc-sidebar-glyph">
             <BbcDashboardIcon size={17} />
           </span>
           <span className="bbc-sidebar-label bbc-sidebar-wordmark">BBC</span>
-        </div>
+          <span className="bbc-sidebar-label bbc-sidebar-exit">к сервисам</span>
+        </Link>
 
         <nav className="bbc-sidebar-nav">
           {blocks.map((item) => (

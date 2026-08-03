@@ -13,12 +13,12 @@
  * behind it was already filtered server-side, so hiding a tab is presentation,
  * not the security boundary.
  */
-import { useCallback, useEffect, useMemo, useState, type CSSProperties } from "react";
+import { useCallback, useMemo, useState, type CSSProperties } from "react";
 import { flushSync } from "react-dom";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 
-import { ArrowLeftIcon, RefreshIcon } from "@/components/icons";
+import { RefreshIcon } from "@/components/icons";
 import { currentLinkToken } from "./api";
 import { DepartmentBanner } from "./access/department-banner";
 import { LoginScreen } from "./access/login-screen";
@@ -44,7 +44,6 @@ import { CONTROL_BLOCK, allowedBlocksFor } from "./shell/nav-items";
 import { department } from "./department";
 import { type SavedView, useSavedViews } from "./saved-views";
 import { useDataset } from "./use-dataset";
-import { flip } from "./flip";
 import { useLive } from "./use-live";
 
 /**
@@ -106,31 +105,6 @@ export function BbcDashboardClient() {
   const linkToken = typeof window === "undefined" ? null : currentLinkToken();
 
   const { views, save: saveView, remove: removeView } = useSavedViews();
-  const [density, setDensity] = useState<"comfortable" | "compact">("comfortable");
-
-  // Плотность вешается на <html>, чтобы правила из globals.css достали до всех
-  // блоков без прокидывания пропа через каждый компонент.
-  useEffect(() => {
-    document.documentElement.dataset.bbcDensity = density;
-    return () => {
-      delete document.documentElement.dataset.bbcDensity;
-    };
-  }, [density]);
-
-  /**
-   * Смена плотности — с перелётом блоков.
-   *
-   * Атрибут переставляется прямо здесь, в обработчике, а не в эффекте: FLIP
-   * обязан снять позиции «до» и «после» в одном кадре, а эффект React выполнится
-   * только после коммита, когда мерить уже нечего. Состояние обновляется следом
-   * и на раскладку не влияет — оно нужно переключателю, чтобы знать себя.
-   */
-  const applyDensity = useCallback((next: "comfortable" | "compact") => {
-    flip(() => {
-      document.documentElement.dataset.bbcDensity = next;
-    });
-    setDensity(next);
-  }, []);
 
   // Из `me`, а не из области видимости набора данных: с появлением учёток
   // сотрудников косвенный признак «в departments есть *» врёт — у сотрудника с
@@ -302,14 +276,10 @@ export function BbcDashboardClient() {
             >
               <MenuIcon size={18} />
             </button>
-            <Link
-              href="/services"
-              className="btn-ghost only-desktop text-xs px-2.5 py-1.5 items-center gap-1.5"
-              title="К сервисам"
-            >
-              <ArrowLeftIcon size={15} />
-              <span className="hidden sm:inline">Назад</span>
-            </Link>
+            {/* Кнопки «Назад» тут больше нет. Она вела на /services, то есть
+                уводила из дашборда целиком, а называлась так, будто делает шаг
+                назад по истории — жмёшь и оказываешься не там. Выход переехал
+                на логотип в сайдбаре, где подписан словами «к сервисам». */}
             {/* Заголовок называет открытый раздел, а не продукт: сайдбар и так
                 подписан, а вот куда ты провалился — на телефоне видно только
                 отсюда. */}
@@ -360,40 +330,6 @@ export function BbcDashboardClient() {
                 onOpenChange={setPaletteOpen}
               />
             ) : null}
-            {/* Тумблер живёт в шапке, а не в панели управления, ровно потому,
-                что перестраиваются блоки на вкладках с данными: из панели их
-                нет в DOM, и перелетать в момент клика было бы нечему. Обе
-                позиции видны сразу — у одиночной кнопки «Плотно» не прочитать,
-                это текущее состояние или то, что случится по клику. */}
-            <div
-              className="hidden md:flex items-center rounded-lg p-0.5 gap-0.5"
-              style={{ background: "var(--bg-active)" }}
-              role="group"
-              aria-label="Плотность интерфейса"
-            >
-              {(
-                [
-                  { key: "comfortable", label: "Свободно", hint: "крупные плитки, блоки в колонку" },
-                  { key: "compact", label: "Плотно", hint: "узкие плитки в ряд, блоки по двое" },
-                ] as const
-              ).map((option) => (
-                <button
-                  key={option.key}
-                  type="button"
-                  onClick={() => applyDensity(option.key)}
-                  aria-pressed={density === option.key}
-                  title={option.hint}
-                  className="text-xs px-2.5 py-1 rounded-md"
-                  style={{
-                    background: density === option.key ? "var(--bg-surface)" : "transparent",
-                    color: density === option.key ? "var(--text-primary)" : "var(--text-muted)",
-                    transition: "background var(--dur-fast), color var(--dur-fast)",
-                  }}
-                >
-                  {option.label}
-                </button>
-              ))}
-            </div>
             {/* Ручное чтение идёт прямо в Google мимо фонового цикла, поэтому у
                 кнопки есть остывание: «не обновилось» обычно означает «в таблице
                 не меняли», а не «нажми ещё десять раз». */}

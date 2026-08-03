@@ -715,11 +715,23 @@ select.input-field optgroup {
   overflow: hidden;
   border-bottom: 1px solid var(--border-subtle);
 }
+.bbc-sidebar-logo:hover { background: var(--bg-hover); }
+.bbc-sidebar-logo:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: -2px;
+}
 .bbc-sidebar-wordmark {
+  flex: 0 0 auto;
   font-weight: 700;
   letter-spacing: 0.12em;
   font-size: 0.8125rem;
   color: var(--text-primary);
+}
+/* Куда ведёт логотип — словами, и только в раскрытом виде: в свёрнутой полосе
+   для подписи нет места, а гадать по значку человек не должен. */
+.bbc-sidebar-exit {
+  font-size: 0.6875rem;
+  color: var(--text-muted);
 }
 
 .bbc-sidebar-nav {
@@ -1088,42 +1100,12 @@ html, body { overflow-x: clip; }
   }
 }
 
-/* ─── BBC: плотность и печать ─────────────────────────────────────
-   Компактный режим — не «то же самое, но мельче». Он перестраивает раскладку:
-   плитки KPI ложатся в один ряд подписью и числом в строку, карточки встают по
-   две в ряд, второстепенные колонки таблиц уходят. Размер шрифта при этом не
-   трогаем — читаемость важнее лишних процентов места.
-   Перелёт блоков между двумя состояниями делает flip.ts. */
-[data-bbc-density="compact"] .card { padding: 0.75rem; }
-[data-bbc-density="compact"] .card-inner { padding: 0.5rem; }
-[data-bbc-density="compact"] .row-item { padding: 0.4rem 0.6rem; }
-[data-bbc-density="compact"] table td,
-[data-bbc-density="compact"] table th { padding-top: 0.2rem; padding-bottom: 0.2rem; }
-[data-bbc-density="compact"] .flex.flex-col.gap-4 { gap: 0.6rem; }
+/* ─── BBC: печать ─────────────────────────────────────────────────
 
 /* KPI: шесть крупных плиток → один ряд узких, подпись и число в строку. */
-[data-bbc-density="compact"] .bbc-kpi-grid {
-  grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: 0.4rem;
-}
-[data-bbc-density="compact"] .bbc-kpi-tile {
-  display: flex;
-  align-items: baseline;
-  justify-content: space-between;
-  gap: 0.5rem;
-  padding: 0.4rem 0.6rem;
-}
-[data-bbc-density="compact"] .bbc-kpi-tile .eyebrow { margin-bottom: 0; }
-[data-bbc-density="compact"] .bbc-kpi-value { font-size: 0.95rem; }
 
-@media (min-width: 640px) {
-  [data-bbc-density="compact"] .bbc-kpi-grid {
-    grid-template-columns: repeat(6, minmax(0, 1fr));
-  }
-}
 
 /* Второстепенные колонки реестра: строка без них всё ещё читается. */
-[data-bbc-density="compact"] table [data-optional] { display: none; }
 
 /* Блоки: колонка → две колонки.
    Сетка вешается на содержимое раздела, а не на .bbc-block-view: у той всего
@@ -1134,22 +1116,11 @@ html, body { overflow-x: clip; }
    ровно там, где от этого есть толк: тринадцать предупреждений или четыре
    секции «Отчётов». */
 @media (min-width: 1280px) {
-  [data-bbc-density="compact"] .bbc-block-view > div {
-    display: grid;
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-    align-items: start;
-    gap: 0.6rem;
-  }
   /* Парой встают только карточки. Всё остальное — полосы фильтров, чипы,
      собственные сетки блока — идёт во всю ширину: полоса управления в одной
      колонке рядом с карточкой данных читается как сбой вёрстки. Карточки с
      таблицей или со своей сеткой внутри тоже не сжимаем — от этого появился бы
      горизонтальный скролл там, где его не было. */
-  [data-bbc-density="compact"] .bbc-block-view > div > *:not(.card),
-  [data-bbc-density="compact"] .bbc-block-view > div > .card:has(table),
-  [data-bbc-density="compact"] .bbc-block-view > div > .card:has(.grid) {
-    grid-column: 1 / -1;
-  }
 }
 
 /* ─── BBC: KPI на телефоне ────────────────────────────────────────
@@ -1169,29 +1140,8 @@ html, body { overflow-x: clip; }
 
 @media (max-width: 639.98px) {
   .bbc-kpi-grid,
-  [data-bbc-density="compact"] .bbc-kpi-grid {
-    grid-template-columns: 1fr;
-    gap: 0;
-    /* Один список в общей рамке, а не шесть отдельных карточек подряд. */
-    border: 1px solid var(--border-subtle);
-    border-radius: var(--radius-card);
-    background: var(--bg-surface);
-    overflow: hidden;
-  }
 
   .bbc-kpi-grid .bbc-kpi-tile,
-  [data-bbc-density="compact"] .bbc-kpi-grid .bbc-kpi-tile {
-    display: grid;
-    grid-template-columns: 1fr auto;
-    align-items: baseline;
-    gap: 0.5rem 0.75rem;
-    padding: 0.625rem var(--ios-inset);
-    min-height: var(--ios-row-min);
-    border: 0;
-    border-radius: 0;
-    background: transparent;
-    box-shadow: none;
-  }
 
   /* Волосяная линия с отступом слева — как в сгруппированных списках iOS. */
   .bbc-kpi-grid .bbc-kpi-tile + .bbc-kpi-tile {
@@ -1207,7 +1157,6 @@ html, body { overflow-x: clip; }
   /* Сокращённое число уступает место точному: два числа в строке читались бы
      как разные показатели. */
   .bbc-kpi-grid .bbc-kpi-value,
-  [data-bbc-density="compact"] .bbc-kpi-grid .bbc-kpi-value { display: none; }
 
   .bbc-kpi-grid .bbc-kpi-exact {
     display: block;

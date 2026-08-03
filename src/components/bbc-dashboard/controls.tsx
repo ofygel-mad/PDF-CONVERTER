@@ -11,7 +11,7 @@
  */
 import { useState, type CSSProperties } from "react";
 
-import { ClockIcon, ControlPanelIcon, SlidersIcon } from "./icon";
+import { ClockIcon, SlidersIcon } from "./icon";
 import { Hint } from "./mobile/hint";
 import { plural, relativeTime } from "./format";
 import type { BbcDataset, BbcMode } from "./types";

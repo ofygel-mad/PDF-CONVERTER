@@ -25,9 +25,6 @@ export function SectionCard({
   return (
     <section
       className="card bbc-grain relative p-4 animate-fade-in"
-      // Имя для FLIP: по нему карточку узнают до и после перестройки сетки,
-      // чтобы она перелетела на новое место, а не мигнула там.
-      data-flip-id={`section:${title}`}
       style={{ animationDuration: "var(--dur-base)" }}
     >
       <div className="flex items-start justify-between gap-3 mb-3">
@@ -109,7 +106,6 @@ function KpiTile({
   return (
     <div
       className={`bbc-kpi-tile card p-3 animate-fade-in bbc-tile${pulsing ? " bbc-pulse" : ""}`}
-      data-flip-id={`kpi:${item.label}`}
       style={{
         animationDuration: "var(--dur-base)",
         animationDelay: `calc(${index} * var(--dur-stagger))`,
