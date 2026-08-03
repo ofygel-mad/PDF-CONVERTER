@@ -369,6 +369,25 @@ body {
 }
 .input-field::placeholder { color: var(--text-muted); }
 
+/* Выпадающий список.
+   `--input-bg` в тёмной теме — почти прозрачный (2.5% белого): на странице он
+   ложится на тёмный фон и выглядит правильно. Но список опций рисует не
+   страница, а система, и там тот же цвет накладывается на БЕЛОЕ — получался
+   белый список с почти белым текстом, то есть пустой на вид. Поэтому у select
+   и его опций фон непрозрачный, заданный явно. `color-scheme` на :root это не
+   лечит: он задаёт умолчание, а собственный фон элемента его перебивает.     */
+select.input-field {
+  background-color: var(--bg-raised);
+  /* Нативная стрелка живёт по краю и в тесных фильтрах налезает на текст. */
+  padding-right: 2rem;
+  cursor: pointer;
+}
+select.input-field option,
+select.input-field optgroup {
+  background-color: var(--bg-raised);
+  color: var(--text-primary);
+}
+
 /* ─── Badges ──────────────────────────────────────────────────── */
 .badge {
   display: inline-flex;
@@ -671,10 +690,14 @@ body {
     width var(--dur-slow) var(--ease-out),
     box-shadow var(--dur-slow) var(--ease-out);
 }
-/* :focus-within, а не только :hover — иначе с клавиатуры в сайдбар не войти:
-   Tab уводит фокус на пункт, который остаётся за краем свёрнутой полосы.    */
+/* :has(:focus-visible), а не :focus-within — разница здесь принципиальная.
+   С клавиатуры в сайдбар иначе не войти: Tab уводит фокус на пункт, который
+   остаётся за краем свёрнутой полосы. Но :focus-within срабатывает и на клик
+   мышью — фокус остаётся на нажатой кнопке, и панель залипала раскрытой
+   поверх контента до следующего клика в стороне. :focus-visible на мышь не
+   реагирует, поэтому раскрытие остаётся ровно там, где нужно.               */
 .bbc-sidebar:hover,
-.bbc-sidebar:focus-within {
+.bbc-sidebar:has(:focus-visible) {
   width: var(--bbc-rail-open);
   box-shadow: var(--shadow-float);
 }
@@ -722,7 +745,7 @@ body {
   width: 100%;
   min-height: 42px;
   padding: 0 0.75rem;
-  border-radius: var(--radius-md);
+  border-radius: var(--radius-btn);
   color: var(--text-muted);
   white-space: nowrap;
   overflow: hidden;
@@ -776,7 +799,7 @@ body {
   transition: opacity 80ms;
 }
 .bbc-sidebar:hover .bbc-sidebar-label,
-.bbc-sidebar:focus-within .bbc-sidebar-label {
+.bbc-sidebar:has(:focus-visible) .bbc-sidebar-label {
   opacity: 1;
   transition: opacity 200ms 60ms;
 }
@@ -794,7 +817,7 @@ body {
    читается как две разные величины.                                          */
 .bbc-sidebar-badge { transition: opacity 80ms; }
 .bbc-sidebar:hover .bbc-sidebar-badge,
-.bbc-sidebar:focus-within .bbc-sidebar-badge { opacity: 0; }
+.bbc-sidebar:has(:focus-visible) .bbc-sidebar-badge { opacity: 0; }
 
 /* ── Ящик разделов на телефоне ─────────────────────────────────────────── */
 @keyframes bbc-drawer-in {
@@ -1298,7 +1321,7 @@ html, body { overflow-x: clip; }
 .bbc-reg-open:focus-visible::after {
   outline: 2px solid var(--accent);
   outline-offset: -2px;
-  border-radius: var(--radius-sm);
+  border-radius: 0.5rem;
 }
 .bbc-reg-touch {
   position: relative;
@@ -1307,7 +1330,7 @@ html, body { overflow-x: clip; }
   align-items: center;
   gap: 0.3125rem;
   padding: 0.25rem 0.5rem;
-  border-radius: var(--radius-sm);
+  border-radius: 0.5rem;
   font-size: 0.6875rem;
   color: var(--text-muted);
   white-space: nowrap;
@@ -1333,9 +1356,118 @@ html, body { overflow-x: clip; }
   .bbc-reg-touch { grid-area: 3 / 1 / 4 / 3; justify-self: start; min-height: 32px; }
 }
 
-/* ── Журнал касаний ────────────────────────────────────────────────────── */
-.bbc-touch-row { padding: 0.75rem 0.875rem; }
-.bbc-touch-row:last-child { border-bottom: none !important; }
+/* ── Журнал касаний ──────────────────────────────────────────────────────
+   Тот же язык, что в реестре дебиторки: волосяные линии вместо рамок,
+   таблетки-фильтры, действия появляются на наведении. Второй визуальный язык
+   на соседней вкладке читался бы как чужой продукт.                        */
+
+.bbc-touch-head {
+  padding: 0.625rem 0.875rem;
+  border-bottom: 1px solid var(--border-subtle);
+}
+
+.bbc-touch-author,
+.bbc-touch-row {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.75rem;
+  padding: 0.75rem 0.875rem;
+  border-bottom: 1px solid var(--border-subtle);
+}
+.bbc-touch-author { align-items: center; }
+.bbc-touch-author:last-child,
+.bbc-touch-row:last-child { border-bottom: none; }
+.bbc-touch-row { transition: background var(--dur-fast) var(--ease-out); }
+.bbc-touch-row:hover { background: var(--bg-hover); }
+
+/* Буква вместо аватара. Не украшение: в ленте вперемешку пишут пять человек,
+   и глазу нужна зацепка, чтобы отличить свои записи от чужих быстрее, чем
+   читается имя.                                                            */
+.bbc-avatar {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 26px;
+  height: 26px;
+  border-radius: var(--radius-pill);
+  background: var(--bg-active);
+  color: var(--text-secondary);
+  font-size: 0.6875rem;
+  font-weight: 600;
+  flex-shrink: 0;
+  -webkit-user-select: none;
+  user-select: none;
+}
+
+/* Действия проявляются на наведении: в спокойной ленте «Править» и «Убрать»
+   у каждой строки — это шум, который читается раньше самих записей.        */
+.bbc-touch-actions {
+  display: flex;
+  gap: 0.375rem;
+  margin-top: 0.375rem;
+  opacity: 0;
+  transition: opacity var(--dur-fast);
+}
+.bbc-touch-row:hover .bbc-touch-actions,
+.bbc-touch-row:focus-within .bbc-touch-actions { opacity: 1; }
+/* На сенсорном экране наведения нет — там они видны всегда. */
+@media (hover: none) {
+  .bbc-touch-actions { opacity: 1; }
+}
+
+.bbc-file-chip {
+  display: inline-block;
+  max-width: 14rem;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  padding: 0.1875rem 0.5rem;
+  border-radius: 0.5rem;
+  background: var(--bg-active);
+  color: var(--text-accent);
+  font-size: 0.65rem;
+  transition: background var(--dur-fast);
+}
+.bbc-file-chip:hover { background: var(--bg-hover); }
+
+/* Таблетка фильтра. */
+.bbc-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.375rem;
+  flex-shrink: 0;
+  padding: 0.375rem 0.625rem;
+  border-radius: var(--radius-btn);
+  font-size: 0.75rem;
+  color: var(--text-secondary);
+  white-space: nowrap;
+  transition: background var(--dur-fast), color var(--dur-fast);
+}
+.bbc-pill:hover { background: var(--bg-hover); color: var(--text-primary); }
+.bbc-pill[data-active] {
+  background: var(--bg-active);
+  color: var(--text-primary);
+  font-weight: 600;
+}
+.bbc-pill-count { font-size: 0.65rem; color: var(--text-muted); }
+.bbc-pill[data-active] .bbc-pill-count { color: var(--dept-tone, var(--accent)); }
+
+/* Строка своего выпадающего списка. */
+.bbc-option {
+  display: block;
+  width: 100%;
+  text-align: left;
+  padding: 0.4375rem 0.5rem;
+  border-radius: 0.5rem;
+  font-size: 0.8125rem;
+  color: var(--text-secondary);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  transition: background var(--dur-fast), color var(--dur-fast);
+}
+.bbc-option:hover { background: var(--bg-hover); color: var(--text-primary); }
+.bbc-option[data-active] { background: var(--bg-active); color: var(--text-primary); font-weight: 600; }
 
 /* Модальное окно. На десктопе — по центру, на телефоне — листом снизу:
    разметка одна, меняется только позиционирование. Два верстания одной формы
@@ -1353,7 +1485,7 @@ html, body { overflow-x: clip; }
   transform: translate(-50%, -50%);
   width: min(560px, calc(100vw - 2rem));
   max-height: min(88svh, 46rem);
-  border-radius: var(--radius-lg);
+  border-radius: var(--radius-card);
   animation: bbc-modal-in var(--dur-base) var(--ease-out);
 }
 @keyframes bbc-modal-in {

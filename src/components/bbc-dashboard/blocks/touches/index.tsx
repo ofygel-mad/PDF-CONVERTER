@@ -4,21 +4,24 @@
  * Журнал касаний — вся работа по долгам в одном месте.
  *
  * Отвечает на два вопроса, ради которых его и просили:
- *   1. Что вообще делалось по этому должнику и кем.
- *   2. Сколько раз и до кого достучались — «Жанара 3 раза главбуху, 1 раз
- *      проджект-менеджеру», а я туда же писал как директор.
+ *   1. Сколько раз и до кого достучались — «Жанара 3 раза главбуху, 1 раз
+ *      проджект-менеджеру», а директор туда же писал сам.
+ *   2. Что конкретно было сказано и чем это подтверждается.
  *
- * Второй вопрос — сводкой сверху, первый — лентой снизу. Не наоборот: цифры
- * читают каждый день, а конкретную формулировку — когда уже что-то случилось.
+ * Первый — сводкой сверху, второй — лентой снизу. Не наоборот: цифры читают
+ * каждый день, а конкретную формулировку — когда уже что-то случилось.
+ *
+ * Раскладка повторяет дебиторку: крупная цифра с подписью, ряд фильтров-таблеток
+ * в карточке, ниже данные. Второй язык на соседней вкладке читался бы как чужой
+ * продукт.
  */
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import { BbcApiError, deleteTouch, fetchTouchOptions, fetchTouches, touchFileUrl } from "../../api";
 import { dateLabel, plural } from "../../format";
-import { TouchesIcon } from "../../icon";
+import { ChevronRightIcon, TouchesIcon } from "../../icon";
 import type { BbcRow, BbcTouch, BbcTouchOptions } from "../../types";
 import { clientKey } from "../receivables/debt";
-import { SectionCard } from "../shared";
 import { describeAuthor, overview } from "./summary";
 import { TouchModal } from "./touch-modal";
 
@@ -90,9 +93,23 @@ export function TouchesBlock({
 
   const stats = useMemo(() => overview(visible), [visible]);
   const authors = useMemo(
-    () => [...new Set(touches.map((touch) => touch.author))].sort((a, b) => a.localeCompare(b, "ru")),
+    () => [...new Set(touches.map((t) => t.author))].sort((a, b) => a.localeCompare(b, "ru")),
     [touches],
   );
+
+  // Должности показываем только те, что реально встречались: пустая таблетка
+  // «Юрист», по которой ничего не найдётся, — обещание, которого нет.
+  const usedRoles = useMemo(() => {
+    const counts = new Map<string, { name: string; count: number }>();
+    for (const touch of touches) {
+      const entry = counts.get(touch.contact_role) ?? { name: touch.contact_role_name, count: 0 };
+      entry.count += 1;
+      counts.set(touch.contact_role, entry);
+    }
+    return [...counts.entries()]
+      .map(([key, value]) => ({ key, ...value }))
+      .sort((a, b) => b.count - a.count);
+  }, [touches]);
 
   async function remove(touch: BbcTouch) {
     if (!window.confirm(`Убрать касание по «${touch.client}» от ${dateLabel(touch.contacted_at)}?`)) {
@@ -106,92 +123,88 @@ export function TouchesBlock({
     }
   }
 
+  function reset() {
+    setClientFilter("");
+    setAuthorFilter("");
+    setRoleFilter("");
+    onClearFocus?.();
+  }
+
   const filtered = !!clientFilter || !!authorFilter || !!roleFilter;
 
   return (
-    <div className="flex flex-col gap-4">
-      {/* ── Фильтры ─────────────────────────────────────────────────────── */}
-      <div className="card p-3 flex flex-wrap items-end gap-2.5">
-        <label className="flex flex-col gap-1.5 min-w-0 flex-1" style={{ minWidth: "12rem" }}>
-          <span className="eyebrow">Должник</span>
-          <select
-            className="input-field"
-            value={clientFilter}
-            onChange={(event) => {
-              setClientFilter(event.target.value);
-              onClearFocus?.();
-            }}
-          >
-            <option value="">Все</option>
-            {clients.map((name) => (
-              <option key={name} value={name}>
-                {name}
-              </option>
-            ))}
-          </select>
-        </label>
-
-        <label className="flex flex-col gap-1.5 min-w-0" style={{ minWidth: "9rem" }}>
-          <span className="eyebrow">Кто писал</span>
-          <select
-            className="input-field"
-            value={authorFilter}
-            onChange={(event) => setAuthorFilter(event.target.value)}
-          >
-            <option value="">Все</option>
-            {authors.map((name) => (
-              <option key={name} value={name}>
-                {name}
-              </option>
-            ))}
-          </select>
-        </label>
-
-        <label className="flex flex-col gap-1.5 min-w-0" style={{ minWidth: "9rem" }}>
-          <span className="eyebrow">Кому писали</span>
-          <select
-            className="input-field"
-            value={roleFilter}
-            onChange={(event) => setRoleFilter(event.target.value)}
-          >
-            <option value="">Всем</option>
-            {(options?.contact_roles ?? []).map((role) => (
-              <option key={role.key} value={role.key}>
-                {role.name}
-              </option>
-            ))}
-          </select>
-        </label>
-
-        {filtered ? (
-          <button
-            type="button"
-            className="btn-ghost text-xs px-3 py-2"
-            onClick={() => {
-              setClientFilter("");
-              setAuthorFilter("");
-              setRoleFilter("");
-              onClearFocus?.();
-            }}
-          >
-            Сбросить
-          </button>
-        ) : null}
+    <div className="flex flex-col gap-3">
+      {/* ── Заголовок: крупная цифра и подпись, как в дебиторке ─────────── */}
+      <div className="flex items-end justify-between gap-3 flex-wrap">
+        <div className="min-w-0">
+          <p className="text-2xl font-semibold bbc-num" style={{ color: "var(--text-primary)" }}>
+            {stats.total}{" "}
+            <span className="text-base font-normal" style={{ color: "var(--text-secondary)" }}>
+              {plural(stats.total, "касание", "касания", "касаний")}
+            </span>
+          </p>
+          <p className="text-xs" style={{ color: "var(--text-secondary)" }}>
+            {clientFilter
+              ? clientFilter
+              : `по ${stats.clients} ${plural(stats.clients, "должнику", "должникам", "должникам")}`}
+            {stats.lastContact ? ` · последнее ${dateLabel(stats.lastContact)}` : ""}
+            {stats.withFiles > 0
+              ? ` · ${stats.withFiles} ${plural(stats.withFiles, "с подтверждением", "с подтверждением", "с подтверждением")}`
+              : ""}
+          </p>
+        </div>
 
         {canWrite ? (
           <button
             type="button"
-            className="btn-primary text-xs px-3 py-2 ml-auto"
+            className="btn-primary text-xs px-3 py-1.5"
             onClick={() => {
               setEditing(null);
               setModalOpen(true);
             }}
             disabled={!clients.length}
+            title={clients.length ? undefined : "Нет должников, по которым можно писать"}
           >
             <TouchesIcon size={14} />
             Записать касание
           </button>
         ) : null}
+      </div>
+
+      {/* ── Фильтры: тот же ряд таблеток, что в реестре ─────────────────── */}
+      <div className="card p-2 flex flex-wrap items-center justify-between gap-2">
+        <div className="bbc-scroll-x flex items-center gap-1 min-w-0">
+          <Pill label="Все" active={!roleFilter} onClick={() => setRoleFilter("")} count={touches.length} />
+          {usedRoles.map((role) => (
+            <Pill
+              key={role.key}
+              label={role.name}
+              count={role.count}
+              active={roleFilter === role.key}
+              onClick={() => setRoleFilter(roleFilter === role.key ? "" : role.key)}
+            />
+          ))}
+        </div>
+
+        <div className="flex items-center gap-2 shrink-0">
+          <Picker
+            label="Должник"
+            value={clientFilter}
+            options={clients}
+            onChange={(value) => {
+              setClientFilter(value);
+              onClearFocus?.();
+            }}
+          />
+          {authors.length > 1 ? (
+            <Picker label="Кто писал" value={authorFilter} options={authors} onChange={setAuthorFilter} />
+          ) : null}
+          {filtered ? (
+            <button type="button" className="btn-ghost text-xs px-3 py-1.5" onClick={reset}>
+              Сбросить
+            </button>
+          ) : null}
+        </div>
       </div>
 
       {error ? (
@@ -204,51 +217,52 @@ export function TouchesBlock({
         </div>
       ) : null}
 
-      {/* ── Сводка ──────────────────────────────────────────────────────── */}
-      {stats.total > 0 ? (
-        <SectionCard
-          title={clientFilter || "Кто до кого достучался"}
-          subtitle={
-            `${stats.total} ${plural(stats.total, "касание", "касания", "касаний")}` +
-            (clientFilter ? "" : ` по ${stats.clients} ${plural(stats.clients, "должнику", "должникам", "должникам")}`) +
-            (stats.lastContact ? ` · последнее ${dateLabel(stats.lastContact)}` : "")
-          }
-        >
-          <div className="flex flex-col gap-2">
-            {stats.authors.map((author) => (
-              <div
-                key={author.author}
-                className="flex flex-wrap items-baseline gap-x-2 gap-y-0.5 px-3 py-2 rounded-lg"
-                style={{ background: "var(--bg-active)" }}
-              >
-                <span className="text-sm font-medium" style={{ color: "var(--text-primary)" }}>
+      {/* ── Кто до кого достучался ─────────────────────────────────────── */}
+      {stats.authors.length > 0 ? (
+        <div className="card overflow-hidden">
+          <div className="bbc-touch-head">
+            <span className="eyebrow">Кто до кого достучался</span>
+          </div>
+          {stats.authors.map((author) => (
+            <div key={author.author} className="bbc-touch-author">
+              <span className="bbc-avatar" aria-hidden="true">
+                {author.author.trim().charAt(0).toUpperCase() || "?"}
+              </span>
+              <span className="min-w-0 flex-1">
+                <span
+                  className="block text-sm font-medium truncate"
+                  style={{ color: "var(--text-primary)" }}
+                >
                   {author.author}
                 </span>
                 {/* Предложением, а не таблицей: ровно так этот вопрос и задают. */}
-                <span className="text-xs" style={{ color: "var(--text-secondary)" }}>
+                <span className="block text-xs" style={{ color: "var(--text-secondary)" }}>
                   {describeAuthor(author)}
                 </span>
-                {author.lastContact ? (
-                  <span className="bbc-micro ml-auto shrink-0" style={{ color: "var(--text-muted)" }}>
-                    {dateLabel(author.lastContact)}
-                  </span>
-                ) : null}
-              </div>
-            ))}
-          </div>
-        </SectionCard>
+              </span>
+              <span className="bbc-micro shrink-0 bbc-num" style={{ color: "var(--text-muted)" }}>
+                {dateLabel(author.lastContact)}
+              </span>
+            </div>
+          ))}
+        </div>
       ) : null}
 
-      {/* ── Лента ───────────────────────────────────────────────────────── */}
+      {/* ── Лента ──────────────────────────────────────────────────────── */}
       {loading ? (
         <div className="card p-8 text-center text-sm" style={{ color: "var(--text-secondary)" }}>
           Читаем журнал…
         </div>
       ) : !visible.length ? (
-        <div className="card p-8 text-center text-sm" style={{ color: "var(--text-secondary)" }}>
-          {filtered
-            ? "Под фильтры не попало ни одно касание."
-            : "Касаний пока нет. Первое можно записать прямо отсюда или из реестра дебиторки."}
+        <div className="card p-10 text-center">
+          <p className="text-sm mb-1" style={{ color: "var(--text-primary)" }}>
+            {filtered ? "Под фильтры не попало ни одно касание" : "Касаний пока нет"}
+          </p>
+          <p className="text-xs" style={{ color: "var(--text-muted)" }}>
+            {filtered
+              ? "Снимите фильтры, чтобы увидеть остальные."
+              : "Первое можно записать отсюда или кнопкой «Работа с долгом» в реестре дебиторки."}
+          </p>
         </div>
       ) : (
         <div className="card overflow-hidden">
@@ -257,6 +271,7 @@ export function TouchesBlock({
               key={touch.id}
               touch={touch}
               canWrite={canWrite}
+              showClient={!clientFilter}
               onEdit={() => {
                 setEditing(touch);
                 setModalOpen(true);
@@ -280,78 +295,213 @@ export function TouchesBlock({
   );
 }
 
+/** Таблетка фильтра — тот же элемент, что переключает отделы в реестре. */
+function Pill({
+  label,
+  count,
+  active,
+  onClick,
+}: {
+  label: string;
+  count: number;
+  active: boolean;
+  onClick: () => void;
+}) {
+  return (
+    <button type="button" className="bbc-pill" data-active={active ? "" : undefined} onClick={onClick}>
+      <span className="truncate">{label}</span>
+      <span className="bbc-num bbc-pill-count">{count}</span>
+    </button>
+  );
+}
+
+/**
+ * Выпадающий список своей вёрстки, а не нативный `<select>`.
+ *
+ * Список должников бывает на две сотни строк, и нативный попап рисует его
+ * системой — без поиска, своим шрифтом и своим фоном. Здесь же он часть
+ * страницы: ищется, скроллится и выглядит как всё остальное.
+ */
+function Picker({
+  label,
+  value,
+  options,
+  onChange,
+}: {
+  label: string;
+  value: string;
+  options: string[];
+  onChange: (value: string) => void;
+}) {
+  const [open, setOpen] = useState(false);
+  const [query, setQuery] = useState("");
+  const ref = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (!open) return;
+    function onAway(event: MouseEvent) {
+      if (!ref.current?.contains(event.target as Node)) setOpen(false);
+    }
+    function onKey(event: KeyboardEvent) {
+      if (event.key === "Escape") setOpen(false);
+    }
+    document.addEventListener("mousedown", onAway);
+    document.addEventListener("keydown", onKey);
+    return () => {
+      document.removeEventListener("mousedown", onAway);
+      document.removeEventListener("keydown", onKey);
+    };
+  }, [open]);
+
+  const shown = useMemo(() => {
+    const needle = query.trim().toLowerCase();
+    const list = needle ? options.filter((o) => o.toLowerCase().includes(needle)) : options;
+    return list.slice(0, 200);
+  }, [options, query]);
+
+  return (
+    <div className="relative" ref={ref}>
+      <button
+        type="button"
+        className="btn-ghost text-xs px-3 py-1.5 max-w-[13rem]"
+        onClick={() => setOpen((v) => !v)}
+        aria-expanded={open}
+        aria-haspopup="listbox"
+      >
+        <span className="truncate">{value || label}</span>
+        <ChevronRightIcon size={12} />
+      </button>
+
+      {open ? (
+        <div
+          className="absolute right-0 z-30 mt-1 card p-1 flex flex-col"
+          style={{ width: "16rem", boxShadow: "var(--shadow-float)" }}
+          role="listbox"
+        >
+          <input
+            className="input-field mb-1"
+            style={{ fontSize: "0.8125rem", padding: "0.4rem 0.6rem" }}
+            placeholder="Поиск…"
+            value={query}
+            onChange={(event) => setQuery(event.target.value)}
+            autoFocus
+          />
+          <div className="overflow-y-auto" style={{ maxHeight: "16rem" }}>
+            <button
+              type="button"
+              className="bbc-option"
+              data-active={!value ? "" : undefined}
+              onClick={() => {
+                onChange("");
+                setOpen(false);
+              }}
+            >
+              Все
+            </button>
+            {shown.map((option) => (
+              <button
+                key={option}
+                type="button"
+                className="bbc-option"
+                data-active={value === option ? "" : undefined}
+                onClick={() => {
+                  onChange(option);
+                  setOpen(false);
+                  setQuery("");
+                }}
+              >
+                {option}
+              </button>
+            ))}
+            {!shown.length ? (
+              <p className="text-xs px-2 py-3 text-center" style={{ color: "var(--text-muted)" }}>
+                Ничего не нашлось
+              </p>
+            ) : null}
+          </div>
+        </div>
+      ) : null}
+    </div>
+  );
+}
+
 function TouchRow({
   touch,
   canWrite,
+  showClient,
   onEdit,
   onDelete,
 }: {
   touch: BbcTouch;
   canWrite: boolean;
+  showClient: boolean;
   onEdit: () => void;
   onDelete: () => void;
 }) {
   return (
-    <article
-      className="bbc-touch-row"
-      style={{ borderBottom: "1px solid var(--border-subtle)" }}
-    >
-      <div className="flex flex-wrap items-baseline gap-x-2 gap-y-1 min-w-0">
-        <span className="text-sm font-medium truncate" style={{ color: "var(--text-primary)" }}>
-          {touch.client}
-        </span>
-        <span className="text-xs" style={{ color: "var(--text-secondary)" }}>
-          {touch.author} → {touch.contact_role_name}
-          {touch.contact_name ? ` (${touch.contact_name})` : ""}
-        </span>
-        <span className="bbc-micro ml-auto shrink-0 bbc-num" style={{ color: "var(--text-muted)" }}>
-          {dateLabel(touch.contacted_at)} · {touch.channel_name}
-        </span>
-      </div>
+    <article className="bbc-touch-row">
+      <span className="bbc-avatar shrink-0" aria-hidden="true">
+        {touch.author.trim().charAt(0).toUpperCase() || "?"}
+      </span>
 
-      <p
-        className="text-xs mt-1.5 leading-relaxed"
-        style={{ color: "var(--text-secondary)", overflowWrap: "anywhere" }}
-      >
-        {touch.summary}
-      </p>
-
-      {touch.files.length ? (
-        <div className="flex flex-wrap gap-1.5 mt-2">
-          {touch.files.map((file) => (
-            <a
-              key={file.id}
-              href={touchFileUrl(file.id)}
-              target="_blank"
-              rel="noreferrer"
-              className="bbc-micro px-2 py-1 rounded-md truncate"
-              style={{
-                maxWidth: "14rem",
-                background: "var(--bg-active)",
-                color: "var(--text-accent)",
-              }}
-            >
-              {file.filename}
-            </a>
-          ))}
-        </div>
-      ) : null}
-
-      {canWrite ? (
-        <div className="flex gap-1.5 mt-2">
-          <button type="button" className="btn-ghost bbc-micro px-2 py-1" onClick={onEdit}>
-            Править
-          </button>
-          <button
-            type="button"
-            className="btn-ghost bbc-micro px-2 py-1"
-            onClick={onDelete}
-            style={{ color: "var(--accent-rose)" }}
+      <div className="min-w-0 flex-1">
+        <div className="flex flex-wrap items-baseline gap-x-2 gap-y-0.5 min-w-0">
+          {showClient ? (
+            <span className="text-sm font-medium truncate" style={{ color: "var(--text-primary)" }}>
+              {touch.client}
+            </span>
+          ) : null}
+          <span className="text-xs" style={{ color: "var(--text-secondary)" }}>
+            {touch.author} → {touch.contact_role_name}
+            {touch.contact_name ? ` · ${touch.contact_name}` : ""}
+          </span>
+          <span
+            className="bbc-micro ml-auto shrink-0 bbc-num"
+            style={{ color: "var(--text-muted)" }}
           >
-            Убрать
-          </button>
+            {dateLabel(touch.contacted_at)} · {touch.channel_name}
+          </span>
         </div>
-      ) : null}
+
+        <p
+          className="text-xs mt-1 leading-relaxed"
+          style={{ color: "var(--text-secondary)", overflowWrap: "anywhere" }}
+        >
+          {touch.summary}
+        </p>
+
+        {touch.files.length ? (
+          <div className="flex flex-wrap gap-1.5 mt-1.5">
+            {touch.files.map((file) => (
+              <a
+                key={file.id}
+                href={touchFileUrl(file.id)}
+                target="_blank"
+                rel="noreferrer"
+                className="bbc-file-chip"
+              >
+                {file.filename}
+              </a>
+            ))}
+          </div>
+        ) : null}
+
+        {canWrite ? (
+          <div className="bbc-touch-actions">
+            <button type="button" className="btn-ghost bbc-micro px-2 py-1" onClick={onEdit}>
+              Править
+            </button>
+            <button
+              type="button"
+              className="btn-ghost bbc-micro px-2 py-1"
+              onClick={onDelete}
+              style={{ color: "var(--accent-rose)" }}
+            >
+              Убрать
+            </button>
+          </div>
+        ) : null}
+      </div>
     </article>
   );
 }
