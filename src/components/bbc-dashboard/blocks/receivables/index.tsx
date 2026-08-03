@@ -16,7 +16,6 @@ import { useEffect, useMemo, useState } from "react";
 
 import { fetchTouchCounts } from "../../api";
 import { money, plural } from "../../format";
-import { PieChartIcon } from "../../icon";
 import type { BbcDataset, BbcMode, BbcRow } from "../../types";
 import type { FilterKey } from "../../controls";
 import type { Filters } from "../../use-dataset";
@@ -101,6 +100,9 @@ export function ReceivablesBlock({
 
   return (
     <div className="flex flex-col gap-3">
+      {/* Кнопки над цифрой нет: «Итоги» переехали в тулбар, к «Наши юрлица» и
+          «Фильтру». Это действие над реестром, а не заголовок над ним, и
+          отдельным рядом оно висело в пустоте. */}
       <div className="flex items-end justify-between gap-3 flex-wrap">
         <div className="min-w-0">
           <p className="text-2xl font-semibold bbc-num" style={{ color: "var(--text-primary)" }}>
@@ -119,15 +121,6 @@ export function ReceivablesBlock({
               : ""}
           </p>
         </div>
-
-        <button
-          type="button"
-          className="btn-ghost text-xs px-3 py-1.5"
-          onClick={() => setTotalsOpen(true)}
-        >
-          <PieChartIcon />
-          Итоги
-        </button>
       </div>
 
       <Toolbar
@@ -142,6 +135,7 @@ export function ReceivablesBlock({
         onMinDebt={setMinDebt}
         overdueOnly={overdueOnly}
         onOverdueOnly={setOverdueOnly}
+        onTotals={() => setTotalsOpen(true)}
       />
 
       <Registry

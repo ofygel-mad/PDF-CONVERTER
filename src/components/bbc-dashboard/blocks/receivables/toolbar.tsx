@@ -12,7 +12,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 
 import { money } from "../../format";
 import { department } from "../../department";
-import { SlidersIcon } from "../../icon";
+import { PieChartIcon, SlidersIcon } from "../../icon";
 import type { FilterKey } from "../../controls";
 import type { Filters } from "../../use-dataset";
 import type { BbcDataset } from "../../types";
@@ -30,6 +30,8 @@ export type ToolbarProps = {
   onMinDebt: (value: number) => void;
   overdueOnly: boolean;
   onOverdueOnly: (value: boolean) => void;
+  /** Открыть лист «Итоги» — аналитику по реестру. */
+  onTotals: () => void;
 };
 
 export function Toolbar({
@@ -44,6 +46,7 @@ export function Toolbar({
   onMinDebt,
   overdueOnly,
   onOverdueOnly,
+  onTotals,
 }: ToolbarProps) {
   const [open, setOpen] = useState(false);
   const [firmsOpen, setFirmsOpen] = useState(false);
@@ -101,6 +104,15 @@ export function Toolbar({
         )}
 
         <div className="flex items-center gap-2 shrink-0">
+          {/* «Итоги» стоят здесь, а не над карточкой: это такое же действие над
+              реестром, что и «Наши юрлица» с «Фильтром». Отдельно наверху они
+              висели вторым, пустым рядом — и читались как заголовок, а не как
+              кнопка. */}
+          <button type="button" className="btn-ghost text-xs px-3 py-1.5" onClick={onTotals}>
+            <PieChartIcon />
+            Итоги
+          </button>
+
           {firms.length > 1 ? (
             <div className="relative" ref={firmsRef}>
               <button

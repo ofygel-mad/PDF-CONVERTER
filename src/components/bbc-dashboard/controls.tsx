@@ -476,6 +476,18 @@ export function ContextStrip({
       </span>
     </button>
 
+    {/* Десктоп: полоса живёт, только когда ей есть что сказать.
+        Раньше здесь постоянно висели название режима, его расшифровка и число
+        строк — три подписи, которые не меняются и не требуют действия, то есть
+        шум, приучающий не смотреть на эту строку вовсе. Ровно к тому моменту,
+        когда в ней появляется важное — «данные старые» или включённый фильтр, —
+        её уже перестали читать.
+
+        Осталось только то, что скрывать нельзя: какие фильтры сузили цифры на
+        экране и не устарел ли источник. Нет ни того, ни другого — полосы нет.
+        Настройки переехали в сайдбар, где им и место: «Панель управления»
+        стоит там отдельно, ниже разделов данных. */}
+    {chips.length || live.sourceError ? (
     <div
       className="bbc-context-strip bbc-enter hidden sm:flex items-center gap-2 px-4 py-1.5 border-b overflow-x-auto scrollbar-hidden"
       style={
@@ -486,28 +498,6 @@ export function ContextStrip({
         } as CSSProperties
       }
     >
-      <button
-        type="button"
-        onClick={onOpen}
-        className="flex items-center gap-1.5 shrink-0 text-xs"
-        title="Открыть панель управления"
-      >
-        <span aria-hidden="true" style={{ color: accent }}>
-          ◆
-        </span>
-        <span style={{ color: "var(--text-primary)" }}>{preset?.title ?? "Свой режим"}</span>
-      </button>
-
-      <span className="mono-meta shrink-0 hidden md:inline" style={{ color: "var(--text-muted)" }}>
-        {dataset.mode_descriptions[mode]}
-      </span>
-
-      {chips.length ? (
-        <span className="mono-meta shrink-0" aria-hidden="true" style={{ color: "var(--text-muted)" }}>
-          ·
-        </span>
-      ) : null}
-
       {chips.slice(0, 6).map((chip) => (
         <button
           key={`${chip.key}:${chip.value}`}
@@ -552,20 +542,8 @@ export function ContextStrip({
           данные от {live.fetchedAt ? relativeTime(live.fetchedAt) : "прошлого чтения"}
         </span>
       ) : null}
-
-      <span className="mono-meta shrink-0">{rowsLabel}</span>
-
-      <button
-        type="button"
-        onClick={onOpen}
-        className="btn-ghost shrink-0 text-xs px-2 py-1 flex items-center gap-1.5"
-        style={{ minHeight: 0 }}
-        title="Панель управления: режим, фильтры, виды"
-      >
-        <ControlPanelIcon size={13} />
-        <span className="hidden lg:inline">Настроить</span>
-      </button>
     </div>
+    ) : null}
     </>
   );
 }
