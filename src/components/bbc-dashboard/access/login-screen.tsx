@@ -140,8 +140,7 @@ export function LoginScreen({ needsSetup, linkExpired = false, onSignedIn }: Pro
         </form>
 
         <p className="mt-5 text-xs leading-relaxed" style={{ color: "var(--text-muted)" }}>
-          Внутри — финансовые данные компании. Руководителям отделов доступ выдаётся
-          отдельной ссылкой из личного кабинета, без пароля.
+          Авторизация
         </p>
       </div>
     </div>
