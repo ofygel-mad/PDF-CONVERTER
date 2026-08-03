@@ -723,6 +723,15 @@ body {
   transition: background var(--dur-fast), color var(--dur-fast);
 }
 .bbc-sidebar-item:hover { background: var(--bg-hover); color: var(--text-primary); }
+/* Фокус обязан быть виден. В референсе, откуда взята механика раскрытия, его
+   гасит `outline: none` — и клавиатурный пользователь ходит по меню вслепую.
+   Кольцо внутрь (offset отрицательный): наружу ему некуда, полосу обрезает
+   `overflow: hidden`.                                                        */
+.bbc-sidebar-item:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: -2px;
+  color: var(--text-primary);
+}
 .bbc-sidebar-item[aria-current="page"] {
   background: var(--bg-active);
   color: var(--dept-tone, var(--accent));
@@ -767,6 +776,15 @@ body {
   color: var(--accent-rose);
   font-size: 0.6875rem;
 }
+
+/* Счётчик показывается один раз, а не два.
+   В свёрнутой полосе — числом поверх иконки, потому что подписи нет и повесить
+   его больше не на что. В раскрытой — числом у правого края, как в списке, а
+   значок поверх иконки гаснет: одно и то же число дважды в одной строке
+   читается как две разные величины.                                          */
+.bbc-sidebar-badge { transition: opacity 80ms; }
+.bbc-sidebar:hover .bbc-sidebar-badge,
+.bbc-sidebar:focus-within .bbc-sidebar-badge { opacity: 0; }
 
 /* ── Ящик разделов на телефоне ─────────────────────────────────────────── */
 @keyframes bbc-drawer-in {
