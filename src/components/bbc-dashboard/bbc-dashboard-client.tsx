@@ -22,6 +22,8 @@ import { ArrowLeftIcon, RefreshIcon } from "@/components/icons";
 import { currentLinkToken } from "./api";
 import { DepartmentBanner } from "./access/department-banner";
 import { LoginScreen } from "./access/login-screen";
+import { SetPasswordScreen } from "./access/set-password-screen";
+import { TouchesBlock } from "./blocks/touches";
 import { AnalyticsBlock } from "./blocks/analytics";
 import { CalendarBlock } from "./blocks/calendar";
 import { ControlPanelBlock } from "./blocks/control-panel";
@@ -33,38 +35,17 @@ import { ReportsBlock } from "./blocks/reports";
 import { WarningsBlock } from "./blocks/warnings";
 import { CommandPalette } from "./command-palette";
 import { ContextStrip, LiveFailureBanner, LiveIndicator } from "./controls";
-import {
-  AnalyticsIcon,
-  BbcDashboardIcon,
-  CalendarIcon,
-  ControlPanelIcon,
-  JournalIcon,
-  MoreIcon,
-  ReceivablesIcon,
-  ReportsIcon,
-  RoadmapIcon,
-  SalesIcon,
-  UserIcon,
-  WarningIcon,
-} from "./icon";
+import { BbcDashboardIcon, MenuIcon, MoreIcon, UserIcon } from "./icon";
 import { ActionsSheet } from "./mobile/actions-sheet";
-import { BottomTabs, splitTabs } from "./mobile/bottom-tabs";
 import { ControlSheet } from "./mobile/control-sheet";
-import { NavSheet } from "./mobile/nav-sheet";
+import { MobileDrawer } from "./shell/mobile-drawer";
+import { Sidebar } from "./shell/sidebar";
+import { CONTROL_BLOCK, allowedBlocksFor } from "./shell/nav-items";
 import { department } from "./department";
 import { type SavedView, useSavedViews } from "./saved-views";
 import { useDataset } from "./use-dataset";
 import { flip } from "./flip";
 import { useLive } from "./use-live";
-
-type BlockDefinition = {
-  key: string;
-  title: string;
-  short: string;
-  icon: typeof ReceivablesIcon;
-  /** Scope permission required to open it. */
-  requires: string;
-};
 
 /**
  * Смена раздела через нативный View Transitions API.
@@ -93,33 +74,6 @@ function withViewTransition(update: () => void) {
   // асинхронный рендер React в него не успел бы.
   doc.startViewTransition(() => flushSync(update));
 }
-
-const BLOCKS: BlockDefinition[] = [
-  { key: "receivables", title: "Дебиторка", short: "Дебиторка", icon: ReceivablesIcon, requires: "receivables" },
-  { key: "reports", title: "Отчёты", short: "Отчёты", icon: ReportsIcon, requires: "reports" },
-  { key: "analytics", title: "Аналитика", short: "Аналитика", icon: AnalyticsIcon, requires: "analytics" },
-  { key: "journal", title: "Журнал", short: "Журнал", icon: JournalIcon, requires: "journal" },
-  { key: "calendar", title: "Платёжный календарь", short: "Календарь", icon: CalendarIcon, requires: "calendar" },
-  { key: "sales", title: "Отдел продаж", short: "Продажи", icon: SalesIcon, requires: "sales" },
-  { key: "warnings", title: "Предупреждения", short: "Предупреждения", icon: WarningIcon, requires: "warnings" },
-  { key: "roadmap", title: "Будущие инструменты", short: "Планы", icon: RoadmapIcon, requires: "roadmap" },
-];
-
-/**
- * Панель управления — раздел, но не раздел данных.
- *
- * Область видимости её не ограничивает: у ссылок, выданных раньше, в базе
- * записан список из трёх блоков, и проверка по `scope.blocks` отняла бы у их
- * владельцев собственные настройки. Прятать тут нечего — данные приходят уже
- * отфильтрованными сервером, а это поверхность управления ими.
- */
-const CONTROL_BLOCK: BlockDefinition = {
-  key: "control",
-  title: "Панель управления",
-  short: "Панель управления",
-  icon: ControlPanelIcon,
-  requires: "control",
-};
 
 export function BbcDashboardClient() {
   const {
@@ -178,7 +132,10 @@ export function BbcDashboardClient() {
     setDensity(next);
   }, []);
 
-  const isAdmin = dataset?.scope.departments.includes("*") ?? false;
+  // Из `me`, а не из области видимости набора данных: с появлением учёток
+  // сотрудников косвенный признак «в departments есть *» врёт — у сотрудника с
+  // data_scope=all там тоже нет звёздочки, но админом он от этого не стал.
+  const isAdmin = me?.is_admin ?? false;
 
   /**
    * Экран отдела: свой тон и своя шапка.
@@ -189,12 +146,10 @@ export function BbcDashboardClient() {
   const departmentInfo = isAdmin ? null : department(dataset?.scope.departments[0]);
   const tone = departmentInfo?.tone;
 
-  const allowedBlocks = useMemo(() => {
-    if (!dataset) return [];
-    const granted = new Set(dataset.scope.blocks);
-    const all = granted.has("*");
-    return [...BLOCKS.filter((item) => all || granted.has(item.requires)), CONTROL_BLOCK];
-  }, [dataset]);
+  const allowedBlocks = useMemo(
+    () => (dataset ? allowedBlocksFor(dataset.scope.blocks) : []),
+    [dataset],
+  );
 
   const activeBlock = useMemo(() => {
     if (!allowedBlocks.length) return null;
@@ -207,20 +162,14 @@ export function BbcDashboardClient() {
   const [lastDataBlock, setLastDataBlock] = useState("receivables");
 
   /** Какой лист открыт на телефоне. Ни один из них не влияет на раскладку. */
-  const [sheet, setSheet] = useState<"nav" | "actions" | "control" | null>(null);
+  const [sheet, setSheet] = useState<"menu" | "actions" | "control" | null>(null);
+  /** Должник, по которому провалились из реестра дебиторки в журнал касаний. */
+  const [touchClient, setTouchClient] = useState<string | null>(null);
   // Палитра управляется отсюда: на телефоне её кнопки в шапке нет, и открывают
   // её из листа действий.
   const [paletteOpen, setPaletteOpen] = useState(false);
 
   const router = useRouter();
-
-  // Тот же расчёт, что и у нижнего бара: лист «Ещё» показывает ровно то, что в
-  // бар не поместилось, и подсвечивается, когда открыт раздел из него.
-  const { tabs: barBlocks, rest: sheetBlocks } = useMemo(
-    () => splitTabs(allowedBlocks),
-    [allowedBlocks],
-  );
-  const barKeys = useMemo(() => new Set(barBlocks.map((item) => item.key)), [barBlocks]);
 
   const goToBlock = useCallback(
     (key: string) => {
@@ -255,6 +204,19 @@ export function BbcDashboardClient() {
   const backBlock =
     allowedBlocks.find((item) => item.key === lastDataBlock) ?? allowedBlocks[0];
 
+  // Сотрудник вошёл, но пароля у него по сути нет — тот, что выдали, остался в
+  // переписке. Проверка стоит ДО `unauthorized`: область видимости такой учётки
+  // пуста, и без этого он увидел бы форму входа, в которую только что вошёл.
+  if (me?.authenticated && me.must_change_password) {
+    return (
+      <SetPasswordScreen
+        fullName={me.full_name ?? ""}
+        // Смена гасит сессию — дальше обычный вход с новым паролем.
+        onChanged={() => window.location.reload()}
+      />
+    );
+  }
+
   if (unauthorized) {
     // `linkExpired` distinguishes "never signed in" from "the link stopped
     // working while you were reading" — the second needs a different message.
@@ -286,17 +248,32 @@ export function BbcDashboardClient() {
 
   return (
     <div
-      // На экране отдела тон расходится по карточкам и активной вкладке — это
-      // и делает его «своим», не добавляя в систему второго акцентного цвета.
-      // svh, а не dvh: снизу будет закреплённый таб-бар, а при dvh высота
-      // раскладки едет вместе с исчезающей адресной строкой Safari — и
-      // залипающая шапка на каждом скролле заметно дёргается.
-      className={`min-h-screen min-h-[100svh] flex flex-col${departmentInfo ? " bbc-dept" : ""}`}
+      // На экране отдела тон расходится по карточкам и активному пункту меню —
+      // это и делает его «своим», не добавляя в систему второго акцентного
+      // цвета.
+      //
+      // Раскладка — две колонки: слева подложка сайдбара шириной ровно 56px,
+      // справа всё остальное. Раскрытая панель ложится поверх правой колонки и
+      // ничего в ней не двигает.
+      className={`min-h-screen min-h-[100svh] flex${departmentInfo ? " bbc-dept" : ""}`}
       style={{ background: "var(--page-bg)", ...(tone ? { "--dept-tone": tone } : null) } as CSSProperties}
     >
+      {dataset ? (
+        <Sidebar
+          blocks={allowedBlocks}
+          activeKey={activeBlock?.key}
+          warningCount={dataset.warnings_summary.total}
+          onSelect={goToBlock}
+        />
+      ) : null}
+
+      {/* min-w-0 обязателен: без него широкая таблица внутри распирает
+          flex-колонку, и горизонтальная прокрутка уезжает на всю страницу
+          вместо своего контейнера. */}
+      <div className="flex-1 min-w-0 flex flex-col">
       {/* Шапка. На телефоне залипает не она целиком, а только верхняя строка:
-          лента вкладок, баннер отдела и строка контекста уезжают со страницей.
-          Четыре залипающих ряда съедали пятую часть экрана и не отдавали её. */}
+          баннер отдела и строка контекста уезжают со страницей. Три залипающих
+          ряда съедали пятую часть экрана и не отдавали её. */}
       <header
         className="bbc-enter bbc-header border-b"
         style={
@@ -312,6 +289,19 @@ export function BbcDashboardClient() {
           style={{ borderColor: "var(--border-subtle)" }}
         >
           <div className="flex items-center gap-2.5 min-w-0">
+            {/* Бургер — единственный вход в разделы на телефоне. only-mobile,
+                а не sm:hidden: у .btn-ghost свой display из globals.css, и
+                утилита Tailwind проиграла бы ему по каскаду молча. */}
+            <button
+              type="button"
+              onClick={() => setSheet("menu")}
+              className="btn-ghost only-mobile items-center justify-center px-2 py-1.5"
+              aria-label="Разделы"
+              aria-haspopup="dialog"
+              aria-expanded={sheet === "menu"}
+            >
+              <MenuIcon size={18} />
+            </button>
             <Link
               href="/services"
               className="btn-ghost only-desktop text-xs px-2.5 py-1.5 items-center gap-1.5"
@@ -320,13 +310,9 @@ export function BbcDashboardClient() {
               <ArrowLeftIcon size={15} />
               <span className="hidden sm:inline">Назад</span>
             </Link>
-            {/* На телефоне значок уступает место заголовку — тот и так называет
-                раздел, а «Назад» переехало в лист действий. only-desktop, а не
-                hidden: у .logo-badge свой display, и утилита его не перебивала —
-                значок съедал ширину, из-за чего заголовок обрезался. */}
-            <span className="logo-badge only-desktop">
-              <BbcDashboardIcon size={16} />
-            </span>
+            {/* Заголовок называет открытый раздел, а не продукт: сайдбар и так
+                подписан, а вот куда ты провалился — на телефоне видно только
+                отсюда. */}
             <span
               className="font-semibold truncate"
               style={{
@@ -335,7 +321,7 @@ export function BbcDashboardClient() {
                 fontSize: "var(--ios-title)",
               }}
             >
-              BBC · управленческий отчёт
+              {activeBlock?.title ?? "BBC · управленческий отчёт"}
             </span>
 
           </div>
@@ -446,60 +432,6 @@ export function BbcDashboardClient() {
             для подписи места нет, а прятать это состояние нельзя. */}
         <LiveFailureBanner live={live} />
 
-        {/* Лента вкладок — только с sm. На телефоне разделы живут в нижнем
-            баре, где все видны сразу и ничего не уезжает за край. */}
-        <nav
-          className="bbc-enter hidden sm:flex gap-1 px-3 overflow-x-auto scrollbar-hidden"
-          style={{ "--enter-index": 1 } as CSSProperties}
-          aria-label="Разделы"
-        >
-          {allowedBlocks.map((item) => {
-            const Icon = item.icon;
-            const active = activeBlock?.key === item.key;
-            const badge = item.key === "warnings" ? dataset?.warnings_summary.total ?? 0 : 0;
-            const isControl = item.key === CONTROL_BLOCK.key;
-            return (
-              <button
-                key={item.key}
-                type="button"
-                onClick={() => goToBlock(item.key)}
-                className={`flex shrink-0 items-center gap-1.5 px-3 py-2 text-xs whitespace-nowrap border-b-2 ${
-                  active ? "tab-active" : "tab-inactive"
-                }`}
-                // Настройки отделены от разделов данных: они не про цифры, а про
-                // то, как цифры считаются, — и не должны стоять с ними в ряд.
-                style={{
-                  transition: "color var(--dur-fast)",
-                  ...(isControl
-                    ? {
-                        marginLeft: "auto",
-                        borderLeft: "1px solid var(--border-subtle)",
-                        paddingLeft: "0.9rem",
-                      }
-                    : null),
-                }}
-                aria-current={active ? "page" : undefined}
-              >
-                <Icon size={14} />
-                {item.short}
-                {badge ? (
-                  <span
-                    className="ml-0.5 px-1.5 rounded-full bbc-micro bbc-num"
-                    style={{
-                      background: dataset?.warnings_summary.critical
-                        ? "var(--accent-rose)"
-                        : "var(--accent-amber)",
-                      color: "var(--accent-fg)",
-                    }}
-                  >
-                    {badge}
-                  </span>
-                ) : null}
-              </button>
-            );
-          })}
-        </nav>
-
         {dataset && departmentInfo ? (
           <DepartmentBanner
             info={departmentInfo}
@@ -578,6 +510,27 @@ export function BbcDashboardClient() {
                     onSearch={(value) => setFilters((current) => ({ ...current, search: value }))}
                     onClearFilters={clearFilters}
                     activeFilterCount={activeFilterCount}
+                    // Кнопка «Работа с долгом» появляется, только если журнал
+                    // вообще открыт этому вызывающему — иначе она вела бы в
+                    // раздел, которого он не увидит.
+                    onOpenTouches={
+                      allowedBlocks.some((item) => item.key === "touches")
+                        ? (client) => {
+                            setTouchClient(client);
+                            goToBlock("touches");
+                          }
+                        : undefined
+                    }
+                  />
+                ) : null}
+                {activeBlock.key === "touches" ? (
+                  <TouchesBlock
+                    rows={rows}
+                    // Держатель ссылки отдела может читать журнал, но не писать
+                    // в него: у ссылки нет автора, и подписать касание нечем.
+                    canWrite={!!me?.authenticated && !me?.link_label}
+                    focusClient={touchClient}
+                    onClearFocus={() => setTouchClient(null)}
                   />
                 ) : null}
                 {activeBlock.key === "reports" ? <ReportsBlock rows={rows} mode={mode} /> : null}
@@ -603,24 +556,15 @@ export function BbcDashboardClient() {
       </main>
 
       {/* ── Телефон ──────────────────────────────────────────────────────
-          Бар стоит вне `.bbc-block-view`, поэтому View Transition его не
+          Ящик стоит вне `.bbc-block-view`, поэтому View Transition его не
           трогает — и правильно: постоянный элемент интерфейса не должен
           мигать на каждом переключении раздела. */}
       {dataset ? (
         <>
-          <BottomTabs
-            blocks={allowedBlocks}
-            activeKey={activeBlock?.key}
-            warningCount={dataset.warnings_summary.total}
-            onSelect={goToBlock}
-            onMore={() => setSheet("nav")}
-            moreActive={!!activeBlock && !barKeys.has(activeBlock.key)}
-          />
-
-          <NavSheet
-            open={sheet === "nav"}
+          <MobileDrawer
+            open={sheet === "menu"}
             onClose={() => setSheet(null)}
-            blocks={sheetBlocks}
+            blocks={allowedBlocks}
             activeKey={activeBlock?.key}
             warningCount={dataset.warnings_summary.total}
             onSelect={goToBlock}
@@ -661,6 +605,7 @@ export function BbcDashboardClient() {
           />
         </>
       ) : null}
+      </div>
     </div>
   );
 }

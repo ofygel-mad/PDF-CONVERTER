@@ -10,6 +10,9 @@ import type {
   BbcCalendar,
   BbcCalendarMethod,
   BbcDataset,
+  BbcEmployeeCreated,
+  BbcEmployeeForm,
+  BbcEmployeesPayload,
   BbcJournalPayload,
   BbcLink,
   BbcMe,
@@ -20,6 +23,10 @@ import type {
   BbcSheetInfo,
   BbcSnapshot,
   BbcStatus,
+  BbcTouch,
+  BbcTouchFile,
+  BbcTouchForm,
+  BbcTouchOptions,
   BbcWarning,
   BbcWarningsSummary,
 } from "./types";
@@ -124,6 +131,145 @@ export function updateLinkExpiry(linkId: string, minutes: number | null): Promis
 
 export function revokeLink(linkId: string): Promise<BbcOk> {
   return request<BbcOk>(`/links/${encodeURIComponent(linkId)}`, { method: "DELETE" });
+}
+
+/* ── Сотрудники ─────────────────────────────────────────────────────────────── */
+
+export function fetchEmployees(): Promise<BbcEmployeesPayload> {
+  return request<BbcEmployeesPayload>("/employees");
+}
+
+/** Написания из колонки «Сотрудник» — чтобы привязать учётку к её клиентам. */
+export function fetchEmployeeAliases(): Promise<{ names: string[] }> {
+  return request<{ names: string[] }>("/employees/aliases");
+}
+
+export function createEmployee(form: BbcEmployeeForm): Promise<BbcEmployeeCreated> {
+  return request<BbcEmployeeCreated>("/employees", {
+    method: "POST",
+    body: JSON.stringify(form),
+  });
+}
+
+export function updateEmployee(id: number, form: BbcEmployeeForm): Promise<BbcEmployeeCreated["employee"]> {
+  return request<BbcEmployeeCreated["employee"]>(`/employees/${id}`, {
+    method: "PATCH",
+    body: JSON.stringify(form),
+  });
+}
+
+export function resetEmployeePassword(id: number): Promise<BbcEmployeeCreated> {
+  return request<BbcEmployeeCreated>(`/employees/${id}/reset-password`, { method: "POST" });
+}
+
+export function dismissEmployee(id: number): Promise<BbcEmployeeCreated["employee"]> {
+  return request<BbcEmployeeCreated["employee"]>(`/employees/${id}/dismiss`, { method: "POST" });
+}
+
+export function restoreEmployee(id: number): Promise<BbcEmployeeCreated> {
+  return request<BbcEmployeeCreated>(`/employees/${id}/restore`, { method: "POST" });
+}
+
+export function deleteEmployee(id: number): Promise<BbcOk> {
+  return request<BbcOk>(`/employees/${id}`, { method: "DELETE" });
+}
+
+/** Смена собственного пароля — в том числе принудительная при первом входе. */
+export function setOwnPassword(currentPassword: string, newPassword: string): Promise<BbcOk> {
+  return request<BbcOk>("/auth/set-password", {
+    method: "POST",
+    body: JSON.stringify({ current_password: currentPassword, new_password: newPassword }),
+  });
+}
+
+/* ── Касания ────────────────────────────────────────────────────────────────── */
+
+export function fetchTouchOptions(): Promise<BbcTouchOptions> {
+  return request<BbcTouchOptions>("/touches/options");
+}
+
+export function fetchTouches(filters: {
+  client?: string;
+  authorId?: number | null;
+  contactRole?: string;
+  dateFrom?: string;
+  dateTo?: string;
+} = {}): Promise<BbcTouch[]> {
+  const params = new URLSearchParams();
+  if (filters.client) params.set("client", filters.client);
+  if (filters.authorId != null) params.set("author_id", String(filters.authorId));
+  if (filters.contactRole) params.set("contact_role", filters.contactRole);
+  if (filters.dateFrom) params.set("date_from", filters.dateFrom);
+  if (filters.dateTo) params.set("date_to", filters.dateTo);
+  const query = params.toString();
+  return request<BbcTouch[]>(`/touches${query ? `?${query}` : ""}`);
+}
+
+/**
+ * Карта «клиент → сколько касаний» для значков в реестре дебиторки.
+ *
+ * Отдельным лёгким запросом, а не полем в /dataset: реестр открывают гораздо
+ * чаще, чем журнал, и таскать в нём тексты всех касаний незачем.
+ */
+export function fetchTouchCounts(): Promise<{ counts: Record<string, number> }> {
+  return request<{ counts: Record<string, number> }>("/touches/counts");
+}
+
+export function createTouch(form: BbcTouchForm): Promise<BbcTouch> {
+  return request<BbcTouch>("/touches", { method: "POST", body: JSON.stringify(form) });
+}
+
+export function updateTouch(id: number, form: BbcTouchForm): Promise<BbcTouch> {
+  return request<BbcTouch>(`/touches/${id}`, { method: "PATCH", body: JSON.stringify(form) });
+}
+
+export function deleteTouch(id: number): Promise<BbcOk> {
+  return request<BbcOk>(`/touches/${id}`, { method: "DELETE" });
+}
+
+/**
+ * Загрузка файла — единственный запрос с multipart, поэтому мимо `request()`:
+ * тот навязывает `Content-Type: application/json`, а здесь границу multipart
+ * должен проставить сам браузер.
+ */
+export async function uploadTouchFile(touchId: number, file: File): Promise<BbcTouchFile> {
+  const token = currentLinkToken();
+  const body = new FormData();
+  body.append("file", file);
+
+  const res = await fetch(`${BASE}/touches/${touchId}/files`, {
+    method: "POST",
+    cache: "no-store",
+    credentials: "include",
+    headers: token ? { [LINK_HEADER]: token } : undefined,
+    body,
+  });
+
+  const payload = await res.json().catch(() => null);
+  if (!res.ok) {
+    const detail =
+      payload && typeof payload === "object" && "detail" in payload
+        ? String((payload as { detail: unknown }).detail)
+        : `Ошибка ${res.status}`;
+    throw new BbcApiError(detail, res.status);
+  }
+  return payload as BbcTouchFile;
+}
+
+export function deleteTouchFile(fileId: number): Promise<BbcOk> {
+  return request<BbcOk>(`/files/${fileId}`, { method: "DELETE" });
+}
+
+/**
+ * Адрес файла. Скачивание идёт через свой эндпоинт с проверкой прав, а не
+ * ссылкой на бакет: скрин переписки о долге не должен открываться по угаданному
+ * или пересланному адресу.
+ */
+export function touchFileUrl(fileId: number): string {
+  const token = currentLinkToken();
+  // Токен ссылки здесь приходится вернуть в URL: <a href> и <img src> заголовок
+  // X-BBC-Link поставить не могут.
+  return `${BASE}/files/${fileId}${token ? `?k=${encodeURIComponent(token)}` : ""}`;
 }
 
 /* ── Data ───────────────────────────────────────────────────────────────────── */

@@ -13,6 +13,7 @@ import { ArrowLeftIcon } from "@/components/icons";
 import { BbcApiError, changeCredentials, fetchLinks, fetchMe, logout } from "../api";
 import { BbcDashboardIcon, LogoutIcon, UserIcon } from "../icon";
 import { DepartmentLinks } from "./department-links";
+import { Employees } from "./employees";
 import { LoginScreen } from "./login-screen";
 import type { BbcLink, BbcMe } from "../types";
 
@@ -142,6 +143,7 @@ export function AccountClient() {
 
       <main className="flex-1 w-full max-w-4xl mx-auto px-5 py-8 flex flex-col gap-5">
         <CredentialsCard onChanged={reload} />
+        <Employees />
         <DepartmentLinks initialLinks={links} loading={linksLoading} />
       </main>
     </div>

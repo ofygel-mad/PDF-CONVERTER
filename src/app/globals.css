@@ -94,6 +94,12 @@
   --ios-sheet-radius:  1.25rem;
   --ios-bar-h:         56px;
 
+  /* Сайдбар. Свёрнутая ширина — она же ширина подложки в раскладке, поэтому
+     значение одно и на двоих: разъехавшись, они дали бы либо щель, либо
+     сдвиг контента при наведении.                                            */
+  --bbc-rail-w:    56px;
+  --bbc-rail-open: 220px;
+
   /* Безопасные зоны объявлены здесь намеренно: неизвестная переменная внутри
      calc() рушит всё объявление целиком, поэтому запасной ноль обязателен.
      Работают они только вместе с viewportFit: "cover" в layout.tsx.           */
@@ -631,43 +637,179 @@ body {
 /* Точка справки видна только там, где нет наведения. */
 .bbc-hint-dot { display: none; }
 
-/* Нижний таб-бар. */
-.bbc-tabbar {
-  position: fixed;
-  bottom: 0;
-  left: 0;
-  right: 0;
+/* ── Сайдбар ───────────────────────────────────────────────────────────────
+   Полоса 56px, растущая до 220px по наведению. Раскрытие целиком на CSS:
+   состояние «раскрыт» не может разойтись с тем, где на самом деле курсор.
+
+   Место в раскладке держит `.bbc-rail` — ровно 56px, `overflow: visible`.
+   Раскрытая панель вылезает из неё поверх контента и НИЧЕГО не двигает: иначе
+   широкие таблицы дебиторки перевёрстывались бы на каждое движение мыши мимо
+   левого края.                                                              */
+.bbc-rail {
+  display: block;
+  flex: 0 0 var(--bbc-rail-w);
+  width: var(--bbc-rail-w);
+  position: sticky;
+  top: 0;
+  height: 100svh;
+  overflow: visible;
   z-index: 45;
+}
+.bbc-sidebar {
+  position: relative;
+  width: var(--bbc-rail-w);
+  height: 100svh;
+  overflow: hidden;
   display: flex;
+  flex-direction: column;
   background: var(--header-bg);
   -webkit-backdrop-filter: blur(12px);
   backdrop-filter: blur(12px);
-  border-top: 1px solid var(--border-subtle);
+  border-right: 1px solid var(--border-subtle);
   padding-bottom: var(--safe-b);
-  padding-left: var(--safe-l);
-  padding-right: var(--safe-r);
+  transition:
+    width var(--dur-slow) var(--ease-out),
+    box-shadow var(--dur-slow) var(--ease-out);
 }
-.bbc-tabbar button {
-  flex: 1 1 0;
-  min-width: 0;
-  min-height: var(--ios-bar-h);
+/* :focus-within, а не только :hover — иначе с клавиатуры в сайдбар не войти:
+   Tab уводит фокус на пункт, который остаётся за краем свёрнутой полосы.    */
+.bbc-sidebar:hover,
+.bbc-sidebar:focus-within {
+  width: var(--bbc-rail-open);
+  box-shadow: var(--shadow-float);
+}
+
+.bbc-sidebar-logo {
+  display: flex;
+  align-items: center;
+  gap: 0.625rem;
+  height: 48px;
+  padding: 0 0.6875rem;
+  flex-shrink: 0;
+  overflow: hidden;
+  border-bottom: 1px solid var(--border-subtle);
+}
+.bbc-sidebar-wordmark {
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  font-size: 0.8125rem;
+  color: var(--text-primary);
+}
+
+.bbc-sidebar-nav {
+  flex: 1;
+  min-height: 0;
   display: flex;
   flex-direction: column;
+  gap: 1px;
+  padding: 0.375rem 0.3125rem;
+  overflow-y: auto;
+  overflow-x: hidden;
+  scrollbar-width: thin;
+}
+
+.bbc-sidebar-item {
+  display: flex;
+  align-items: center;
+  gap: 0.625rem;
+  width: 100%;
+  min-height: 40px;
+  padding: 0 0.5rem;
+  border-radius: var(--radius-md);
+  color: var(--text-muted);
+  white-space: nowrap;
+  overflow: hidden;
+  text-align: left;
+  transition: background var(--dur-fast), color var(--dur-fast);
+}
+.bbc-sidebar-item:hover { background: var(--bg-hover); color: var(--text-primary); }
+.bbc-sidebar-item[aria-current="page"] {
+  background: var(--bg-active);
+  color: var(--dept-tone, var(--accent));
+}
+/* Панель управления прижата к низу и отделена чертой — она не про цифры,
+   а про то, как цифры считаются.                                           */
+.bbc-sidebar-item[data-pinned] {
+  margin-top: auto;
+  border-top: 1px solid var(--border-subtle);
+  border-radius: 0 0 var(--radius-md) var(--radius-md);
+}
+
+.bbc-sidebar-glyph {
+  position: relative;
+  flex: 0 0 auto;
+  width: 22px;
+  display: flex;
   align-items: center;
   justify-content: center;
-  gap: 0.125rem;
-  position: relative;
-  color: var(--text-muted);
-  transition: color var(--dur-fast);
 }
-.bbc-tabbar button[aria-current="page"] { color: var(--dept-tone, var(--accent)); }
-.bbc-tabbar .bbc-tabbar-label {
-  font-size: 0.625rem;
-  line-height: 1.1;
-  max-width: 100%;
+
+/* Асимметричные тайминги — то, из-за чего это ощущается живым: подпись
+   проявляется с задержкой 60мс, уже после того как пошла ширина, а гаснет
+   почти мгновенно. Симметричные выглядят как задержка интерфейса.           */
+.bbc-sidebar-label {
+  flex: 1;
+  min-width: 0;
+  font-size: 0.8125rem;
   overflow: hidden;
   text-overflow: ellipsis;
-  white-space: nowrap;
+  opacity: 0;
+  transition: opacity 80ms;
+}
+.bbc-sidebar:hover .bbc-sidebar-label,
+.bbc-sidebar:focus-within .bbc-sidebar-label {
+  opacity: 1;
+  transition: opacity 200ms 60ms;
+}
+.bbc-sidebar-count {
+  flex: 0 0 auto;
+  font-variant-numeric: tabular-nums;
+  color: var(--accent-rose);
+  font-size: 0.6875rem;
+}
+
+/* ── Ящик разделов на телефоне ─────────────────────────────────────────── */
+@keyframes bbc-drawer-in {
+  from { transform: translateX(-100%); }
+  to   { transform: translateX(0); }
+}
+.bbc-drawer {
+  width: min(280px, 82vw);
+  background: var(--bg-surface);
+  border-right: 1px solid var(--border-subtle);
+  box-shadow: var(--shadow-float);
+  padding-top: var(--safe-t);
+  padding-bottom: var(--safe-b);
+  padding-left: var(--safe-l);
+  animation: bbc-drawer-in var(--dur-base) var(--ease-out);
+}
+.bbc-drawer-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  padding: 0.5rem 0.5rem 0.5rem 0.875rem;
+  flex-shrink: 0;
+  border-bottom: 1px solid var(--border-subtle);
+}
+.bbc-drawer-item {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  width: 100%;
+  min-height: var(--ios-tap);
+  padding: 0 0.875rem;
+  color: var(--text-secondary);
+  font-size: var(--ios-value);
+}
+.bbc-drawer-item[aria-current="page"] {
+  color: var(--dept-tone, var(--accent));
+  background: var(--bg-active);
+  font-weight: 600;
+}
+.bbc-drawer-item[data-pinned] {
+  margin-top: 0.375rem;
+  border-top: 1px solid var(--border-subtle);
 }
 
 /* Лист снизу: въезд и отклик на нажатие. */
@@ -689,7 +831,7 @@ body {
 
   /* Списки в iOS отвечают на палец мгновенно. */
   .bbc-glist > button:active,
-  .bbc-tabbar button:active,
+  .bbc-drawer-item:active,
   .bbc-mrow:active { background: var(--bg-hover); }
 }
 
@@ -709,9 +851,10 @@ body {
     padding-top: var(--safe-t);
   }
 
-  /* Просвет под закреплённым баром: последняя строка данных не должна
-     оказаться под ним.                                                      */
-  .bbc-main { padding-bottom: calc(var(--ios-bar-h) + var(--safe-b) + 1.5rem); }
+  /* Закреплённого бара внизу больше нет — разделы уехали в ящик по бургеру.
+     Остаётся только безопасная зона: на телефонах с жестовой полосой
+     последняя строка данных иначе оказывается под ней.                      */
+  .bbc-main { padding-bottom: calc(var(--safe-b) + 1.5rem); }
 
   .bbc-micro { font-size: 0.75rem; }
   .bbc-mini  { font-size: 0.8125rem; }
@@ -1061,10 +1204,14 @@ html, body { overflow-x: clip; }
    компонента, а `hidden`/`sm:hidden` рядом молча не работает.
 
    Стоило это трёх дефектов на проде, проверенных в браузере: нижний таб-бар
-   (.bbc-tabbar) висел на всех ширинах вплоть до 1440 и дублировал верхнюю
-   ленту вкладок; значок логотипа (.logo-badge) занимал место в однострочной
-   шапке телефона, из-за чего заголовок обрезался; кнопки «Назад» и «Действия»
-   (.btn-ghost) показывались там, где предназначались другому экрану.
+   (.bbc-tabbar, с тех пор заменён сайдбаром) висел на всех ширинах вплоть до
+   1440 и дублировал верхнюю ленту вкладок; значок логотипа (.logo-badge)
+   занимал место в однострочной шапке телефона, из-за чего заголовок
+   обрезался; кнопки «Назад» и «Действия» (.btn-ghost) показывались там, где
+   предназначались другому экрану.
+
+   Сюда же относятся .bbc-rail (свой display: block) и бургер на .btn-ghost —
+   они прячутся друг от друга только этими двумя классами.
 
    !important здесь по делу: эти два класса делают ровно одно — прячут, — и
    должны выигрывать у любого компонентного display, не считаясь ни с чем.
@@ -1085,10 +1232,12 @@ html, body { overflow-x: clip; }
    Прятать здесь нечего: строка не исчезает, а переставляется. Классы
    .only-mobile / .only-desktop нужны только шапке таблицы, которой на
    телефоне не место — там каждое значение подписано в самой строке.      */
+/* Последняя колонка `auto` — под кнопку «Работа с долгом». В шапке таблицы
+   она остаётся пустой: подписывать кнопку заголовком нечего.               */
 .bbc-reg-head,
 .bbc-reg-row {
   display: grid;
-  grid-template-columns: minmax(0, 2.4fr) minmax(0, 1.6fr) minmax(0, 1fr) minmax(0, 1fr);
+  grid-template-columns: minmax(0, 2.4fr) minmax(0, 1.6fr) minmax(0, 1fr) minmax(0, 1fr) auto;
   align-items: center;
   gap: 0.75rem;
   padding: 0.625rem 0.875rem;
@@ -1098,14 +1247,45 @@ html, body { overflow-x: clip; }
    отдаётся имени клиента, а не пустоте. */
 .bbc-reg-head[data-no-dept],
 .bbc-reg-row[data-no-dept] {
-  grid-template-columns: minmax(0, 3.4fr) minmax(0, 1.6fr) minmax(0, 1fr);
+  grid-template-columns: minmax(0, 3.4fr) minmax(0, 1.6fr) minmax(0, 1fr) auto;
 }
 
 .bbc-reg-row {
+  position: relative;
   transition: background var(--dur-fast) var(--ease-out);
 }
 .bbc-reg-row:hover { background: var(--bg-hover); }
 .bbc-reg-row:active { background: var(--bg-active); }
+
+/* Две кнопки в одной строке — раскрыть и «Касания».
+   Кнопку в кнопку вложить нельзя, поэтому строка стала <div>, а раскрытие
+   висит на кнопке с именем клиента, растянутой по всей строке через ::after.
+   Кнопка касаний лежит поверх собственным слоем. Обе настоящие, обе
+   достижимы с клавиатуры, вложенности нет.                                 */
+.bbc-reg-open::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+}
+.bbc-reg-open:focus-visible::after {
+  outline: 2px solid var(--accent);
+  outline-offset: -2px;
+  border-radius: var(--radius-sm);
+}
+.bbc-reg-touch {
+  position: relative;
+  z-index: 1;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3125rem;
+  padding: 0.25rem 0.5rem;
+  border-radius: var(--radius-sm);
+  font-size: 0.6875rem;
+  color: var(--text-muted);
+  white-space: nowrap;
+  transition: background var(--dur-fast), color var(--dur-fast);
+}
+.bbc-reg-touch:hover { background: var(--bg-active); color: var(--text-accent); }
 
 @media (max-width: 639.98px) {
   /* Две строки: сверху имя и сумма — ровно те два значения, ради которых
@@ -1120,6 +1300,72 @@ html, body { overflow-x: clip; }
   .bbc-reg-sum { grid-area: 1 / 2; }
   .bbc-reg-age { grid-area: 2 / 1; }
   .bbc-reg-dept { grid-area: 2 / 2; text-align: right; }
+  /* Кнопка касаний — своей третьей строкой на всю ширину: втиснутая во вторую
+     она наезжала на код отдела, а оба значения нужны целиком. */
+  .bbc-reg-touch { grid-area: 3 / 1 / 4 / 3; justify-self: start; min-height: 32px; }
+}
+
+/* ── Журнал касаний ────────────────────────────────────────────────────── */
+.bbc-touch-row { padding: 0.75rem 0.875rem; }
+.bbc-touch-row:last-child { border-bottom: none !important; }
+
+/* Модальное окно. На десктопе — по центру, на телефоне — листом снизу:
+   разметка одна, меняется только позиционирование. Два верстания одной формы
+   разъехались бы на первой же правке.                                       */
+.bbc-modal {
+  position: fixed;
+  z-index: 50;
+  display: flex;
+  flex-direction: column;
+  background: var(--bg-surface);
+  border: 1px solid var(--border-subtle);
+  box-shadow: var(--shadow-float);
+  left: 50%;
+  top: 50%;
+  transform: translate(-50%, -50%);
+  width: min(560px, calc(100vw - 2rem));
+  max-height: min(88svh, 46rem);
+  border-radius: var(--radius-lg);
+  animation: bbc-modal-in var(--dur-base) var(--ease-out);
+}
+@keyframes bbc-modal-in {
+  from { opacity: 0; transform: translate(-50%, calc(-50% + 12px)); }
+  to   { opacity: 1; transform: translate(-50%, -50%); }
+}
+.bbc-modal-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 0.75rem;
+  flex-shrink: 0;
+  padding: 0.75rem 0.75rem 0.75rem 1rem;
+  border-bottom: 1px solid var(--border-subtle);
+}
+.bbc-modal-body {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  padding: 1rem;
+}
+
+@media (max-width: 639.98px) {
+  .bbc-modal {
+    left: 0;
+    top: auto;
+    bottom: 0;
+    transform: none;
+    width: 100%;
+    max-width: 100%;
+    max-height: 92svh;
+    border-radius: var(--ios-sheet-radius) var(--ios-sheet-radius) 0 0;
+    padding-bottom: var(--safe-b);
+    animation: bbc-sheet-in var(--dur-base) var(--ease-out);
+  }
+  /* Ввод не меньше 16px, иначе iOS зумит страницу при фокусе и не отъезжает. */
+  .bbc-modal input,
+  .bbc-modal textarea,
+  .bbc-modal select { font-size: max(16px, 1rem); }
 }
 
 /* Полоска возраста. Графитовая целиком — цвет появляется только на

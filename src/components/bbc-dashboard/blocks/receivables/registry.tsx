@@ -12,7 +12,7 @@
  * каскаду неслоёный стиль перебил бы её молча.
  */
 import { money, plural } from "../../format";
-import { ChevronRightIcon } from "../../icon";
+import { ChevronRightIcon, TouchesIcon } from "../../icon";
 import { AgeLabel, AgeTrack } from "./age-track";
 import { ClientDetail } from "./client-detail";
 import type { ClientDebt } from "./debt";
@@ -22,6 +22,8 @@ export function Registry({
   expanded,
   onToggle,
   showDepartments,
+  touchCounts,
+  onOpenTouches,
 }: {
   clients: ClientDebt[];
   expanded: Set<string>;
@@ -29,6 +31,10 @@ export function Registry({
   /** У начальника одного отдела колонка повторяет один и тот же код в каждой
    *  строке — это ровно тот шум, ради которого блок и переделывали. */
   showDepartments: boolean;
+  /** Ключ клиента → сколько по нему касаний. Отдельный лёгкий запрос. */
+  touchCounts?: Record<string, number>;
+  /** Провалиться в журнал касаний по этому должнику. */
+  onOpenTouches?: (client: string) => void;
 }) {
   if (!clients.length) {
     return (
@@ -61,6 +67,8 @@ export function Registry({
             open={expanded.has(client.key)}
             onToggle={() => onToggle(client.key)}
             showDepartments={showDepartments}
+            touches={touchCounts?.[client.key] ?? 0}
+            onOpenTouches={onOpenTouches}
           />
         ))}
       </div>
@@ -68,27 +76,40 @@ export function Registry({
   );
 }
 
+/**
+ * Строка реестра.
+ *
+ * Строка — <div>, а не <button>, потому что действий в ней два: раскрыть и
+ * провалиться в журнал касаний. Кнопку в кнопку вложить нельзя, а обычный
+ * onClick на div не берётся с клавиатуры. Поэтому раскрытие висит на кнопке с
+ * именем клиента, растянутой по всей строке через `::after { inset: 0 }`
+ * (`.bbc-reg-open` в globals.css), а кнопка касаний лежит поверх собственным
+ * слоем. Обе настоящие, обе в порядке табуляции.
+ */
 function ClientRow({
   client,
   open,
   onToggle,
   showDepartments,
+  touches,
+  onOpenTouches,
 }: {
   client: ClientDebt;
   open: boolean;
   onToggle: () => void;
   showDepartments: boolean;
+  touches: number;
+  onOpenTouches?: (client: string) => void;
 }) {
   return (
     <div style={{ borderBottom: "1px solid var(--border-subtle)" }}>
-      <button
-        type="button"
-        className="bbc-reg-row w-full text-left"
-        data-no-dept={showDepartments ? undefined : ""}
-        onClick={onToggle}
-        aria-expanded={open}
-      >
-        <span className="bbc-reg-name flex items-center gap-2 min-w-0">
+      <div className="bbc-reg-row" data-no-dept={showDepartments ? undefined : ""}>
+        <button
+          type="button"
+          className="bbc-reg-open bbc-reg-name flex items-center gap-2 min-w-0 text-left"
+          onClick={onToggle}
+          aria-expanded={open}
+        >
           <span
             className="shrink-0 transition-transform"
             style={{
@@ -113,7 +134,7 @@ function ClientRow({
               {client.broken ? " · долг посчитан не полностью" : ""}
             </span>
           </span>
-        </span>
+        </button>
 
         <span className="bbc-reg-age flex items-center gap-2">
           <AgeTrack rows={client.rows} />
@@ -142,7 +163,28 @@ function ClientRow({
             </span>
           ) : null}
         </span>
-      </button>
+
+        {onOpenTouches ? (
+          <button
+            type="button"
+            className="bbc-reg-touch"
+            onClick={() => onOpenTouches(client.client)}
+            title={`Работа с долгом «${client.client}»`}
+          >
+            <TouchesIcon size={13} />
+            {/* Число, а не значок: «сколько раз уже писали» — это и есть ответ,
+                ради которого сюда смотрят. Ноль сказан словом, чтобы пустая
+                история читалась как приглашение, а не как сбой. */}
+            {touches > 0 ? (
+              <span className="bbc-num">
+                {touches} {plural(touches, "касание", "касания", "касаний")}
+              </span>
+            ) : (
+              <span>Работа с долгом</span>
+            )}
+          </button>
+        ) : null}
+      </div>
 
       {open ? <ClientDetail client={client} /> : null}
     </div>

@@ -12,8 +12,9 @@
  * и показывает — иначе цифра на экране разошлась бы с той, по которой живёт
  * отдел, и спорить стали бы с дашбордом, а не с таблицей.
  */
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 
+import { fetchTouchCounts } from "../../api";
 import { money, plural } from "../../format";
 import { PieChartIcon } from "../../icon";
 import type { BbcDataset, BbcMode, BbcRow } from "../../types";
@@ -34,6 +35,7 @@ export function ReceivablesBlock({
   onSearch,
   onClearFilters,
   activeFilterCount,
+  onOpenTouches,
 }: {
   dataset: BbcDataset;
   rows: BbcRow[];
@@ -43,6 +45,8 @@ export function ReceivablesBlock({
   onSearch: (value: string) => void;
   onClearFilters: () => void;
   activeFilterCount: number;
+  /** Провалиться в журнал касаний по должнику. Нет — раздел закрыт. */
+  onOpenTouches?: (client: string) => void;
 }) {
   const [expanded, setExpanded] = useState<Set<string>>(new Set());
   const [totalsOpen, setTotalsOpen] = useState(false);
@@ -52,6 +56,27 @@ export function ReceivablesBlock({
 
   const registry = useMemo(() => buildRegistry(rows), [rows]);
   const byDepartment = useMemo(() => debtByDepartment(rows), [rows]);
+
+  /**
+   * Сколько касаний по каждому должнику.
+   *
+   * Отдельным лёгким запросом, а не полем в /dataset: реестр открывают на
+   * порядок чаще журнала, и таскать в нём тексты всех касаний незачем. Отказ
+   * молчаливый — счётчик украшает строку, но без него реестр работает.
+   */
+  const [touchCounts, setTouchCounts] = useState<Record<string, number>>({});
+  useEffect(() => {
+    if (!onOpenTouches) return;
+    let alive = true;
+    void fetchTouchCounts()
+      .then((payload) => {
+        if (alive) setTouchCounts(payload.counts);
+      })
+      .catch(() => {});
+    return () => {
+      alive = false;
+    };
+  }, [onOpenTouches]);
 
   const shown = useMemo(
     () =>
@@ -124,6 +149,8 @@ export function ReceivablesBlock({
         expanded={expanded}
         onToggle={toggleClient}
         showDepartments={dataset.dimensions.departments.length > 1}
+        touchCounts={touchCounts}
+        onOpenTouches={onOpenTouches}
       />
 
       {totalsOpen ? (

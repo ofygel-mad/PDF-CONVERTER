@@ -275,3 +275,28 @@ export function SlidersIcon(props: IconProps) {
     </Glyph>
   );
 }
+
+/**
+ * Журнал касаний — реплика разговора.
+ *
+ * Отличается от JournalIcon (журнал операций) намеренно: там строки документа,
+ * здесь обращение к человеку. Два раздела рядом в меню, и по одной иконке
+ * должно быть понятно, в какой из них попадёшь.
+ */
+export function TouchesIcon(props: IconProps) {
+  return (
+    <Glyph {...props}>
+      <path d="M20 14a2 2 0 0 1-2 2H8l-4 3.5V6a2 2 0 0 1 2-2h12a2 2 0 0 1 2 2z" />
+      <path d="M8.5 9.5h7M8.5 12.5h4" />
+    </Glyph>
+  );
+}
+
+/** Бургер — вход в меню разделов на телефоне. */
+export function MenuIcon(props: IconProps) {
+  return (
+    <Glyph {...props}>
+      <path d="M4 7h16M4 12h16M4 17h16" />
+    </Glyph>
+  );
+}

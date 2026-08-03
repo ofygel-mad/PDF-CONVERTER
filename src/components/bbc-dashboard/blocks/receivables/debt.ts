@@ -131,8 +131,10 @@ function buildContract(key: string, rows: BbcRow[]): ContractDebt {
  * регистра клиент разваливается в реестре на две строки с половиной долга
  * каждая — а во вкладке отдела он один, и сверка это подтвердила.
  */
-function clientKey(name: string): string {
-  return name.split(/\s+/).join(" ").toLowerCase();
+export function clientKey(name: string): string {
+  // Тот же ключ считает бэкенд в `touches.client_key`. Разойтись им нельзя:
+  // касание, записанное из реестра, не нашлось бы в журнале по тому же клиенту.
+  return name.trim().split(/\s+/).join(" ").toLowerCase();
 }
 
 /** Из нескольких написаний берём самое частое; при равенстве — первое по алфавиту. */

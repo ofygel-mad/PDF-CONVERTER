@@ -18,6 +18,117 @@ export type BbcMe = {
   is_admin: boolean;
   /** True before the first admin exists — the UI offers initial setup. */
   needs_setup: boolean;
+  /** Человеческое имя сотрудника — подпись под касанием. */
+  full_name?: string;
+  /** `own` | `department` | `all` — чьи строки видно. */
+  data_scope?: BbcDataScope;
+  /**
+   * Пароль выдан админом и ещё не сменён. Оболочка показывает экран смены
+   * пароля вместо дашборда — данных за ним всё равно нет, область видимости
+   * такой учётки пуста.
+   */
+  must_change_password?: boolean;
+};
+
+/* ── Сотрудники ─────────────────────────────────────────────────────────────── */
+
+export type BbcDataScope = "own" | "department" | "all";
+
+export type BbcEmployee = {
+  id: number;
+  username: string;
+  full_name: string;
+  role: string;
+  /** `active` | `dismissed`. Увольнение мягкое: касания остаются в журнале. */
+  status: string;
+  must_change_password: boolean;
+  departments: string[];
+  blocks: string[];
+  data_scope: BbcDataScope;
+  /** Написания этого человека в колонке «Сотрудник» таблицы. */
+  employee_aliases: string[];
+  created_at: string | null;
+  password_changed_at: string | null;
+};
+
+export type BbcEmployeeForm = {
+  username?: string;
+  full_name: string;
+  departments: string[];
+  blocks: string[];
+  data_scope: BbcDataScope;
+  employee_aliases: string[];
+};
+
+/**
+ * Ответ на создание и на сброс пароля.
+ *
+ * `temp_password` приходит ровно здесь и больше нигде: в базе только
+ * argon2-хеш, повторно узнать пароль нельзя — только сбросить.
+ */
+export type BbcEmployeeCreated = {
+  employee: BbcEmployee;
+  temp_password: string;
+};
+
+export type BbcRolePreset = {
+  key: string;
+  name: string;
+  description: string;
+  blocks: string[];
+  data_scope: BbcDataScope;
+};
+
+export type BbcEmployeesPayload = {
+  employees: BbcEmployee[];
+  presets: BbcRolePreset[];
+  departments: string[];
+  blocks: string[];
+  data_scopes: BbcDataScope[];
+};
+
+/* ── Касания ────────────────────────────────────────────────────────────────── */
+
+export type BbcTouchFile = {
+  id: number;
+  filename: string;
+  content_type: string;
+  size_bytes: number;
+};
+
+export type BbcTouch = {
+  id: number;
+  /** Нормализованное имя клиента — тот же ключ, что и в реестре дебиторки. */
+  client_key: string;
+  client: string;
+  author_user_id: number | null;
+  /** Снимок имени автора: переживает удаление его учётки. */
+  author: string;
+  contacted_at: string | null;
+  contact_role: string;
+  contact_role_name: string;
+  contact_name: string;
+  channel: string;
+  channel_name: string;
+  summary: string;
+  created_at: string | null;
+  files: BbcTouchFile[];
+};
+
+export type BbcTouchForm = {
+  client: string;
+  contacted_at: string;
+  contact_role: string;
+  contact_name: string;
+  channel: string;
+  summary: string;
+};
+
+export type BbcTouchOptions = {
+  contact_roles: { key: string; name: string }[];
+  channels: { key: string; name: string }[];
+  max_file_bytes: number;
+  max_files: number;
 };
 
 export type BbcLink = {
