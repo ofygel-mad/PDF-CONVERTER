@@ -3,10 +3,11 @@
 /**
  * Форма касания: кому написали, когда, к чему пришли, чем подтверждается.
  *
- * Файлы прикладываются ПОСЛЕ сохранения записи — иначе некуда: у файла есть
- * внешний ключ на касание. Поэтому форма живёт в двух состояниях: сначала
- * «записать», потом «приложить». Раздражения это не создаёт, потому что второй
- * шаг необязательный, а первый закрывает основную работу.
+ * Файлы выбираются сразу, а уезжают после сохранения: у файла внешний ключ на
+ * касание, и раньше отправить его физически некуда. Для человека это незаметно —
+ * он прикладывает скрин тогда же, когда пишет текст. Первая версия показывала
+ * кнопку выбора только после записи, и открывший форму решал, что вложений тут
+ * нет вовсе.
  *
  * На десктопе — модальное окно, на телефоне — тот же контент листом снизу.
  * Разметка одна: два верстания одной формы разъезжаются на первой же правке.
@@ -17,7 +18,7 @@ import { createPortal } from "react-dom";
 import { CloseIcon } from "@/components/icons";
 import { useScrollLock } from "../../../use-scroll-lock";
 import { BbcApiError, createTouch, deleteTouchFile, touchFileUrl, updateTouch, uploadTouchFile } from "../../api";
-import { CheckIcon } from "../../icon";
+import { CheckIcon, PaperclipIcon } from "../../icon";
 import { isTopSheet, popSheet, pushSheet } from "../../mobile/sheet-stack";
 import type { BbcTouch, BbcTouchFile, BbcTouchOptions } from "../../types";
 
@@ -61,9 +62,11 @@ export function TouchModal({
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
 
-  /** id сохранённого касания: пока его нет, приложить файл некуда. */
+  /** id сохранённого касания: пока его нет, отправить файл некуда. */
   const [savedId, setSavedId] = useState<number | null>(null);
   const [files, setFiles] = useState<BbcTouchFile[]>([]);
+  /** Выбранное до сохранения — уедет сразу после записи касания. */
+  const [queued, setQueued] = useState<File[]>([]);
   const [uploading, setUploading] = useState(false);
 
   useScrollLock(open);
@@ -82,6 +85,7 @@ export function TouchModal({
       setSummary(initial.summary);
       setSavedId(initial.id);
       setFiles(initial.files);
+      setQueued([]);
     } else {
       setClient(presetClient ?? "");
       setContactedAt(today());
@@ -91,6 +95,7 @@ export function TouchModal({
       setSummary("");
       setSavedId(null);
       setFiles([]);
+      setQueued([]);
     }
   }, [open, initial, presetClient, options]);
 
@@ -155,9 +160,25 @@ export function TouchModal({
       const saved = savedId ? await updateTouch(savedId, form) : await createTouch(form);
       setSavedId(saved.id);
       setFiles(saved.files);
+
+      // Файлы, выбранные до сохранения, уезжают прямо сейчас: у них внешний ключ
+      // на касание, и раньше их отправить было физически некуда.
+      if (queued.length) {
+        setUploading(true);
+        try {
+          for (const file of queued) {
+            const uploaded = await uploadTouchFile(saved.id, file);
+            setFiles((current) => [...current, uploaded]);
+          }
+          setQueued([]);
+        } finally {
+          setUploading(false);
+        }
+      }
+
       onSaved();
-      // Окно не закрывается: следующий шаг — приложить подтверждение, и
-      // заставлять открывать запись заново ради этого незачем.
+      // Окно не закрывается: можно приложить ещё, и заставлять открывать запись
+      // заново ради этого незачем.
     } catch (err) {
       setError(err instanceof BbcApiError ? err.message : "Не удалось сохранить");
     } finally {
@@ -165,12 +186,27 @@ export function TouchModal({
     }
   }
 
+  /**
+   * Выбор файлов.
+   *
+   * До сохранения складываем в очередь и показываем списком; после — отправляем
+   * сразу. Раньше кнопки выбора до сохранения не было вовсе, и человек, открыв
+   * «Записать касание», видел, что приложить нечего и негде — то есть решал, что
+   * вложений тут нет в принципе.
+   */
   async function attach(list: FileList | null) {
-    if (!list?.length || !savedId) return;
+    if (!list?.length) return;
+    const picked = Array.from(list);
+
+    if (!savedId) {
+      setQueued((current) => [...current, ...picked].slice(0, options?.max_files ?? 5));
+      return;
+    }
+
     setUploading(true);
     setError(null);
     try {
-      for (const file of Array.from(list)) {
+      for (const file of picked) {
         const uploaded = await uploadTouchFile(savedId, file);
         setFiles((current) => [...current, uploaded]);
       }
@@ -194,7 +230,8 @@ export function TouchModal({
 
   if (!open) return null;
 
-  const canAttach = savedId != null && files.length < (options?.max_files ?? 5);
+  // Предел считается по обоим спискам: приложенному и выбранному.
+  const canAttach = files.length + queued.length < (options?.max_files ?? 5);
 
   return createPortal(
     <>
@@ -372,11 +409,37 @@ export function TouchModal({
               </ul>
             ) : null}
 
-            {savedId == null ? (
-              <p className="text-xs" style={{ color: "var(--text-muted)" }}>
-                Сначала запишите касание — потом можно приложить скрин или документ.
-              </p>
-            ) : canAttach ? (
+            {/* Выбранное до сохранения. Уедет вместе с записью — но видно уже
+                сейчас, чтобы человек не гадал, приложилось оно или нет. */}
+            {queued.length ? (
+              <ul className="flex flex-col gap-1.5">
+                {queued.map((file, index) => (
+                  <li
+                    key={`${file.name}-${index}`}
+                    className="flex items-center gap-2 px-2.5 py-1.5 rounded-lg min-w-0"
+                    style={{ background: "var(--bg-active)" }}
+                  >
+                    <span className="flex-1 min-w-0 truncate text-xs" style={{ color: "var(--text-secondary)" }}>
+                      {file.name}
+                    </span>
+                    <span className="bbc-micro shrink-0" style={{ color: "var(--text-muted)" }}>
+                      уедет при сохранении
+                    </span>
+                    <button
+                      type="button"
+                      onClick={() => setQueued((current) => current.filter((_, i) => i !== index))}
+                      aria-label={`Убрать ${file.name}`}
+                      className="btn-ghost shrink-0 flex items-center justify-center"
+                      style={{ width: 28, height: 28, padding: 0 }}
+                    >
+                      <CloseIcon size={13} />
+                    </button>
+                  </li>
+                ))}
+              </ul>
+            ) : null}
+
+            {canAttach ? (
               <label className="btn-ghost text-xs px-3 py-2 inline-flex items-center gap-2 cursor-pointer self-start">
                 <input
                   type="file"
@@ -387,8 +450,9 @@ export function TouchModal({
                     void attach(event.target.files);
                     event.target.value = "";
                   }}
-                  disabled={uploading}
+                  disabled={uploading || busy}
                 />
+                <PaperclipIcon size={14} />
                 {uploading ? "Загружаем…" : "Приложить скрин или документ"}
               </label>
             ) : (

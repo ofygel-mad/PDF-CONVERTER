@@ -292,6 +292,15 @@ export function TouchesIcon(props: IconProps) {
   );
 }
 
+/** Скрепка — приложить скрин или документ к касанию. */
+export function PaperclipIcon(props: IconProps) {
+  return (
+    <Glyph {...props}>
+      <path d="M20 11.5l-7.6 7.6a4.6 4.6 0 0 1-6.5-6.5l7.9-7.9a3 3 0 1 1 4.3 4.3l-7.9 7.9a1.5 1.5 0 0 1-2.1-2.1l7.2-7.2" />
+    </Glyph>
+  );
+}
+
 /** Бургер — вход в меню разделов на телефоне. */
 export function MenuIcon(props: IconProps) {
   return (
