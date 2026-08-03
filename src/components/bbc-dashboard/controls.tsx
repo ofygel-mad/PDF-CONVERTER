@@ -435,13 +435,21 @@ export function ContextStrip({
       ? `${totalRows} ${plural(totalRows, "строка", "строки", "строк")}`
       : `${visibleRows} из ${totalRows}`;
 
+  // Человек что-то менял сам: включил фильтр или ушёл с режима по умолчанию.
+  // Только в этом случае строке есть что сказать.
+  const defaultPreset = mode === dataset.default_mode;
+  const changed = activeCount > 0 || !defaultPreset;
+
   return (
     <>
-    {/* Телефон: одна строка вместо ленты чипов с прокруткой вбок.
-        Листать вбок под шапкой, которую только что ужали до 48px, — ровно то,
-        чего на телефоне позволить себе нельзя. Весь смысл ленты («что я сейчас
-        вижу») умещается в одну строку, а снять фильтр можно в листе, который
-        она открывает. */}
+    {/* Телефон: вход в фильтры и режим. Единственный — листа настроек тут
+        больше взять негде, поэтому строка остаётся всегда.
+
+        Но говорит она только о том, что человек сам изменил. Название режима по
+        умолчанию и число строк не меняются и действия не требуют: постоянная
+        подпись такого рода приучает не смотреть сюда вовсе — и ровно к тому
+        моменту, когда появляется важное («данные старые», включён фильтр), её
+        уже не читают. В покое строка просто говорит «Настроить». */}
     <button
       type="button"
       onClick={onOpenSheet ?? onOpen}
@@ -455,25 +463,33 @@ export function ContextStrip({
         } as CSSProperties
       }
     >
-      <span aria-hidden="true" className="shrink-0" style={{ color: accent }}>
-        ◆
+      <span className="shrink-0" style={{ color: "var(--text-muted)" }} aria-hidden="true">
+        <SlidersIcon size={16} />
       </span>
-      <span className="flex-1 min-w-0 truncate text-xs" style={{ color: "var(--text-primary)" }}>
-        {preset?.title ?? "Свой режим"}
-        <span style={{ color: "var(--text-muted)" }}>
-          {" · "}
-          {rowsLabel}
-          {activeCount ? ` · фильтры ${activeCount}` : ""}
-        </span>
+      <span className="flex-1 min-w-0 truncate text-xs" style={{ color: "var(--text-secondary)" }}>
+        {changed ? (
+          <>
+            {activeCount ? (
+              <span style={{ color: "var(--text-primary)" }}>
+                {activeCount} {plural(activeCount, "фильтр", "фильтра", "фильтров")}
+              </span>
+            ) : null}
+            {activeCount && !defaultPreset ? " · " : ""}
+            {!defaultPreset ? (
+              <span style={{ color: accent }}>{preset?.title ?? "Свой режим"}</span>
+            ) : null}
+            {" · "}
+            {rowsLabel}
+          </>
+        ) : (
+          "Настроить"
+        )}
       </span>
       {live.sourceError ? (
         <span className="mono-meta shrink-0" style={{ color: "var(--accent-rose)" }}>
           старые данные
         </span>
       ) : null}
-      <span className="shrink-0" style={{ color: "var(--text-muted)" }} aria-hidden="true">
-        <SlidersIcon size={16} />
-      </span>
     </button>
 
     {/* Десктоп: полоса живёт, только когда ей есть что сказать.
