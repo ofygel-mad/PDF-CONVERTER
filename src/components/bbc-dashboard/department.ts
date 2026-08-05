@@ -72,14 +72,3 @@ export function department(code: string | null | undefined): Department | null {
   );
 }
 
-/** Названия разделов для строки «что входит в доступ». */
-export const BLOCK_TITLES: Record<string, string> = {
-  receivables: "дебиторка",
-  reports: "отчёты",
-  analytics: "аналитика",
-  journal: "журнал",
-  calendar: "платёжный календарь",
-  sales: "отдел продаж",
-  warnings: "предупреждения",
-  roadmap: "планы",
-};

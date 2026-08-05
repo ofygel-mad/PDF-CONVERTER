@@ -93,6 +93,7 @@ export function BbcDashboardClient() {
     phase,
     loading,
     error,
+    errorDetail,
     unauthorized,
     reload,
     refreshCooldown,
@@ -122,10 +123,20 @@ export function BbcDashboardClient() {
   const departmentInfo = isAdmin ? null : department(dataset?.scope.departments[0]);
   const tone = departmentInfo?.tone;
 
-  const allowedBlocks = useMemo(
-    () => (dataset ? allowedBlocksFor(dataset.scope.blocks) : []),
-    [dataset],
-  );
+  /**
+   * Разделы для меню. Область видимости берётся из набора данных, а когда его
+   * нет — из `me`.
+   *
+   * Запасной источник заведён ради экрана отказа. Раньше меню висело на
+   * `dataset`, и при неудачном чтении таблицы навигация исчезала вместе с
+   * данными: человек оставался с сообщением об ошибке на пустой странице, без
+   * единого способа уйти в другой раздел. Права в `me` те же самые — сервер
+   * присылает их ещё до чтения таблицы, — так что показывать нечего лишнего.
+   */
+  const allowedBlocks = useMemo(() => {
+    const granted = dataset?.scope.blocks ?? me?.blocks;
+    return granted ? allowedBlocksFor(granted) : [];
+  }, [dataset, me]);
 
   const activeBlock = useMemo(() => {
     if (!allowedBlocks.length) return null;
@@ -235,11 +246,14 @@ export function BbcDashboardClient() {
         </div>
       ) : null}
 
-      {dataset ? (
+      {/* По списку разделов, а не по набору данных: при отказе чтения таблицы
+          навигация обязана остаться на месте. Счётчик предупреждений без
+          данных неизвестен — тогда его просто нет, а не ноль. */}
+      {allowedBlocks.length ? (
         <Sidebar
           blocks={allowedBlocks}
           activeKey={activeBlock?.key}
-          warningCount={dataset.warnings_summary.total}
+          warningCount={dataset?.warnings_summary.total ?? 0}
           onSelect={goToBlock}
         />
       ) : null}
@@ -403,13 +417,46 @@ export function BbcDashboardClient() {
         className="bbc-enter bbc-main flex-1 w-full max-w-[1400px] mx-auto px-4 py-5 flex flex-col gap-4"
         style={{ "--enter-index": 3 } as CSSProperties}
       >
+        {/* Отказ — состояние экрана, а не строчка сверху.
+            Раньше здесь стояла узкая красная плашка, в которую попадал текст
+            прямо из ответа сервера: при проверке вся страница состояла из
+            слова «boom», а при пропаже сети — из «Failed to fetch». Теперь
+            сказано, что случилось, чем это грозит данным и что нажать; сама
+            служебная строка убрана под «Подробности» — она нужна тому, кто
+            будет чинить, а не тому, кто смотрит отчёт. */}
         {error ? (
-          <div
-            className="card p-4 text-sm"
-            style={{ color: "var(--accent-rose)", borderColor: "var(--outflow-border)" }}
-            role="alert"
-          >
-            {error}
+          <div className="card p-6 flex flex-col gap-3" role="alert" aria-live="polite">
+            <h3 className="text-base font-semibold" style={{ color: "var(--text-primary)" }}>
+              {error}
+            </h3>
+            <p className="text-sm" style={{ color: "var(--text-secondary)" }}>
+              {dataset
+                ? "На экране данные с прошлого удачного чтения — они могли устареть."
+                : "Данные за этот раз прочитать не удалось. Сама таблица цела: сервис только читает её и ничего в ней не меняет."}
+            </p>
+            {/* Отдельной подписи «когда читали удачно» здесь нет намеренно:
+                свежесть данных живёт в шапке одной строкой на весь экран, и
+                второй счётчик рядом с кнопкой означал бы два разных времени
+                про одно и то же. */}
+            <div className="flex items-center gap-2 flex-wrap">
+              <button
+                type="button"
+                onClick={() => void reload(true)}
+                disabled={loading}
+                className="btn-primary text-sm px-3.5 py-2 flex items-center gap-2"
+              >
+                <RefreshIcon size={15} />
+                {loading ? "Читаем…" : "Попробовать снова"}
+              </button>
+            </div>
+            {errorDetail ? (
+              <details className="mono-meta">
+                <summary className="cursor-pointer select-none">Подробности</summary>
+                <p className="pt-1.5" style={{ color: "var(--text-muted)" }}>
+                  {errorDetail}
+                </p>
+              </details>
+            ) : null}
           </div>
         ) : null}
 

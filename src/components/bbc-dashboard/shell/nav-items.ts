@@ -67,6 +67,28 @@ export const CONTROL_BLOCK: BlockDefinition = {
   requires: "control",
 };
 
+/**
+ * Подпись раздела по ключу — для мест, которые перечисляют разделы, но меню не
+ * рисуют: полосы отдела и карточки сотрудника.
+ *
+ * Заведено после того, как в шапке руководителя отдела вылез английский ключ
+ * `touches` посреди русских названий. Причина была не в опечатке: списков
+ * названий в продукте жило три — этот, копия в department.ts и ещё одна в
+ * access/employees.tsx. Журнал касаний добавили в два из трёх, и полоса отдела
+ * честно напечатала ключ, потому что в её копии такого раздела не значилось.
+ *
+ * Возврат ключа как есть на неизвестном значении оставлен намеренно: выдумывать
+ * название разделу, которого нет в списке, — врать. Но теперь список один, и
+ * попасть в эту ветку можно только с правами на несуществующий раздел.
+ */
+const TITLE_BY_KEY: Record<string, string> = Object.fromEntries(
+  [...BLOCKS, CONTROL_BLOCK].map((item) => [item.key, item.title]),
+);
+
+export function blockTitle(key: string): string {
+  return TITLE_BY_KEY[key] ?? key;
+}
+
 /** Разделы, доступные вызывающему. Всегда заканчивается панелью управления. */
 export function allowedBlocksFor(grantedBlocks: readonly string[]): BlockDefinition[] {
   const granted = new Set(grantedBlocks);

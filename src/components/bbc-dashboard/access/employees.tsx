@@ -43,17 +43,7 @@ import type {
   BbcRolePreset,
 } from "../types";
 
-const BLOCK_TITLES: Record<string, string> = {
-  receivables: "Дебиторка",
-  touches: "Журнал касаний",
-  calendar: "Платёжный календарь",
-  reports: "Отчёты",
-  analytics: "Аналитика",
-  journal: "Журнал операций",
-  sales: "Отдел продаж",
-  warnings: "Предупреждения",
-  roadmap: "Планы",
-};
+import { blockTitle } from "../shell/nav-items";
 
 const SCOPE_TITLES: Record<BbcDataScope, { name: string; hint: string }> = {
   own: { name: "Только свои клиенты", hint: "по колонке «Сотрудник» в таблице" },
@@ -307,7 +297,7 @@ function EmployeeCard({
       </p>
 
       <p className="bbc-micro" style={{ color: "var(--text-muted)" }}>
-        {employee.blocks.map((key) => BLOCK_TITLES[key] ?? key).join(" · ")}
+        {employee.blocks.map((key) => blockTitle(key)).join(" · ")}
       </p>
 
       <div className="flex flex-wrap gap-1.5">
@@ -481,7 +471,7 @@ function EmployeeEditor({
             {blocks.map((key) => (
               <Check
                 key={key}
-                label={BLOCK_TITLES[key] ?? key}
+                label={blockTitle(key)}
                 checked={form.blocks.includes(key)}
                 onChange={() => toggle("blocks", key)}
               />

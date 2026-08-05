@@ -216,6 +216,12 @@ export function useDataset() {
   const [mode, setMode] = useState<BbcMode>(initial.mode ?? FALLBACK_MODE);
   const [block, setBlock] = useState<string>(initial.block ?? "receivables");
   const [error, setError] = useState<string | null>(null);
+  /**
+   * Служебная строка отказа: то, что прислал сервер, или текст исключения
+   * fetch. На экране она лежит под «Подробностями» и по умолчанию не видна —
+   * раньше именно она и была всем сообщением об ошибке.
+   */
+  const [errorDetail, setErrorDetail] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   /**
    * Чем занята первая загрузка. Ровно две фазы, потому что ровно столько фронт
@@ -267,6 +273,7 @@ export function useDataset() {
       setDataset(payload);
       setUnauthorized(false);
       setError(null);
+      setErrorDetail(null);
       // Adopt the server default only when the URL did not pin a mode.
       setMode((current) => (initial.mode ? current : payload.default_mode));
     } catch (err) {
@@ -276,8 +283,13 @@ export function useDataset() {
         setDataset(null);
         setUnauthorized(true);
         setError(null);
+        setErrorDetail(null);
       } else {
-        setError(err instanceof Error ? err.message : "Не удалось загрузить данные");
+        setError(err instanceof Error ? err.message : "Не удалось прочитать таблицу");
+        // Показывать техническую строку только когда она добавляет что-то к
+        // человеческой: у четырёхсотых они совпадают, и дублировать нечего.
+        const detail = err instanceof BbcApiError ? err.detail : null;
+        setErrorDetail(detail && detail !== (err as Error).message ? detail : null);
       }
     } finally {
       setLoading(false);
@@ -365,6 +377,7 @@ export function useDataset() {
     setBlock,
     loading,
     error,
+    errorDetail,
     unauthorized,
     reload: load,
     /** Секунд до следующего разрешённого ручного обновления, 0 — можно. */

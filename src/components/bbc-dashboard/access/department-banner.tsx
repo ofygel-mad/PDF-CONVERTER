@@ -11,8 +11,9 @@
  */
 import type { CSSProperties } from "react";
 
-import { BLOCK_TITLES, type Department } from "../department";
+import { type Department } from "../department";
 import { plural } from "../format";
+import { blockTitle } from "../shell/nav-items";
 import { deadlineLabel, useCountdown } from "../use-countdown";
 
 export function DepartmentBanner({
@@ -28,9 +29,11 @@ export function DepartmentBanner({
 }) {
   const countdown = useCountdown(expiresAt);
 
+  // Строчными: перечень идёт внутри фразы «278 договоров отдела · дебиторка ·
+  // журнал касаний», а не отдельным списком.
   const sections = blocks
     .filter((key) => key !== "control")
-    .map((key) => BLOCK_TITLES[key] ?? key);
+    .map((key) => blockTitle(key).toLowerCase());
 
   return (
     <div

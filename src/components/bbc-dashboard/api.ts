@@ -42,42 +42,98 @@ export function currentLinkToken(): string | null {
   return new URLSearchParams(window.location.search).get(LINK_PARAM);
 }
 
+/** Статус сетевого отказа: запрос не дошёл до сервера, отвечать было некому. */
+const NETWORK = 0;
+
+/**
+ * Что показать человеку вместо служебной строки.
+ *
+ * Отказы делятся на два сорта, и обходиться с ними надо по-разному.
+ *
+ * Четырёхсотые бэкенд пишет сам и по-русски — «Неверный логин или пароль»,
+ * «Такой логин уже занят». Это и есть текст для человека, подменять его нельзя:
+ * получится «что-то пошло не так» там, где раньше было сказано, что именно.
+ *
+ * Пятисотые и сетевые отказы человеку не адресованы вовсе. В поле detail
+ * приходит то, что положил Python, и на экран оно попадало как есть: при
+ * проверке вся страница состояла из слова «boom», а при отключении сети — из
+ * «Failed to fetch». Для таких случаев текст берётся отсюда, а исходная строка
+ * остаётся в `detail` — её показывают под «Подробностями», не выбрасывая.
+ */
+const HUMAN_BY_STATUS: Record<number, string> = {
+  [NETWORK]: "Нет связи с сервером",
+  500: "Сервер не смог отдать данные",
+  502: "Сервер не отвечает",
+  503: "Сервер сейчас занят",
+  504: "Сервер не ответил вовремя",
+};
+
+const SERVER_FALLBACK = "Сервер не смог отдать данные";
+
+/** Разбор неуспешного ответа в ошибку с двумя текстами: людским и техническим. */
+function errorFromResponse(res: Response, payload: unknown): BbcApiError {
+  const detail =
+    payload && typeof payload === "object" && "detail" in payload
+      ? String((payload as { detail: unknown }).detail)
+      : `Ошибка ${res.status}`;
+  const human = res.status >= 500 ? (HUMAN_BY_STATUS[res.status] ?? SERVER_FALLBACK) : detail;
+  return new BbcApiError(human, res.status, detail);
+}
+
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
   const token = currentLinkToken();
   const headers: Record<string, string> = { ...((init?.headers as Record<string, string>) ?? {}) };
   if (init?.body) headers["Content-Type"] = "application/json";
   if (token) headers[LINK_HEADER] = token;
 
-  const res = await fetch(`${BASE}${path}`, {
-    cache: "no-store",
-    credentials: "include",
-    ...init,
-    headers,
-  });
+  let res: Response;
+  try {
+    res = await fetch(`${BASE}${path}`, {
+      cache: "no-store",
+      credentials: "include",
+      ...init,
+      headers,
+    });
+  } catch (cause) {
+    // Сюда попадает пропавшая сеть, оборванный туннель и заблокированный
+    // запрос. fetch бросает голый TypeError, и раньше его текст уезжал прямо
+    // на экран поверх данных.
+    throw new BbcApiError(
+      HUMAN_BY_STATUS[NETWORK],
+      NETWORK,
+      cause instanceof Error ? cause.message : String(cause),
+    );
+  }
 
   const payload = await res.json().catch(() => null);
-  if (!res.ok) {
-    const detail =
-      payload && typeof payload === "object" && "detail" in payload
-        ? String((payload as { detail: unknown }).detail)
-        : `Ошибка ${res.status}`;
-    throw new BbcApiError(detail, res.status);
-  }
+  if (!res.ok) throw errorFromResponse(res, payload);
   return payload as T;
 }
 
 export class BbcApiError extends Error {
   readonly status: number;
+  /**
+   * Исходная строка отказа. Для четырёхсотых совпадает с `message` — там текст
+   * бэкенда и есть человеческий. Для пятисотых и сетевых здесь лежит служебное
+   * сообщение, которое показывают только по требованию.
+   */
+  readonly detail: string;
 
-  constructor(message: string, status: number) {
+  constructor(message: string, status: number, detail?: string) {
     super(message);
     this.name = "BbcApiError";
     this.status = status;
+    this.detail = detail ?? message;
   }
 
   /** True when the caller simply is not signed in — the shell shows the login. */
   get isUnauthorized(): boolean {
     return this.status === 401;
+  }
+
+  /** Отказ, который человеку объяснять нечем: сеть или сервер. */
+  get isTechnical(): boolean {
+    return this.status === NETWORK || this.status >= 500;
   }
 }
 
@@ -242,22 +298,25 @@ export async function uploadTouchFile(touchId: number, file: File): Promise<BbcT
   const body = new FormData();
   body.append("file", file);
 
-  const res = await fetch(`${BASE}/touches/${touchId}/files`, {
-    method: "POST",
-    cache: "no-store",
-    credentials: "include",
-    headers: token ? { [LINK_HEADER]: token } : undefined,
-    body,
-  });
+  let res: Response;
+  try {
+    res = await fetch(`${BASE}/touches/${touchId}/files`, {
+      method: "POST",
+      cache: "no-store",
+      credentials: "include",
+      headers: token ? { [LINK_HEADER]: token } : undefined,
+      body,
+    });
+  } catch (cause) {
+    throw new BbcApiError(
+      HUMAN_BY_STATUS[NETWORK],
+      NETWORK,
+      cause instanceof Error ? cause.message : String(cause),
+    );
+  }
 
   const payload = await res.json().catch(() => null);
-  if (!res.ok) {
-    const detail =
-      payload && typeof payload === "object" && "detail" in payload
-        ? String((payload as { detail: unknown }).detail)
-        : `Ошибка ${res.status}`;
-    throw new BbcApiError(detail, res.status);
-  }
+  if (!res.ok) throw errorFromResponse(res, payload);
   return payload as BbcTouchFile;
 }
 
