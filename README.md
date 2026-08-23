@@ -78,6 +78,46 @@ AZURE_DOCUMENT_INTELLIGENCE_KEY=
 | GET | `/api/v1/transforms/parsers` | Supported input formats |
 | GET | `/api/v1/health/ready` | Database readiness |
 
+## MCP-коннектор для приложения Claude
+
+Топ-менеджер спрашивает отчётность словами в официальном приложении Claude
+(«какие отчёты за этот месяц»), Claude через коннектор читает Google-таблицы.
+Только чтение: пишущих инструментов нет, а токен Google выпущен с
+`spreadsheets.readonly` — запись не пройдёт даже при ошибке в коде.
+
+Модуль `backend/app/mcp/` — удаляемый: свои настройки, свои Google-скоупы, свой
+кэш. Новых зависимостей не требует, протокол реализован поверх FastAPI.
+
+**Настройка (один раз).**
+
+1. Сгенерировать секрет:
+   `python -c "import secrets; print(secrets.token_urlsafe(48))"`
+2. На сервисе **бэкенда** в Railway задать `MCP_ENABLED=true` и `MCP_SECRET=<секрет>`.
+   `BBC_SERVICE_ACCOUNT_JSON` там уже есть, отдельные креды не нужны.
+3. Взять публичный домен бэкенда: Railway → сервис бэкенда → Settings → Networking.
+   Проверить, что это он: `https://<домен>/api/v1/health/live` отвечает.
+4. В claude.ai → Settings → Connectors → Add custom connector вставить
+
+   ```
+   https://<домен>.up.railway.app/mcp/<MCP_SECRET>
+   ```
+
+   OAuth Client ID и Secret в «Advanced» оставить пустыми.
+
+**Ссылка и есть пароль** — передавать её в личном сообщении, не в общем чате.
+Отзыв доступа = смена `MCP_SECRET` и переподключение коннектора у всех.
+
+Таблицу видно ровно тогда, когда она расшарена на сервисный аккаунт
+`bbc-sheets@bbc-sheets.iam.gserviceaccount.com`. Сузить круг можно через
+`MCP_ALLOWED_IDS`.
+
+**Инструменты:** `list_spreadsheets`, `describe_spreadsheet`, `peek_sheet`,
+`read_range`, `search_rows`. Проверить рукопожатие вживую:
+
+```bash
+npx @modelcontextprotocol/inspector   # транспорт Streamable HTTP, боевой URL
+```
+
 ## Tests
 
 ```powershell
