@@ -35,7 +35,7 @@ import { ReceivablesBlock } from "./blocks/receivables";
 import { ReportsBlock } from "./blocks/reports";
 import { WarningsBlock } from "./blocks/warnings";
 import { CommandPalette } from "./command-palette";
-import { ContextStrip, LiveFailureBanner, LiveIndicator } from "./controls";
+import { ContextStrip, LayoutDriftNote, LiveFailureBanner, LiveIndicator } from "./controls";
 import { MenuIcon, MoreIcon, UserIcon } from "./icon";
 import { ActionsSheet } from "./mobile/actions-sheet";
 import { ControlSheet } from "./mobile/control-sheet";
@@ -384,6 +384,9 @@ export function BbcDashboardClient() {
         {/* Сбой источника на телефоне — своей строкой: в шапке из одной строки
             для подписи места нет, а прятать это состояние нельзя. */}
         <LiveFailureBanner live={live} />
+
+        {/* Книгу поправили, но всё прочиталось — не сбой, а примечание. */}
+        <LayoutDriftNote layout={dataset?.layout} />
 
         {dataset && departmentInfo ? (
           <DepartmentBanner

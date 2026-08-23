@@ -14,7 +14,7 @@ import { useState, type CSSProperties } from "react";
 import { ClockIcon, SlidersIcon } from "./icon";
 import { Hint } from "./mobile/hint";
 import { plural, relativeTime } from "./format";
-import type { BbcDataset, BbcMode } from "./types";
+import type { BbcDataset, BbcLayout, BbcMode } from "./types";
 import type { Filters } from "./use-dataset";
 import { LivePulse } from "./live-pulse";
 import type { LiveState } from "./use-live";
@@ -101,6 +101,61 @@ export function LiveFailureBanner({ live }: { live: LiveState }) {
       role="alert"
     >
       {text}
+    </div>
+  );
+}
+
+/**
+ * «Книгу поправили» — колонки переехали, но всё прочиталось.
+ *
+ * Это не сбой, и цветом оно не показывается: по правилам блока цвет остаётся за
+ * отказом. Раньше такого состояния не существовало вовсе — вставленная в книгу
+ * колонка просто роняла чтение, и дашборд писал «таблица не читается», хотя
+ * читать было можно. Теперь колонки ищутся по названиям, сдвиг переживается, а
+ * эта строка говорит, что именно уехало: когда цифры однажды разойдутся с
+ * книгой, смотреть надо сюда, а не гадать.
+ *
+ * Строка сворачиваемая и по умолчанию свёрнута: постоянно висящий список
+ * колонок — это шум, который перестают замечать ровно к тому моменту, когда он
+ * понадобится.
+ */
+export function LayoutDriftNote({ layout }: { layout?: BbcLayout }) {
+  const [open, setOpen] = useState(false);
+  if (!layout?.shifted || !layout.drift.length) return null;
+
+  const count = layout.drift.length;
+  return (
+    <div
+      className="px-4 py-1.5 border-b"
+      style={{ background: "var(--bg-raised)", borderColor: "var(--border-subtle)" }}
+    >
+      <button
+        type="button"
+        onClick={() => setOpen((value) => !value)}
+        className="mono-meta flex items-center gap-1.5 text-left"
+        style={{ color: "var(--text-muted)" }}
+        aria-expanded={open}
+        title="Колонки в книге переехали. Прочитано по названиям, а не по позициям."
+      >
+        <SlidersIcon size={13} />
+        <span>
+          книгу поправили: {count}{" "}
+          {plural(count, "колонка переехала", "колонки переехали", "колонок переехало")}
+        </span>
+        <span aria-hidden="true" style={{ opacity: 0.6 }}>
+          {open ? "▾" : "▸"}
+        </span>
+      </button>
+
+      {open ? (
+        <ul className="mt-1.5 flex flex-col gap-0.5">
+          {layout.drift.map((item) => (
+            <li key={item.key} className="mono-meta" style={{ color: "var(--text-muted)" }}>
+              «{item.title}»: {item.was} → {item.now}
+            </li>
+          ))}
+        </ul>
+      ) : null}
     </div>
   );
 }

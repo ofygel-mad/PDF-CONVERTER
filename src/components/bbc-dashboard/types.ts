@@ -305,6 +305,32 @@ export type BbcSourceState = {
   error: string | null;
 };
 
+/**
+ * Раскладка книги: где парсер нашёл каждую колонку.
+ *
+ * Колонки ищутся по названиям, поэтому вставленная в книгу колонка больше не
+ * ломает чтение — она только сдвигает позиции. `drift` перечисляет то, что
+ * уехало, и дашборд говорит об этом сам: «книгу поправили» должно быть видно
+ * раньше, чем кто-нибудь заметит неверную цифру.
+ */
+export type BbcLayoutDrift = {
+  key: string;
+  title: string;
+  was: number;
+  now: number;
+  header: string;
+};
+
+export type BbcLayout = {
+  sheet: string;
+  width: number;
+  shifted: boolean;
+  drift: BbcLayoutDrift[];
+  /** Необязательные колонки, которых в книге нет. */
+  absent: string[];
+  columns: Record<string, { index: number | null; header: string; how: string }>;
+};
+
 export type BbcDataset = {
   revision: number;
   changed_at: string | null;
@@ -318,6 +344,7 @@ export type BbcDataset = {
   coverage: BbcCoverage;
   warnings: BbcWarning[];
   warnings_summary: BbcWarningsSummary;
+  layout?: BbcLayout;
   sources: Record<string, BbcSourceState>;
 };
 
