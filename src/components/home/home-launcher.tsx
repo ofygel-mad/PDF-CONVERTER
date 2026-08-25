@@ -4,19 +4,6 @@ import Link from "next/link";
 import { useEffect, useRef, useState } from "react";
 
 import { ClockIcon, GridIcon, PuzzleIcon, TableIcon } from "@/components/icons";
-import { useThemeMode } from "./use-theme-mode";
-
-/**
- * Стартовый экран: четыре плитки, слетающиеся из углов на фоне видео.
- *
- * Адреса роликов приходят из окружения, а не лежат в репозитории: видео
- * заливается в Cloudflare, и коммитить десятки мегабайт в git ради фона
- * значит навсегда утяжелить каждый клон. Пока переменных нет, фон — тот же
- * градиент `--page-bg`, что и на остальных экранах, и стартовая страница
- * выглядит законченной, а не сломанной.
- */
-const VIDEO_DARK = process.env.NEXT_PUBLIC_HOME_VIDEO_DARK ?? "";
-const VIDEO_LIGHT = process.env.NEXT_PUBLIC_HOME_VIDEO_LIGHT ?? "";
 
 type Tile = {
   href: string;
@@ -57,18 +44,51 @@ const TILES: Tile[] = [
   },
 ];
 
-export function HomeLauncher() {
-  const theme = useThemeMode();
-  const videoRef = useRef<HTMLVideoElement>(null);
-  const src = theme === "light" ? VIDEO_LIGHT : VIDEO_DARK;
+type Props = {
+  /** Адрес ролика. Пусто — фон остаётся градиентным. */
+  videoSrc?: string;
+};
 
-  // Смена темы меняет src, но <video> не перезапускается сам от смены
-  // атрибута — без явного load() остаётся висеть последний кадр прежнего
-  // ролика, и «видео под светлую тему» оказывается тёмным стоп-кадром.
+/**
+ * Стартовый экран: четыре плитки, слетающиеся из углов на фоне видео.
+ *
+ * Ролик один на обе темы. Читаемость подписей держит не он, а вуаль
+ * `.home-veil` поверх него — она своя для светлой и тёмной темы, поэтому
+ * второе видео ничего не добавляло бы, кроме второй ссылки, которую надо
+ * не забыть поменять.
+ *
+ * Адрес приходит из окружения, а не лежит в репозитории: коммитить десятки
+ * мегабайт в git ради фона значит навсегда утяжелить каждый клон. Пока
+ * переменной нет, фон — тот же градиент `--page-bg`, что и на остальных
+ * экранах, и стартовая страница выглядит законченной, а не сломанной.
+ */
+export function HomeLauncher({ videoSrc = "" }: Props) {
+  const videoRef = useRef<HTMLVideoElement>(null);
+  // Битый адрес прячет ролик целиком, а не оставляет чёрный прямоугольник
+  // поверх светлой темы: ссылку на бакет будут менять руками, и опечатка в
+  // ней не должна ломать вид стартового экрана.
+  //
+  // Ради этого же адрес стоит атрибутом `src`, а не вложенным <source>: на
+  // <source> событие error всплывает не до <video>, и обработчик ниже просто
+  // никогда бы не сработал.
+  const [broken, setBroken] = useState(false);
+  const src = broken ? "" : videoSrc;
+
   useEffect(() => {
     const node = videoRef.current;
     if (!node || !src) return;
-    node.load();
+
+    // Одного onError мало, и это не перестраховка. Разметку отдаёт сервер,
+    // браузер начинает грузить ролик сразу — а React навешивает обработчик
+    // только после гидратации. Битый адрес успевает отвалиться в этот
+    // промежуток, событие уходит в никуда, и на экране остаётся чёрный
+    // прямоугольник, которого обработчик как раз и должен был не допустить.
+    // Поэтому состояние элемента проверяется ещё и здесь, задним числом.
+    if (node.error) {
+      setBroken(true);
+      return;
+    }
+
     void node.play().catch(() => {
       /* автозапуск может быть запрещён политикой браузера — фон просто статичен */
     });
@@ -80,6 +100,7 @@ export function HomeLauncher() {
         <video
           ref={videoRef}
           className="home-video"
+          src={src}
           autoPlay
           muted
           loop
@@ -87,9 +108,8 @@ export function HomeLauncher() {
           preload="auto"
           aria-hidden="true"
           tabIndex={-1}
-        >
-          <source src={src} />
-        </video>
+          onError={() => setBroken(true)}
+        />
       ) : null}
       <div className="home-veil" aria-hidden="true" />
 
