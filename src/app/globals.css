@@ -1825,24 +1825,18 @@ html, body { overflow-x: clip; }
     radial-gradient(120% 90% at 50% 40%, rgba(244, 244, 245, 0.42) 0%, rgba(244, 244, 245, 0.82) 100%);
 }
 
+/* В шапке только переключатель темы, поэтому прижат вправо самой раскладкой,
+   а не `margin-left: auto` у последнего элемента: пустой левой части, за счёт
+   которой это работало бы, здесь больше нет. */
 .home-top {
   position: relative;
   z-index: 2;
   display: flex;
   align-items: center;
-  gap: 0.625rem;
+  justify-content: flex-end;
   padding: 1rem 1.25rem;
   padding-top: max(1rem, var(--safe-t));
 }
-
-.home-top-title {
-  font-size: 0.8125rem;
-  font-weight: 600;
-  letter-spacing: -0.01em;
-  color: var(--text-primary);
-}
-
-.home-top-right { margin-left: auto; }
 
 .home-grid {
   position: relative;

@@ -3,13 +3,7 @@
 import Link from "next/link";
 import { useEffect, useRef, useState } from "react";
 
-import {
-  ClockIcon,
-  GridIcon,
-  PuzzleIcon,
-  TableIcon,
-  BrandMark,
-} from "@/components/icons";
+import { ClockIcon, GridIcon, PuzzleIcon, TableIcon } from "@/components/icons";
 import { useThemeMode } from "./use-theme-mode";
 
 /**
@@ -99,14 +93,12 @@ export function HomeLauncher() {
       ) : null}
       <div className="home-veil" aria-hidden="true" />
 
+      {/* В шапке стартового экрана только переключатель темы. Значок и подпись
+          «BBC Consulting» отсюда убраны: разделы — четыре плитки посреди
+          экрана, и всё, что стоит вокруг них, соревнуется с ними за внимание,
+          ничего при этом не сообщая. */}
       <header className="home-top">
-        <span className="logo-badge">
-          <BrandMark size={16} />
-        </span>
-        <span className="home-top-title">BBC Consulting</span>
-        <div className="home-top-right">
-          <HomeThemeToggle />
-        </div>
+        <HomeThemeToggle />
       </header>
 
       <main className="home-grid">
