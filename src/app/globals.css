@@ -319,20 +319,12 @@ body {
 .btn-ghost:active:not(:disabled) { transform: scale(0.97); }
 .btn-ghost:disabled { opacity: 0.40; cursor: not-allowed; }
 
-/* ─── Status dot — crisp, no glow ─────────────────────────────── */
-.status-dot {
-  display: inline-block;
-  width: 7px;
-  height: 7px;
-  border-radius: 9999px;
-  flex-shrink: 0;
-  background: var(--text-muted);
-  box-shadow: 0 0 0 3px transparent;
-}
-.status-dot[data-on="true"] {
-  background: var(--accent);
-  box-shadow: 0 0 0 3px var(--accent-soft);
-}
+/* Класс `.status-dot` удалён вместе с последней точкой состояния.
+   Оставлять его «на всякий случай» нельзя: готовая заготовка — первое, что
+   попадётся под руку, когда снова понадобится показать состояние, а правило
+   в CLAUDE.md записано ровно против этого. Состояние показывается тем, что
+   уже есть на экране: самой подписью, её весом, положением, движением.
+   Цвет — только на отказе.                                                */
 
 /* ─── Variant group toggle — sapphire pill, single voice ──────── */
 .variant-group-toggle {

@@ -27,6 +27,16 @@ type Props = {
   onFileChange: (f: File | null) => void;
 };
 
+/** «5 форматов», «2 формата», «1 формат» — иначе счётчик читается как заглушка. */
+function plural(count: number, one: string, few: string, many: string): string {
+  const mod100 = count % 100;
+  if (mod100 >= 11 && mod100 <= 14) return many;
+  const mod10 = count % 10;
+  if (mod10 === 1) return one;
+  if (mod10 >= 2 && mod10 <= 4) return few;
+  return many;
+}
+
 export function UploadPanel({ file, parsers, onFileChange }: Props) {
   const { isPending, handlePreviewNow } = useWorkbench();
   const [dragging, setDragging] = useState(false);
@@ -109,9 +119,23 @@ export function UploadPanel({ file, parsers, onFileChange }: Props) {
       </div>
 
       <div className="mt-3 flex items-center justify-between gap-2">
-        <div className="flex items-center gap-1.5 text-xs" style={{ color: "var(--text-muted)" }}>
-          <span className={`h-1.5 w-1.5 rounded-full flex-shrink-0 ${systemReady ? "bg-emerald-400" : "bg-slate-500"}`} />
-          {systemReady ? "Система готова" : "Сервер недоступен"}
+        {/* Ни точки, ни фразы «система готова».
+
+            Зелёный кружок, горящий всегда, — это шум, который перестают
+            замечать ровно к тому моменту, когда он должен был напугать; та же
+            беда и у надписи, которая при любом раскладе сообщает «всё
+            хорошо». Вместо этого в порядке вещей стоит число форматов — оно
+            и означает, что сервер ответил, и заодно говорит что-то новое,
+            подхватывая соседнюю кнопку «Форматы».
+
+            Цвет остаётся только на отказе. */}
+        <div
+          className="text-xs"
+          style={{ color: systemReady ? "var(--text-muted)" : "var(--accent-rose)" }}
+        >
+          {systemReady
+            ? `${parsers.length} ${plural(parsers.length, "формат", "формата", "форматов")}`
+            : "Сервер недоступен"}
         </div>
         <button
           className="text-xs flex items-center gap-1"
