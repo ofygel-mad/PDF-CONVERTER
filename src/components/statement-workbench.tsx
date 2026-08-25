@@ -12,9 +12,6 @@ import { VariantPreviewPanel } from "@/components/workbench/variant-preview-pane
 import { OcrReviewPanel } from "@/components/workbench/ocr-review-panel";
 import {
   ArrowLeftIcon,
-  GridIcon,
-  PuzzleIcon,
-  ClockIcon,
   TableIcon,
   AlertIcon,
   ScanIcon,
@@ -142,32 +139,12 @@ function WorkbenchInner({ openHistory = false }: { openHistory?: boolean }) {
           <ArrowLeftIcon size={15} />
           <span className="hidden sm:inline">Разделы</span>
         </Link>
+        {/* Ссылок на другие разделы здесь нет намеренно: разделы равны, и
+            переход между ними идёт через стартовый экран. Кнопки «Таблицы»,
+            «Сервисы» и «История» в шапке анализатора делали его главным, а
+            остальные — его подразделами; ровно от этого и уходили, когда
+            появился стартовый экран. */}
         <div className="flex items-center gap-2 flex-shrink-0">
-          <Link
-            href="/web-excel"
-            className="btn-ghost text-xs px-2.5 py-1.5 flex items-center gap-1.5"
-            title="Открыть книги в разделе «Таблицы»"
-          >
-            <GridIcon size={15} />
-            <span className="hidden sm:inline">Таблицы</span>
-          </Link>
-          <Link
-            href="/services"
-            className="btn-ghost text-xs px-2.5 py-1.5 flex items-center gap-1.5"
-            title="Внешние сервисы и интеграции"
-          >
-            <PuzzleIcon size={15} />
-            <span className="hidden sm:inline">Сервисы</span>
-          </Link>
-          <button
-            onClick={() => setShowHistory((value) => !value)}
-            className="btn-ghost text-xs px-2.5 py-1.5 flex items-center gap-1.5"
-            type="button"
-            title="История сессий"
-          >
-            <ClockIcon size={15} />
-            <span className="hidden sm:inline">История</span>
-          </button>
           <ThemeToggle />
         </div>
       </header>

@@ -1908,7 +1908,7 @@ html, body { overflow-x: clip; }
 .home-tile {
   display: flex;
   flex-direction: column;
-  gap: 0.5rem;
+  gap: 0.75rem;
   justify-content: flex-end;
   min-height: clamp(9rem, 24vh, 14rem);
   padding: clamp(1rem, 2.4vw, 1.75rem);
@@ -1961,12 +1961,6 @@ html, body { overflow-x: clip; }
   letter-spacing: -0.015em;
 }
 
-.home-tile-hint {
-  font-size: 0.75rem;
-  line-height: 1.4;
-  color: var(--text-secondary);
-}
-
 /* Откуда прилетает каждая плитка. Значения в vw/vh, а не в пикселях: плитка
    обязана стартовать ЗА краем экрана на любой ширине, иначе на большом
    мониторе влёт превращается в подрагивание на месте.                       */
@@ -1995,7 +1989,6 @@ html, body { overflow-x: clip; }
    подписи в две строки, поэтому подсказка убирается, а не сжимается. */
 @media (max-width: 480px) {
   .home-tile { min-height: 7.5rem; justify-content: center; }
-  .home-tile-hint { display: none; }
   .home-tile-icon { width: 2rem; height: 2rem; }
 }
 

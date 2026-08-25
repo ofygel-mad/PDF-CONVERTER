@@ -8,7 +8,6 @@ import { ClockIcon, GridIcon, PuzzleIcon, TableIcon } from "@/components/icons";
 type Tile = {
   href: string;
   label: string;
-  hint: string;
   corner: "tl" | "tr" | "bl" | "br";
   Icon: typeof TableIcon;
 };
@@ -17,28 +16,24 @@ const TILES: Tile[] = [
   {
     href: "/analyzer",
     label: "Анализатор выписок",
-    hint: "PDF, скан или Excel — в разобранную таблицу",
     corner: "tl",
     Icon: TableIcon,
   },
   {
     href: "/services",
     label: "Сервисы",
-    hint: "Autocall.kz, интеграции и выгрузки",
     corner: "tr",
     Icon: PuzzleIcon,
   },
   {
     href: "/web-excel",
     label: "Таблицы",
-    hint: "Книги BBC целиком — в том же виде, что в Google",
     corner: "bl",
     Icon: GridIcon,
   },
   {
     href: "/history",
     label: "История",
-    hint: "Разобранные выписки прошлых сессий",
     corner: "br",
     Icon: ClockIcon,
   },
@@ -140,7 +135,6 @@ export function HomeLauncher({ videoSrc = "" }: Props) {
               <tile.Icon size={22} />
             </span>
             <span className="home-tile-label">{tile.label}</span>
-            <span className="home-tile-hint">{tile.hint}</span>
           </Link>
         ))}
       </main>
