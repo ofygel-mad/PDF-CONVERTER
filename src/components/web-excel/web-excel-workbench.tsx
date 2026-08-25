@@ -6,6 +6,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { ArrowLeftIcon, ClockIcon, GridIcon } from "@/components/icons";
 import { webExcelApi, type ImportStats, type SavedBook } from "./api";
 import { ImportDialog } from "./import-dialog";
+import { assembleWorkbook, type TabPayload } from "./assemble";
 import { ensureSheetFonts } from "./sheet-fonts";
 import { forgetSavedChoice, readSavedChoice, StartGate, type GateChoice } from "./start-gate";
 import { blankWorkbook, UniverSheet, type UniverSheetHandle, type WorkbookSnapshot } from "./univer-sheet";
@@ -42,6 +43,7 @@ export function WebExcelWorkbench() {
   const [bookId, setBookId] = useState<number | null>(null);
 
   const [busy, setBusy] = useState(false);
+  const [progress, setProgress] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [status, setStatus] = useState<string | null>(null);
@@ -79,27 +81,56 @@ export function WebExcelWorkbench() {
     if (next === "import") setImportOpen(true);
   };
 
+  /**
+   * Импорт идёт вкладка за вкладкой, а не одним запросом на всю книгу.
+   *
+   * Одна вкладка «Журнала» читается у Google восемь секунд, у «Осн.Общей
+   * сводки» вкладок 23, а прокси Next рвёт запрос на 180 секундах — то есть
+   * «отметить все» на большой книге гарантированно упиралось бы в таймаут,
+   * причём именно там, где эта кнопка нужнее всего. Заодно человек видит, что
+   * происходит, вместо пустого экрана на три минуты.
+   *
+   * Последовательно, а не параллельно: квота Google — 60 чтений в минуту на
+   * весь сервисный аккаунт, и этот же аккаунт обслуживает дашборд.
+   */
   const doImport = async (spreadsheetId: string, tabs: string[], title: string) => {
     setBusy(true);
     setError(null);
     setStatus(null);
+    setProgress(null);
     try {
-      const data = await webExcelApi.importBook(spreadsheetId, tabs);
+      const loaded: TabPayload[] = [];
+      const collected: ImportStats[] = [];
+      for (const [index, tab] of tabs.entries()) {
+        setProgress(`«${tab}» — ${index + 1} из ${tabs.length}`);
+        const payload = await webExcelApi.importTab(spreadsheetId, tab);
+        loaded.push(payload);
+        collected.push(payload.stats);
+      }
+
+      const { workbook: assembled, fonts } = assembleWorkbook(spreadsheetId, title, loaded);
       // Шрифты — до того, как книга попадёт в Univer: он меряет ширины текста
       // в момент первой отрисовки, и опоздавший шрифт уже ничего не исправит.
-      await ensureSheetFonts(data.fonts ?? []);
-      setWorkbook(data.workbook);
+      setProgress("Загружаем шрифты книги…");
+      await ensureSheetFonts(fonts);
+
+      setWorkbook(assembled);
       setWorkbookKey((key) => key + 1);
-      setName(data.title);
-      setOrigin({ spreadsheetId, title, tabs: data.tabs });
+      setName(title);
+      setOrigin({ spreadsheetId, title, tabs });
       setBookId(null);
-      setStats(data.stats);
+      setStats(collected);
       setImportOpen(false);
-      setStatus("Импортировано из Google Sheets.");
+      setStatus(
+        tabs.length === 1
+          ? "Импортировано из Google Sheets."
+          : `Импортировано из Google Sheets — ${tabs.length} вкладок.`,
+      );
     } catch (exc) {
       setError(exc instanceof Error ? exc.message : "Не удалось импортировать книгу");
     } finally {
       setBusy(false);
+      setProgress(null);
     }
   };
 
@@ -199,9 +230,16 @@ export function WebExcelWorkbench() {
           aria-label="Название таблицы"
         />
 
+        {/* Только вкладки: название книги стоит слева в поле имени, и
+            повторять его здесь значит занимать место тем, что уже написано. */}
         {origin && (
-          <span className="we-origin" title={`Импортировано из «${origin.title}»`}>
-            {origin.title} · {origin.tabs.join(", ")}
+          <span
+            className="we-origin"
+            title={`Импортировано из «${origin.title}»: ${origin.tabs.join(", ")}`}
+          >
+            {origin.tabs.length === 1
+              ? origin.tabs[0]
+              : `${origin.tabs.length} вкладок: ${origin.tabs.join(", ")}`}
           </span>
         )}
 
@@ -259,6 +297,7 @@ export function WebExcelWorkbench() {
       {importOpen && (
         <ImportDialog
           busy={busy}
+          progress={progress}
           onClose={() => {
             setImportOpen(false);
             // Отказ от импорта при закрытых воротах и пустом выборе вернул бы

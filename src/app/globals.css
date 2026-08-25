@@ -2033,10 +2033,20 @@ html, body { overflow-x: clip; }
   background: var(--bg-surface);
 }
 
+/* Шапка раздела: три группы, каждая со своим правом на место.
+   
+   «Разделы» не сжимается никогда — это выход с экрана. Название книги ужимается
+   до читаемого минимума. Список вкладок отдаёт место первым и обрезается
+   многоточием. Без этого при длинном названии («Осн.Общая сводка BBC 2026» плюс
+   23 вкладки) flex дожимал кнопку ниже её содержимого, и подписи наезжали друг
+   на друга: элементы не перекрываются, но текст с white-space: nowrap вылезает
+   за свою коробку.                                                          */
+.we-bar > .btn-ghost:first-child { flex: 0 0 auto; }
+
 .we-name {
-  min-width: 8rem;
+  min-width: 5rem;
   max-width: 18rem;
-  flex: 0 1 auto;
+  flex: 0 1 14rem;
   padding: 0.375rem 0.625rem;
   border-radius: var(--radius-btn);
   border: 1px solid transparent;
@@ -2055,7 +2065,14 @@ html, body { overflow-x: clip; }
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
+  flex: 1 1 auto;
   min-width: 0;
+}
+
+/* На узком экране список вкладок уходит целиком: он подсказка, а название
+   книги и кнопки — работа. */
+@media (max-width: 1100px) {
+  .we-origin { display: none; }
 }
 
 .we-bar-right {
@@ -2301,3 +2318,17 @@ html, body { overflow-x: clip; }
 }
 
 .we-tab-row input { width: 0.95rem; height: 0.95rem; accent-color: var(--accent); }
+
+/* Полоса над списком вкладок: счётчик и «отметить все». Своя строка, а не
+   место в подвале рядом с «Импортировать» — переключатель меняет список, а не
+   запускает импорт, и путать эти две кнопки дорого: на книге с 23 вкладками
+   промах стоит всей проставленной галочками работы. */
+.we-tabs-bar {
+  display: flex;
+  align-items: center;
+  gap: 0.625rem;
+  padding: 0.625rem 0.875rem 0;
+  flex-shrink: 0;
+}
+
+.we-tabs-bar .we-modal-note { margin-right: auto; }

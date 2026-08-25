@@ -1,3 +1,5 @@
+import type { TabPayload } from "./assemble";
+
 const API = "/api/backend/api/v1/web-excel";
 
 export type SourceBook = { id: string; name: string; modified: string };
@@ -65,6 +67,11 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
 export const webExcelApi = {
   sources: () => request<{ books: SourceBook[] }>("/sources"),
   sourceMeta: (id: string) => request<SourceMeta>(`/sources/${id}`),
+  /** Одна вкладка. Книга собирается из них на клиенте — см. `assemble.ts`. */
+  importTab: (spreadsheetId: string, title: string) =>
+    request<TabPayload & { stats: ImportStats }>(
+      `/sources/${spreadsheetId}/tab?title=${encodeURIComponent(title)}`,
+    ),
   refreshSources: () => request<{ ok: boolean }>("/sources/refresh", { method: "POST" }),
   importBook: (spreadsheetId: string, tabs: string[]) =>
     request<{

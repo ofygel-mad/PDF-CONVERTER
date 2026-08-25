@@ -78,10 +78,6 @@ export const UniverSheet = forwardRef<UniverSheetHandle, Props>(function UniverS
   const containerRef = useRef<HTMLDivElement>(null);
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const apiRef = useRef<any>(null);
-  // Данные читаются из ref, а не из замыкания эффекта: эффект монтирует Univer
-  // ровно один раз, и ссылка на первый проп внутри него застыла бы навсегда.
-  const dataRef = useRef(data);
-  dataRef.current = data;
 
   useImperativeHandle(
     ref,
@@ -132,7 +128,10 @@ export const UniverSheet = forwardRef<UniverSheetHandle, Props>(function UniverS
       ],
     });
     apiRef.current = univerAPI;
-    univerAPI.createWorkbook(dataRef.current ?? blankWorkbook());
+    // `data` берётся прямо из пропа, хотя эффект и с пустыми зависимостями:
+    // новая книга приходит не сменой пропа, а пересозданием компонента через
+    // `key` у родителя, поэтому значение на монтировании — всегда нужное.
+    univerAPI.createWorkbook(data ?? blankWorkbook());
 
     return () => {
       try {
@@ -143,6 +142,7 @@ export const UniverSheet = forwardRef<UniverSheetHandle, Props>(function UniverS
       apiRef.current = null;
     };
     // Монтируется один раз; новая книга приходит через `key` у родителя.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   return <div ref={containerRef} className="h-full w-full" />;

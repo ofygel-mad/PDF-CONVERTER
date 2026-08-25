@@ -9,7 +9,27 @@ type Props = {
   onClose: () => void;
   onImport: (spreadsheetId: string, tabs: string[], title: string) => void;
   busy: boolean;
+  /** Текст хода загрузки, пока идёт импорт: «вкладка 7 из 23». */
+  progress?: string | null;
 };
+
+/**
+ * Сколько примерно займёт импорт. Восемь секунд на вкладку — не запас «на
+ * всякий случай», а замер на «Журнале»: 2000 строк на 32 колонки Google отдаёт
+ * за восемь секунд.
+ *
+ * Оценка нужна, потому что кнопка «отметить все» на книге с 23 вкладками
+ * запускает трёхминутное ожидание. Человек имеет право узнать об этом до того,
+ * как нажмёт, а не после.
+ */
+function estimate(count: number): string {
+  const seconds = count * 8;
+  if (seconds < 60) return `около ${seconds} секунд`;
+  const minutes = Math.round(seconds / 60);
+  // «Около» требует родительного падежа: около одной минуты, около трёх минут.
+  // Не «около 3 минуты», как выходило по привычному правилу для 2–4.
+  return `около ${minutes} ${minutes === 1 ? "минуты" : "минут"}`;
+}
 
 /**
  * Выбор книги и вкладок для импорта.
@@ -20,7 +40,7 @@ type Props = {
  * сразу» означало бы держать треть гигабайта в памяти контейнера и минуту
  * ждать пустой экран.
  */
-export function ImportDialog({ onClose, onImport, busy }: Props) {
+export function ImportDialog({ onClose, onImport, busy, progress }: Props) {
   const [books, setBooks] = useState<SourceBook[] | null>(null);
   const [meta, setMeta] = useState<SourceMeta | null>(null);
   const [selected, setSelected] = useState<string[]>([]);
@@ -141,6 +161,27 @@ export function ImportDialog({ onClose, onImport, busy }: Props) {
           </>
         ) : (
           <>
+            {/* Переключатель стоит НАД списком, а не в подвале рядом с
+                «Импортировать»: он относится к списку и меняет его, а не
+                запускает импорт. В подвале его легко нажать вместо кнопки
+                импорта, и на книге с 23 вкладками это стоило бы человеку всей
+                проставленной галочками работы. */}
+            <div className="we-tabs-bar">
+              <span className="we-modal-note">
+                Вкладок {meta.tabs.length} · выбрано {selected.length}
+              </span>
+              <button
+                type="button"
+                className="btn-ghost text-xs px-2.5 py-1"
+                onClick={() =>
+                  setSelected(
+                    selected.length === meta.tabs.length ? [] : meta.tabs.map((t) => t.title),
+                  )
+                }
+              >
+                {selected.length === meta.tabs.length ? "Снять все" : "Отметить все"}
+              </button>
+            </div>
             <div className="we-modal-body">
               {meta.tabs.map((tab) => (
                 <label key={tab.title} className="we-tab-row">
@@ -162,9 +203,11 @@ export function ImportDialog({ onClose, onImport, busy }: Props) {
                 ← К списку книг
               </button>
               <span className="we-modal-note">
-                {selected.length > 2
-                  ? "Много вкладок сразу — импорт займёт по несколько секунд на каждую"
-                  : ""}
+                {busy
+                  ? progress
+                  : selected.length > 2
+                    ? `Займёт ${estimate(selected.length)} — вкладки читаются по одной`
+                    : ""}
               </span>
               <button
                 type="button"
