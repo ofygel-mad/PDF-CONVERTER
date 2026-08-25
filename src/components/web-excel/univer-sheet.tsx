@@ -12,8 +12,16 @@ import { UniverSheetsDataValidationPreset } from "@univerjs/preset-sheets-data-v
 import UniverPresetSheetsDataValidationRuRU from "@univerjs/preset-sheets-data-validation/locales/ru-RU";
 import { UniverSheetsFindReplacePreset } from "@univerjs/preset-sheets-find-replace";
 import UniverPresetSheetsFindReplaceRuRU from "@univerjs/preset-sheets-find-replace/locales/ru-RU";
+import { UniverSheetsNotePreset } from "@univerjs/preset-sheets-note";
+import UniverPresetSheetsNoteRuRU from "@univerjs/preset-sheets-note/locales/ru-RU";
+import { UniverSheetsHyperLinkPreset } from "@univerjs/preset-sheets-hyper-link";
+import UniverPresetSheetsHyperLinkRuRU from "@univerjs/preset-sheets-hyper-link/locales/ru-RU";
+import { UniverSheetsTablePreset } from "@univerjs/preset-sheets-table";
+import UniverPresetSheetsTableRuRU from "@univerjs/preset-sheets-table/locales/ru-RU";
 import { createUniver, LocaleType, mergeLocales } from "@univerjs/presets";
 import { forwardRef, useEffect, useImperativeHandle, useRef } from "react";
+
+import { registerRuNumfmtLocale } from "./numfmt-locale";
 
 import "@univerjs/preset-sheets-core/lib/index.css";
 import "@univerjs/preset-sheets-sort/lib/index.css";
@@ -21,76 +29,81 @@ import "@univerjs/preset-sheets-filter/lib/index.css";
 import "@univerjs/preset-sheets-conditional-formatting/lib/index.css";
 import "@univerjs/preset-sheets-data-validation/lib/index.css";
 import "@univerjs/preset-sheets-find-replace/lib/index.css";
+import "@univerjs/preset-sheets-note/lib/index.css";
+import "@univerjs/preset-sheets-hyper-link/lib/index.css";
+import "@univerjs/preset-sheets-table/lib/index.css";
 
-export type WebExcelColumn = { key: string; label: string; kind: string };
-export type WebExcelRow = Record<string, unknown>;
+/** Снимок книги в формате Univer (`IWorkbookData`). */
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+export type WorkbookSnapshot = Record<string, any>;
 
 export type UniverSheetHandle = {
-  /** Current grid as a 2D array (row 0 = headers, rows 1.. = data). */
-  read: () => (string | number | boolean | null)[][] | null;
+  /** Текущее состояние книги целиком — то, что уходит в сохранение. */
+  snapshot: () => WorkbookSnapshot | null;
 };
 
-type Props = { columns: WebExcelColumn[]; rows: WebExcelRow[] };
+type Props = {
+  /** Книга. `null` — пустая таблица «с нуля». */
+  data: WorkbookSnapshot | null;
+};
 
-function buildWorkbookData(columns: WebExcelColumn[], rows: WebExcelRow[]) {
-  const cellData: Record<number, Record<number, { v: string | number }>> = {};
-  cellData[0] = {};
-  columns.forEach((c, j) => { cellData[0][j] = { v: c.label }; });
-  rows.forEach((r, i) => {
-    cellData[i + 1] = {};
-    columns.forEach((c, j) => {
-      const val = r[c.key];
-      if (val === null || val === undefined || val === "") return;
-      cellData[i + 1][j] = { v: typeof val === "number" ? val : String(val) };
-    });
-  });
+/**
+ * Пустая книга: один лист, столько же строк и колонок, сколько даёт новый
+ * документ Google Sheets. Числа не круглые, потому что скопированы у него —
+ * человек, переехавший из Sheets, не должен упереться в другую границу.
+ */
+export function blankWorkbook(name = "Новая таблица"): WorkbookSnapshot {
   return {
-    id: "web-excel",
-    name: "Выписка",
+    id: `blank-${Date.now()}`,
+    name,
+    locale: LocaleType.RU_RU,
     sheetOrder: ["sheet-1"],
+    styles: {},
     sheets: {
       "sheet-1": {
         id: "sheet-1",
-        name: "Выписка",
-        cellData,
-        rowCount: Math.max(rows.length + 60, 120),
-        columnCount: Math.max(columns.length + 8, 16),
-        freeze: { startRow: 1, startColumn: 0, ySplit: 1, xSplit: 0 },
+        name: "Лист1",
+        rowCount: 1000,
+        columnCount: 26,
+        cellData: {},
       },
     },
   };
 }
 
 export const UniverSheet = forwardRef<UniverSheetHandle, Props>(function UniverSheet(
-  { columns, rows },
+  { data },
   ref,
 ) {
   const containerRef = useRef<HTMLDivElement>(null);
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const apiRef = useRef<any>(null);
-  const dims = useRef({ rows: rows.length + 1, cols: columns.length });
+  // Данные читаются из ref, а не из замыкания эффекта: эффект монтирует Univer
+  // ровно один раз, и ссылка на первый проп внутри него застыла бы навсегда.
+  const dataRef = useRef(data);
+  dataRef.current = data;
 
-  useImperativeHandle(ref, () => ({
-    read: () => {
-      const api = apiRef.current;
-      if (!api) return null;
-      const sheet = api.getActiveWorkbook()?.getActiveSheet();
-      if (!sheet) return null;
-      try {
-        return sheet.getDataRange().getValues();
-      } catch {
+  useImperativeHandle(
+    ref,
+    () => ({
+      snapshot: () => {
+        const api = apiRef.current;
+        if (!api) return null;
         try {
-          const { rows: r, cols: c } = dims.current;
-          return sheet.getRange(0, 0, r + 60, c).getValues();
+          return api.getActiveWorkbook()?.save() ?? null;
         } catch {
           return null;
         }
-      }
-    },
-  }), []);
+      },
+    }),
+    [],
+  );
 
   useEffect(() => {
     if (!containerRef.current) return;
+    // До создания книги: первая же отрисовка уже форматирует числа, и локаль,
+    // зарегистрированная после неё, до этих ячеек не дойдёт.
+    registerRuNumfmtLocale();
     const { univerAPI } = createUniver({
       locale: LocaleType.RU_RU,
       locales: {
@@ -101,6 +114,9 @@ export const UniverSheet = forwardRef<UniverSheetHandle, Props>(function UniverS
           UniverPresetSheetsConditionalFormattingRuRU,
           UniverPresetSheetsDataValidationRuRU,
           UniverPresetSheetsFindReplaceRuRU,
+          UniverPresetSheetsNoteRuRU,
+          UniverPresetSheetsHyperLinkRuRU,
+          UniverPresetSheetsTableRuRU,
         ),
       },
       presets: [
@@ -110,17 +126,23 @@ export const UniverSheet = forwardRef<UniverSheetHandle, Props>(function UniverS
         UniverSheetsConditionalFormattingPreset(),
         UniverSheetsDataValidationPreset(),
         UniverSheetsFindReplacePreset(),
+        UniverSheetsNotePreset(),
+        UniverSheetsHyperLinkPreset(),
+        UniverSheetsTablePreset(),
       ],
     });
     apiRef.current = univerAPI;
-    univerAPI.createWorkbook(buildWorkbookData(columns, rows));
+    univerAPI.createWorkbook(dataRef.current ?? blankWorkbook());
 
     return () => {
-      try { univerAPI.dispose(); } catch { /* noop */ }
+      try {
+        univerAPI.dispose();
+      } catch {
+        /* повторный dispose при быстром размонтировании — не ошибка */
+      }
       apiRef.current = null;
     };
-    // Mount once; the parent remounts via `key` to load a new statement.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+    // Монтируется один раз; новая книга приходит через `key` у родителя.
   }, []);
 
   return <div ref={containerRef} className="h-full w-full" />;

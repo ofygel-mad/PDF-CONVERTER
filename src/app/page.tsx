@@ -1,9 +1,5 @@
-import { StatementWorkbench } from "@/components/statement-workbench";
-
-export const dynamic = "force-dynamic";
+import { HomeLauncher } from "@/components/home/home-launcher";
 
 export default function Home() {
-  const apiBaseUrl = "/api/backend";
-
-  return <StatementWorkbench apiBaseUrl={apiBaseUrl} />;
+  return <HomeLauncher />;
 }

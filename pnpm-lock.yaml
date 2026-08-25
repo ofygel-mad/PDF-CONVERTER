@@ -8,6 +8,9 @@ importers:
 
   .:
     dependencies:
+      '@univerjs/core':
+        specifier: 0.25.0
+        version: 0.25.0(react@19.2.4)(rxjs@7.8.2)
       '@univerjs/preset-sheets-conditional-formatting':
         specifier: 0.25.0
         version: 0.25.0(@types/react-dom@19.2.3(@types/react@19.2.14))(@types/react@19.2.14)(react-dom@19.2.4(react@19.2.4))(react@19.2.4)(rxjs@7.8.2)
@@ -23,7 +26,19 @@ importers:
       '@univerjs/preset-sheets-find-replace':
         specifier: 0.25.0
         version: 0.25.0(@types/react-dom@19.2.3(@types/react@19.2.14))(@types/react@19.2.14)(react-dom@19.2.4(react@19.2.4))(react@19.2.4)(rxjs@7.8.2)
+      '@univerjs/preset-sheets-hyper-link':
+        specifier: 0.25.0
+        version: 0.25.0(@types/react-dom@19.2.3(@types/react@19.2.14))(@types/react@19.2.14)(react-dom@19.2.4(react@19.2.4))(react@19.2.4)(rxjs@7.8.2)
+      '@univerjs/preset-sheets-note':
+        specifier: 0.25.0
+        version: 0.25.0(@types/react-dom@19.2.3(@types/react@19.2.14))(@types/react@19.2.14)(react-dom@19.2.4(react@19.2.4))(react@19.2.4)(rxjs@7.8.2)
       '@univerjs/preset-sheets-sort':
+        specifier: 0.25.0
+        version: 0.25.0(@types/react-dom@19.2.3(@types/react@19.2.14))(@types/react@19.2.14)(react-dom@19.2.4(react@19.2.4))(react@19.2.4)(rxjs@7.8.2)
+      '@univerjs/preset-sheets-table':
+        specifier: 0.25.0
+        version: 0.25.0(@types/react-dom@19.2.3(@types/react@19.2.14))(@types/react@19.2.14)(react-dom@19.2.4(react@19.2.4))(react@19.2.4)(rxjs@7.8.2)
+      '@univerjs/preset-sheets-thread-comment':
         specifier: 0.25.0
         version: 0.25.0(@types/react-dom@19.2.3(@types/react@19.2.14))(@types/react@19.2.14)(react-dom@19.2.4(react@19.2.4))(react@19.2.4)(rxjs@7.8.2)
       '@univerjs/presets':

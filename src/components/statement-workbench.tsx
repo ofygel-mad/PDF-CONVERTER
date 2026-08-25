@@ -11,7 +11,7 @@ import { QualityPanel } from "@/components/workbench/quality-panel";
 import { VariantPreviewPanel } from "@/components/workbench/variant-preview-panel";
 import { OcrReviewPanel } from "@/components/workbench/ocr-review-panel";
 import {
-  BrandMark,
+  ArrowLeftIcon,
   GridIcon,
   PuzzleIcon,
   ClockIcon,
@@ -80,11 +80,7 @@ function ThemeToggle() {
   );
 }
 
-function StatusDot({ ok }: { ok: boolean }) {
-  return <span className="status-dot" data-on={ok} />;
-}
-
-function WorkbenchInner() {
+function WorkbenchInner({ openHistory = false }: { openHistory?: boolean }) {
   const {
     deferredPreview,
     allVariants,
@@ -111,7 +107,7 @@ function WorkbenchInner() {
 
   const [tab, setTab] = useState<Tab>("table");
   const [localFile, setLocalFile] = useState<File | null>(null);
-  const [showHistory, setShowHistory] = useState(false);
+  const [showHistory, setShowHistory] = useState(openHistory);
 
   const hasPreview = Boolean(deferredPreview?.session_id);
   const hasOcrReview = Boolean(deferredPreview?.ocr_review);
@@ -138,28 +134,22 @@ function WorkbenchInner() {
         className="sticky top-0 z-40 flex items-center justify-between gap-2 px-4 py-2.5 border-b backdrop-blur-md"
         style={{ background: "var(--header-bg)", borderColor: "var(--border-subtle)" }}
       >
-        <div className="flex items-center gap-2.5 overflow-hidden">
-          <span className="logo-badge">
-            <BrandMark size={16} />
-          </span>
-          <div className="flex flex-col leading-none overflow-hidden">
-            <span className="text-sm font-semibold whitespace-nowrap" style={{ color: "var(--text-primary)", letterSpacing: "-0.01em" }}>
-              Анализатор выписок
-            </span>
-            <span className="hidden sm:flex items-center gap-1.5 mt-1 text-[0.66rem] whitespace-nowrap eyebrow">
-              <StatusDot ok={parsers.length > 0} />
-              {parsers.length > 0 ? `${parsers.length} форматов` : "офлайн"}
-            </span>
-          </div>
-        </div>
+        <Link
+          href="/"
+          className="btn-ghost text-xs px-2.5 py-1.5 flex items-center gap-1.5 flex-shrink-0"
+          title="На главный экран"
+        >
+          <ArrowLeftIcon size={15} />
+          <span className="hidden sm:inline">Разделы</span>
+        </Link>
         <div className="flex items-center gap-2 flex-shrink-0">
           <Link
             href="/web-excel"
             className="btn-ghost text-xs px-2.5 py-1.5 flex items-center gap-1.5"
-            title="Открыть полноценную таблицу Web-Excel"
+            title="Открыть книги в разделе «Таблицы»"
           >
             <GridIcon size={15} />
-            <span className="hidden sm:inline">Web-Excel</span>
+            <span className="hidden sm:inline">Таблицы</span>
           </Link>
           <Link
             href="/services"
@@ -339,12 +329,14 @@ function WorkbenchInner() {
 
 type StatementWorkbenchProps = {
   apiBaseUrl: string;
+  /** Открыть панель истории сразу — для маршрута /history. */
+  openHistory?: boolean;
 };
 
-export function StatementWorkbench({ apiBaseUrl }: StatementWorkbenchProps) {
+export function StatementWorkbench({ apiBaseUrl, openHistory }: StatementWorkbenchProps) {
   return (
     <WorkbenchProvider apiBaseUrl={apiBaseUrl}>
-      <WorkbenchInner />
+      <WorkbenchInner openHistory={openHistory} />
     </WorkbenchProvider>
   );
 }
