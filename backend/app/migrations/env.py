@@ -43,14 +43,52 @@ def get_url() -> str:
     return settings.database_url
 
 
+#: Схемы, которыми владеет этот проект: `public` (None) плюс по одной на каждый
+#: удаляемый модуль. Собирается из самих метаданных, чтобы добавление модуля не
+#: требовало править ещё и этот список.
+KNOWN_SCHEMAS = {metadata.schema for metadata in target_metadata}
+
+
+def include_name(name: str | None, type_: str, parent_names: dict) -> bool:
+    """Что alembic вообще рассматривает при сравнении.
+
+    Нужно вместе с `include_schemas=True`: тот включает обход всех схем базы, а
+    этот отсекает чужие. Без фильтра автогенерация предложила бы удалить всё,
+    что есть в базе, но не описано у нас, — включая служебные схемы расширений.
+    """
+    if type_ == "schema":
+        return name in KNOWN_SCHEMAS
+    return True
+
+
+#: Общие настройки сравнения — одни и те же для offline и online.
+#:
+#: `include_schemas=True` здесь не украшение. Без него alembic смотрит только в
+#: схему по умолчанию и не видит `bbc`, `webexcel`, `books` вовсе — то есть
+#: считает, что всех их таблиц не существует, и на каждый
+#: `revision --autogenerate` предлагает создать их заново. Не замечалось это
+#: ровно потому, что автогенерацию ни разу не запускали: миграции для новых
+#: схем писали руками.
+#: `compare_server_default` намеренно НЕ включён. В проекте модели объявляют
+#: питоновские `default=`, а ревизии ставят серверные `server_default` — это
+#: осознанно (ревизия 0006 объясняет, почему на существующей таблице нужен
+#: именно серверный). Alembic видит «в модели умолчания нет, в базе есть» и
+#: предлагает снести их с полутора десятков чужих колонок. Такое сравнение
+#: здесь не строгость, а ложная тревога с разрушительным исправлением.
+_COMPARE_OPTS = {
+    "target_metadata": target_metadata,
+    "compare_type": True,
+    "include_schemas": True,
+    "include_name": include_name,
+}
+
+
 def run_migrations_offline() -> None:
-    url = get_url()
     context.configure(
-        url=url,
-        target_metadata=target_metadata,
+        url=get_url(),
         literal_binds=True,
         dialect_opts={"paramstyle": "named"},
-        compare_type=True,
+        **_COMPARE_OPTS,
     )
     with context.begin_transaction():
         context.run_migrations()
@@ -65,11 +103,7 @@ def run_migrations_online() -> None:
         poolclass=pool.NullPool,
     )
     with connectable.connect() as connection:
-        context.configure(
-            connection=connection,
-            target_metadata=target_metadata,
-            compare_type=True,
-        )
+        context.configure(connection=connection, **_COMPARE_OPTS)
         with context.begin_transaction():
             context.run_migrations()
 

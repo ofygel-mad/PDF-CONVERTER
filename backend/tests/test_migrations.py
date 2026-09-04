@@ -119,6 +119,54 @@ def test_migrations_apply_to_empty_database(scratch_database: str) -> None:
     assert revision is not None, "после upgrade head ревизия не проставилась"
 
 
+def test_books_revision_is_reversible(scratch_database: str) -> None:
+    """Ревизия «Книг» откатывается и накатывается заново.
+
+    Проверяется именно она, а не вся цепочка до нуля: у ревизий 0008 и 0009
+    откат намеренно неполный — они не удаляют таблицы, в которых лежат данные
+    пользователей. Полный `downgrade base` на этом и споткнулся бы, причём по
+    правильной причине.
+
+    Обратимость важна не ради самого отката, а потому что схема «Книг» будет
+    меняться часто: пока раздел строится, ревизии переписываются, и
+    невозможность откатиться превращает каждую ошибку в пересоздание базы.
+    """
+    from alembic import command
+    import sqlalchemy as sa
+
+    config = _alembic_config(scratch_database)
+    command.upgrade(config, "head")
+
+    engine = sa.create_engine(scratch_database)
+    try:
+        with engine.connect() as connection:
+            before = _schema_exists(connection, "books")
+
+        command.downgrade(config, "0009")
+        with engine.connect() as connection:
+            after_down = _schema_exists(connection, "books")
+
+        command.upgrade(config, "head")
+        with engine.connect() as connection:
+            after_up = _schema_exists(connection, "books")
+    finally:
+        engine.dispose()
+
+    assert before, "после upgrade head схемы books нет"
+    assert not after_down, "после отката схема books осталась"
+    assert after_up, "повторный upgrade не восстановил схему books"
+
+
+def _schema_exists(connection, name: str) -> bool:
+    import sqlalchemy as sa
+
+    found = connection.execute(
+        sa.text("SELECT 1 FROM information_schema.schemata WHERE schema_name = :n"),
+        {"n": name},
+    ).scalar()
+    return found is not None
+
+
 def test_models_and_migrations_agree(scratch_database: str) -> None:
     """После миграций alembic не находит разницы с моделями.
 

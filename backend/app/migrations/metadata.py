@@ -23,9 +23,17 @@ import app.bbc.models  # noqa: F401 — BBC Dashboard (удаляемый мод
 from app.webexcel.db import WebExcelBase  # Раздел «Таблицы» (удаляемый модуль)
 import app.webexcel.models  # noqa: F401 — раздел «Таблицы» (удаляемый модуль)
 
-#: Таблицы конвертера в `public`, BBC в `bbc`, «Таблицы» в `webexcel`.
-#: Последний добавлен ревизией 0008 — до неё схема жила вне учёта, и
+from app.books.db import BooksBase  # Раздел «Книги» (удаляемый модуль)
+import app.books.models  # noqa: F401 — раздел «Книги» (удаляемый модуль)
+
+#: Конвертер в `public`, BBC в `bbc`, «Таблицы» в `webexcel`, «Книги» в `books`.
+#: Схема `webexcel` добавлена ревизией 0008 — до неё она жила вне учёта, и
 #: расхождение с моделями обнаружить было нечем.
-target_metadata = [Base.metadata, BbcBase.metadata, WebExcelBase.metadata]
+target_metadata = [
+    Base.metadata,
+    BbcBase.metadata,
+    WebExcelBase.metadata,
+    BooksBase.metadata,
+]
 
 __all__ = ["target_metadata"]
