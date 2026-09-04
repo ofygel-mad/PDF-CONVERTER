@@ -2317,3 +2317,235 @@ html, body { overflow-x: clip; }
 }
 
 .we-tabs-bar .we-modal-note { margin-right: auto; }
+
+/* ── Раздел «Книги» ──────────────────────────────────────────────────────────
+ *
+ * Правило раздела: состояние показывается подписью и весом, а не цветной
+ * точкой. «Считается» — обычный текст; цвет появляется только там, где чего-то
+ * не хватает или что-то не сошлось. Постоянно горящий индикатор «всё хорошо»
+ * перестают замечать ровно к тому моменту, когда он должен был напугать.
+ *
+ * Прятать элементы здесь только через .only-mobile / .only-desktop: правила
+ * этого файла не в слое и бьют утилиты Tailwind, поэтому `hidden` на элементе
+ * с классом отсюда молча не сработает.
+ */
+
+.bk-shell {
+  min-height: 100vh;
+  min-height: 100dvh;
+  display: flex;
+  flex-direction: column;
+  background: var(--page-bg);
+}
+
+.bk-header {
+  position: sticky;
+  top: 0;
+  z-index: 40;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+  padding: 0.625rem 1rem;
+  border-bottom: 1px solid var(--border-subtle);
+  background: var(--header-bg);
+  backdrop-filter: blur(12px);
+}
+.bk-header-left,
+.bk-header-right { display: flex; align-items: center; gap: 0.625rem; }
+.bk-title { font-size: 0.9375rem; font-weight: 600; color: var(--text-primary); letter-spacing: -0.01em; }
+
+.bk-body {
+  flex: 1;
+  display: grid;
+  grid-template-columns: minmax(200px, 260px) 1fr;
+  gap: 1rem;
+  padding: 1rem;
+  align-items: start;
+}
+@media (max-width: 860px) {
+  .bk-body { grid-template-columns: 1fr; }
+}
+
+.bk-side { display: flex; flex-direction: column; gap: 0.625rem; }
+
+.bk-book {
+  display: flex;
+  flex-direction: column;
+  gap: 0.375rem;
+  padding: 0.75rem;
+  border: 1px solid var(--border-subtle);
+  border-radius: 0.75rem;
+  background: var(--bg-surface);
+}
+.bk-book-title { font-size: 0.8125rem; font-weight: 600; color: var(--text-primary); }
+.bk-book-note { font-size: 0.6875rem; color: var(--text-muted); }
+.bk-book-tabs { display: flex; flex-wrap: wrap; gap: 0.25rem; margin-top: 0.25rem; }
+.bk-book-tab {
+  padding: 0.25rem 0.5rem;
+  border-radius: 0.5rem;
+  font-size: 0.75rem;
+  color: var(--text-secondary);
+  background: var(--bg-raised);
+  transition: background var(--dur-fast) var(--ease-out);
+}
+.bk-book-tab:hover { background: var(--bg-hover); }
+.bk-book-tab-on { background: var(--accent-soft); color: var(--text-accent); font-weight: 600; }
+
+.bk-main { min-width: 0; display: flex; flex-direction: column; gap: 1rem; }
+
+.bk-tabs { display: flex; gap: 0.375rem; }
+.bk-tab {
+  padding: 0.375rem 0.75rem;
+  border-radius: 0.625rem;
+  font-size: 0.8125rem;
+  color: var(--text-secondary);
+  transition: background var(--dur-fast) var(--ease-out);
+}
+.bk-tab:hover { background: var(--bg-hover); }
+.bk-tab-on { background: var(--bg-active); color: var(--text-primary); font-weight: 600; }
+
+/* ── Табло привязок ─────────────────────────────────────────────────────── */
+
+.bk-board { display: flex; flex-direction: column; gap: 1rem; }
+
+.bk-consequence, .bk-refusals { padding: 1rem; }
+.bk-consequence-title {
+  font-size: 0.75rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--text-muted);
+  margin-bottom: 0.75rem;
+}
+.bk-consequence-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+  gap: 0.5rem;
+}
+.bk-section { display: flex; flex-direction: column; gap: 0.125rem; padding: 0.5rem 0; }
+.bk-section-name { font-size: 0.8125rem; color: var(--text-primary); }
+.bk-section-note { font-size: 0.6875rem; color: var(--text-muted); }
+.bk-section-waiting .bk-section-note { color: var(--accent-amber); }
+.bk-section-ok .bk-section-name { font-weight: 600; }
+
+.bk-refusals { border-color: var(--accent-rose); }
+.bk-refusals ul { display: flex; flex-direction: column; gap: 0.375rem; }
+.bk-refusals li { font-size: 0.8125rem; color: var(--accent-rose); }
+
+.bk-field-grid,
+.bk-role-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+  gap: 0.625rem;
+}
+.bk-fields, .bk-roles { display: flex; flex-direction: column; gap: 0.75rem; }
+
+.bk-field { display: flex; flex-direction: column; gap: 0.5rem; padding: 0.75rem; }
+.bk-field-free { border-style: dashed; }
+.bk-field-head { display: flex; align-items: center; justify-content: space-between; gap: 0.5rem; }
+.bk-field-title {
+  font-size: 0.8125rem;
+  font-weight: 600;
+  color: var(--text-primary);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.bk-field-stats { font-size: 0.6875rem; color: var(--text-muted); line-height: 1.5; }
+.bk-field-why { font-size: 0.6875rem; color: var(--text-muted); font-style: italic; }
+.bk-field-role select { width: 100%; font-size: 0.75rem; }
+
+.bk-role {
+  display: flex;
+  flex-direction: column;
+  gap: 0.125rem;
+  padding: 0.5rem 0.625rem;
+  border-radius: 0.5rem;
+  background: var(--bg-surface);
+}
+.bk-role-title { font-size: 0.75rem; color: var(--text-primary); }
+.bk-role-note { font-size: 0.6875rem; color: var(--text-secondary); }
+.bk-role-empty .bk-role-note { color: var(--text-muted); }
+
+/* ── Строки ─────────────────────────────────────────────────────────────── */
+
+.bk-rows { display: flex; flex-direction: column; gap: 0.5rem; }
+.bk-rows-scroll {
+  overflow-x: auto;
+  border: 1px solid var(--border-subtle);
+  border-radius: 0.75rem;
+  background: var(--bg-surface);
+}
+.bk-rows table { border-collapse: collapse; width: max-content; min-width: 100%; }
+.bk-rows th, .bk-rows td {
+  padding: 0.5rem 0.625rem;
+  text-align: left;
+  font-size: 0.75rem;
+  border-bottom: 1px solid var(--border-subtle);
+  white-space: nowrap;
+  max-width: 22rem;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.bk-rows th { position: sticky; top: 0; background: var(--bg-raised); }
+.bk-rows td { color: var(--text-secondary); }
+.bk-col-title { display: block; font-weight: 600; color: var(--text-primary); }
+.bk-col-type { display: block; font-size: 0.625rem; color: var(--text-muted); font-weight: 400; }
+
+/* ── Прочее ─────────────────────────────────────────────────────────────── */
+
+.bk-empty {
+  margin: auto;
+  max-width: 32rem;
+  padding: 2rem 1rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+  align-items: flex-start;
+}
+.bk-empty h2 { font-size: 1.125rem; font-weight: 600; color: var(--text-primary); }
+.bk-empty p { font-size: 0.8125rem; color: var(--text-secondary); line-height: 1.6; }
+
+.bk-hint { font-size: 0.75rem; color: var(--text-muted); line-height: 1.6; }
+.bk-hint-center { margin: auto; padding: 2rem; }
+.bk-error { font-size: 0.8125rem; color: var(--accent-rose); line-height: 1.5; }
+.bk-error-page { padding: 0.75rem 1rem; }
+
+.bk-import { max-width: 40rem; }
+.bk-filter { width: 100%; margin-bottom: 0.75rem; }
+.bk-pick { display: flex; flex-direction: column; gap: 0.25rem; max-height: 22rem; overflow-y: auto; }
+.bk-pick button {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+  padding: 0.5rem 0.625rem;
+  border-radius: 0.5rem;
+  font-size: 0.8125rem;
+  text-align: left;
+  color: var(--text-primary);
+  transition: background var(--dur-fast) var(--ease-out);
+}
+.bk-pick button:hover:not(:disabled) { background: var(--bg-hover); }
+.bk-pick button:disabled { opacity: 0.5; }
+.bk-pick-note { font-size: 0.6875rem; color: var(--text-muted); }
+
+.bk-preview { display: flex; flex-direction: column; gap: 0.75rem; }
+.bk-preview-line { font-size: 0.9375rem; font-weight: 600; color: var(--text-primary); }
+.bk-preview-stats { display: flex; flex-wrap: wrap; gap: 1.25rem; }
+.bk-preview-stats div { display: flex; flex-direction: column; gap: 0.125rem; }
+.bk-preview-stats dt { font-size: 0.6875rem; color: var(--text-muted); }
+.bk-preview-stats dd { font-size: 1.125rem; font-weight: 600; color: var(--text-primary); }
+.bk-issues h4 { font-size: 0.75rem; font-weight: 600; color: var(--text-secondary); margin-bottom: 0.375rem; }
+.bk-issues ul { display: flex; flex-direction: column; gap: 0.25rem; }
+.bk-issues li { font-size: 0.75rem; color: var(--accent-amber); line-height: 1.5; }
+
+.bk-import-foot {
+  display: flex;
+  justify-content: flex-end;
+  gap: 0.5rem;
+  padding: 0.75rem 1rem;
+  border-top: 1px solid var(--border-subtle);
+}

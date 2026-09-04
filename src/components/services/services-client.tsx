@@ -5,7 +5,7 @@ import Link from "next/link";
 import type { ComponentType } from "react";
 
 import { AutocallModal } from "@/components/services/autocall-modal";
-import { ArrowLeftIcon, PhoneIcon, PuzzleIcon } from "@/components/icons";
+import { ArrowLeftIcon, GridIcon, PhoneIcon, PuzzleIcon } from "@/components/icons";
 // BBC Dashboard (removable module — см. src/components/bbc-dashboard/README.md)
 import { BbcDashboardIcon } from "@/components/bbc-dashboard/icon";
 
@@ -32,6 +32,14 @@ const TILES: ServiceTile[] = [
     description: "Интерактивный дашборд по сводной таблице в Google Sheets",
     Icon: BbcDashboardIcon,
     href: "/bbc-dashboard",
+  },
+  // «Книги» (удаляемый модуль)
+  {
+    key: "books",
+    title: "Книги",
+    description: "Книги компании внутри приложения: импорт из Google, разметка колонок, ввод",
+    Icon: GridIcon,
+    href: "/books",
   },
 ];
 

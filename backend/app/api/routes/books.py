@@ -26,7 +26,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query
 from pydantic import BaseModel, Field
 
 from app.bbc.deps import require_user
-from app.books import service
+from app.books import roles as role_catalog, service
 from app.books.config import books_settings
 from app.books.db import books_session
 from app.books.models import BookTable
@@ -131,6 +131,12 @@ def get_table(
                 for f in fields
             ],
             "bindings": service.bindings_of(session, table_id),
+            # Подписи ролей по-русски. Без них в шапку грида уезжали ключи
+            # вида `entry_date` — английское слово посреди русских названий.
+            # В этом продукте так уже случалось, и заметил это не разработчик.
+            "role_titles": {
+                item.key: item.title for item in role_catalog.all_roles()
+            },
             **page,
         }
 

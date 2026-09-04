@@ -151,13 +151,20 @@ def list_books(session: Session, workspace_id: UUID) -> list[dict[str, Any]]:
         .where(Book.workspace_id == workspace_id, Book.deleted_at.is_(None))
         .order_by(Book.title)
     ).all()
-    counts = dict(
-        session.execute(
-            select(BookTable.book_id, func.count(BookTable.id))
-            .where(BookTable.workspace_id == workspace_id, BookTable.deleted_at.is_(None))
-            .group_by(BookTable.book_id)
-        ).all()
-    )
+    # Вкладки приходят вместе с книгами, а не отдельным запросом на каждую:
+    # книг у компании десятки, вкладок в книге единицы, и N+1 обращений к базе
+    # ради списка из трёх строк — плохой обмен.
+    tables = session.scalars(
+        select(BookTable)
+        .where(BookTable.workspace_id == workspace_id, BookTable.deleted_at.is_(None))
+        .order_by(BookTable.position, BookTable.name)
+    ).all()
+    by_book: dict[Any, list[dict[str, Any]]] = {}
+    for table in tables:
+        by_book.setdefault(table.book_id, []).append(
+            {"id": str(table.id), "name": table.name}
+        )
+
     return [
         {
             "id": str(book.id),
@@ -165,7 +172,7 @@ def list_books(session: Session, workspace_id: UUID) -> list[dict[str, Any]]:
             "source_kind": book.source_kind,
             "source_ref": book.source_ref,
             "imported_at": book.imported_at.isoformat() if book.imported_at else None,
-            "tables": counts.get(book.id, 0),
+            "tables": by_book.get(book.id, []),
         }
         for book in books
     ]
