@@ -309,3 +309,14 @@ export function MenuIcon(props: IconProps) {
     </Glyph>
   );
 }
+
+/** Реестры — бланк с заполненными строками: сюда вводят, а не смотрят. */
+export function RegistriesIcon(props: IconProps) {
+  return (
+    <Glyph {...props}>
+      <path d="M5 4h11l3 3v13a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1V5a1 1 0 0 1 1-1Z" />
+      <path d="M15.5 4v3.5H19" />
+      <path d="M8 12h7M8 16h4" />
+    </Glyph>
+  );
+}

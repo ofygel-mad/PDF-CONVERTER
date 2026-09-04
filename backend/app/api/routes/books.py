@@ -113,12 +113,18 @@ def get_table(
     table_id: UUID,
     limit: int = Query(default=100, le=500),
     offset: int = Query(default=0, ge=0),
+    # «recent» — порядок для ввода: свежее сверху. Без него запись, добавленная
+    # через форму, оказывалась в конце книги и человеку не показывалась.
+    order: str = Query(default="position", pattern="^(position|recent)$"),
     user=Depends(require_user),
 ) -> dict[str, Any]:
     with books_session() as session:
         table = _table(session, table_id)
         fields, _ = service.suggest_for_table(session, table)
-        page = service.list_rows(session, table_id, limit=limit, offset=offset)
+        page = service.list_rows(
+            session, table_id, limit=limit, offset=offset,
+            newest_first=order == "recent",
+        )
         return {
             "table": {
                 "id": str(table.id),

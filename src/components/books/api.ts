@@ -132,14 +132,42 @@ export const booksApi = {
   refreshSources: () => request<{ ok: boolean }>("/sources/refresh", { method: "POST" }),
 
   books: () => request<{ books: Book[] }>(""),
-  table: (tableId: string, limit = 100, offset = 0) =>
-    request<TableView>(`/tables/${tableId}?limit=${limit}&offset=${offset}`),
+  /**
+   * `order: "recent"` — свежие сверху. Для ввода это единственный верный
+   * порядок: новая строка встаёт в конец книги, и в журнале на 3632 строки
+   * человек своей записи просто не увидел бы.
+   */
+  table: (tableId: string, limit = 100, offset = 0, order: "position" | "recent" = "position") =>
+    request<TableView>(
+      `/tables/${tableId}?limit=${limit}&offset=${offset}&order=${order}`,
+    ),
   board: (tableId: string) => request<Board>(`/tables/${tableId}/board`),
 
   bind: (tableId: string, fieldKey: string, roleKey: string | null) =>
     request<Board>(`/tables/${tableId}/bindings`, {
       method: "PUT",
       body: JSON.stringify({ field_key: fieldKey, role_key: roleKey }),
+    }),
+
+  createRow: (tableId: string, values: Record<string, unknown>) =>
+    request<{ id: string; version: number }>(`/tables/${tableId}/rows`, {
+      method: "POST",
+      body: JSON.stringify({ values }),
+    }),
+  /**
+   * `version` — оптимистичная блокировка. Грид «Книг» и форма «Реестров»
+   * правят одни и те же строки; без неё тот, кто нажал «сохранить» вторым,
+   * молча затирал бы чужую правку.
+   */
+  updateRow: (
+    tableId: string,
+    rowId: string,
+    values: Record<string, unknown>,
+    version: number,
+  ) =>
+    request<{ id: string; version: number }>(`/tables/${tableId}/rows/${rowId}`, {
+      method: "PATCH",
+      body: JSON.stringify({ values, version }),
     }),
 
   preview: (spreadsheetId: string, tab: string) =>

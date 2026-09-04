@@ -2549,3 +2549,111 @@ html, body { overflow-x: clip; }
   padding: 0.75rem 1rem;
   border-top: 1px solid var(--border-subtle);
 }
+
+/* ── Реестры: приложенческий ввод во внутренние книги ────────────────────── */
+
+.bbc-reg { display: flex; flex-direction: column; gap: 0.75rem; }
+
+.bbc-reg-bar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.5rem;
+}
+.bbc-reg-pick { flex: 1 1 16rem; min-width: 0; }
+.bbc-reg-pick select { width: 100%; }
+.bbc-reg-search { flex: 1 1 12rem; min-width: 0; }
+
+.bbc-reg-hint { font-size: 0.75rem; color: var(--text-muted); line-height: 1.6; }
+.bbc-reg-error { font-size: 0.8125rem; color: var(--accent-rose); line-height: 1.5; }
+
+.bbc-reg-empty {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  max-width: 34rem;
+  padding: 1.5rem 0;
+}
+.bbc-reg-empty h3 { font-size: 1rem; font-weight: 600; color: var(--text-primary); }
+.bbc-reg-empty p { font-size: 0.8125rem; color: var(--text-secondary); line-height: 1.6; }
+
+/* Широкая таблица прокручивается внутри себя; страница по горизонтали — нет. */
+.bbc-reg-scroll {
+  overflow-x: auto;
+  border: 1px solid var(--border-subtle);
+  border-radius: 0.75rem;
+  background: var(--bg-surface);
+}
+.bbc-reg-scroll table { border-collapse: collapse; width: max-content; min-width: 100%; }
+.bbc-reg-scroll th,
+.bbc-reg-scroll td {
+  padding: 0.5rem 0.75rem;
+  text-align: left;
+  font-size: 0.75rem;
+  border-bottom: 1px solid var(--border-subtle);
+  white-space: nowrap;
+  max-width: 20rem;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.bbc-reg-scroll th {
+  position: sticky;
+  top: 0;
+  background: var(--bg-raised);
+  font-weight: 600;
+  color: var(--text-primary);
+}
+.bbc-reg-scroll td { color: var(--text-secondary); }
+.bbc-reg-row-clickable { cursor: pointer; }
+.bbc-reg-row-clickable:hover td { background: var(--bg-hover); }
+
+/* ── Форма записи ────────────────────────────────────────────────────────── */
+
+.bbc-reg-sub { font-size: 0.6875rem; color: var(--text-muted); margin-top: 0.125rem; }
+
+.bbc-reg-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(15rem, 1fr));
+  gap: 0.75rem;
+}
+.bbc-reg-field { display: flex; flex-direction: column; gap: 0.25rem; min-width: 0; }
+.bbc-reg-label {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 0.5rem;
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: var(--text-primary);
+}
+/* Роль поля подписью, а не значком: человек должен видеть, во что превратится
+ * то, что он вводит, — «Дата операции», а не безымянная колонка. */
+.bbc-reg-hint {
+  font-size: 0.625rem;
+  font-weight: 400;
+  color: var(--text-muted);
+  white-space: nowrap;
+}
+.bbc-reg-field .input-field { width: 100%; font-size: 0.8125rem; }
+
+.bbc-reg-more { align-self: flex-start; margin-top: 0.75rem; }
+
+.bbc-reg-foot {
+  display: flex;
+  justify-content: flex-end;
+  gap: 0.5rem;
+  padding: 0.75rem 1rem;
+  border-top: 1px solid var(--border-subtle);
+}
+
+/* Форма занимает всю оставшуюся высоту панели, а прокручивается только её
+ * тело. Без этого подвал с кнопками уезжал за пределы панели и висел прямо
+ * на подложке — кнопки видны, а панель под ними кончилась. */
+.bbc-reg-form {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-height: 0;
+}
+.bbc-reg-form .bbc-modal-body { flex: 1; min-height: 0; overflow-y: auto; }
+.bbc-reg-foot { flex-shrink: 0; }

@@ -15,6 +15,7 @@ import {
   ControlPanelIcon,
   JournalIcon,
   ReceivablesIcon,
+  RegistriesIcon,
   ReportsIcon,
   RoadmapIcon,
   SalesIcon,
@@ -36,6 +37,10 @@ export const BLOCKS: BlockDefinition[] = [
   // Журнал касаний стоит сразу за дебиторкой: это её продолжение, а не
   // самостоятельный раздел. Из реестра в него проваливаются по клиенту.
   { key: "touches", title: "Журнал касаний", short: "Журнал касаний", icon: TouchesIcon, requires: "touches" },
+  // Реестры стоят рядом с журналом касаний: обе поверхности про ввод, а не про
+  // чтение. Разница в том, куда пишут — касание живёт только у нас, а запись
+  // реестра ложится во внутреннюю книгу, ту же, что открыта в разделе «Книги».
+  { key: "registries", title: "Реестры", short: "Реестры", icon: RegistriesIcon, requires: "registries" },
   { key: "calendar", title: "Платёжный календарь", short: "Календарь", icon: CalendarIcon, requires: "calendar" },
   { key: "reports", title: "Отчёты", short: "Отчёты", icon: ReportsIcon, requires: "reports" },
   { key: "analytics", title: "Аналитика", short: "Аналитика", icon: AnalyticsIcon, requires: "analytics" },

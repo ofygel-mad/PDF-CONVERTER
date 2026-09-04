@@ -32,6 +32,7 @@ import { JournalBlock } from "./blocks/journal";
 import { RoadmapBlock } from "./blocks/pending";
 import { SalesBlock } from "./blocks/sales";
 import { ReceivablesBlock } from "./blocks/receivables";
+import { RegistriesBlock } from "@/components/bbc-dashboard/blocks/registries";
 import { ReportsBlock } from "./blocks/reports";
 import { WarningsBlock } from "./blocks/warnings";
 import { CommandPalette } from "./command-palette";
@@ -520,6 +521,14 @@ export function BbcDashboardClient() {
                     canWrite={!!me?.authenticated && !me?.link_label}
                     focusClient={touchClient}
                     onClearFocus={() => setTouchClient(null)}
+                  />
+                ) : null}
+                {activeBlock.key === "registries" ? (
+                  <RegistriesBlock
+                    // Держатель ссылки отдела читает реестр, но не пишет в
+                    // него: у ссылки нет автора, и подписать запись нечем —
+                    // то же правило, что в журнале касаний.
+                    canWrite={!!me?.authenticated && !me?.link_label}
                   />
                 ) : null}
                 {activeBlock.key === "reports" ? <ReportsBlock rows={rows} mode={mode} /> : null}

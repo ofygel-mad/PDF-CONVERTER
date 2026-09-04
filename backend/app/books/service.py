@@ -822,17 +822,35 @@ def rebuild_facts(session: Session, table_id: UUID) -> int:
 
 
 def list_rows(
-    session: Session, table_id: UUID, *, limit: int = 100, offset: int = 0
+    session: Session,
+    table_id: UUID,
+    *,
+    limit: int = 100,
+    offset: int = 0,
+    newest_first: bool = False,
 ) -> dict[str, Any]:
+    """Страница строк вкладки.
+
+    `newest_first` — порядок для ввода, а не для чтения. Новая строка встаёт в
+    конец книги: в журнале это позиция 3633 из 3632, и человек, добавивший
+    запись через форму, её просто не видел — показывались первые двести.
+    Читать книгу удобнее в её собственном порядке, вводить — начиная с того,
+    что ввели последним.
+    """
     total = session.scalar(
         select(func.count(BookRow.id)).where(
             BookRow.table_id == table_id, BookRow.deleted_at.is_(None)
         )
     )
+    order = (
+        (BookRow.updated_at.desc(), BookRow.position.desc())
+        if newest_first
+        else (BookRow.position,)
+    )
     rows = session.scalars(
         select(BookRow)
         .where(BookRow.table_id == table_id, BookRow.deleted_at.is_(None))
-        .order_by(BookRow.position)
+        .order_by(*order)
         .limit(limit)
         .offset(offset)
     ).all()
