@@ -624,6 +624,11 @@ export function BbcDashboardClient() {
             isAdmin={isAdmin}
             onAccount={() => router.push("/bbc-dashboard/account")}
             onServices={() => router.push("/services")}
+            source={source}
+            onSource={(next) => {
+              setSheet(null);
+              setSource(next);
+            }}
           />
 
           <ControlSheet

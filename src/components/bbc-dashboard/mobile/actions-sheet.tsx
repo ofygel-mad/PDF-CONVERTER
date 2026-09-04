@@ -15,7 +15,7 @@
  */
 import type { ReactNode } from "react";
 
-import { ArrowLeftIcon, RefreshIcon } from "@/components/icons";
+import { ArrowLeftIcon, GridIcon, RefreshIcon } from "@/components/icons";
 import { SearchIcon, UserIcon } from "../icon";
 import { BottomSheet } from "./bottom-sheet";
 
@@ -29,6 +29,8 @@ export function ActionsSheet({
   isAdmin,
   onAccount,
   onServices,
+  source,
+  onSource,
 }: {
   open: boolean;
   onClose: () => void;
@@ -39,6 +41,8 @@ export function ActionsSheet({
   isAdmin: boolean;
   onAccount: () => void;
   onServices: () => void;
+  source: "sheets" | "books";
+  onSource: (next: "sheets" | "books") => void;
 }) {
   return (
     <BottomSheet open={open} onClose={onClose} title="Действия">
@@ -54,6 +58,25 @@ export function ActionsSheet({
           }
           disabled={loading || refreshCooldown > 0}
           onClick={onRefresh}
+        />
+        {/*
+          Источник цифр. На десктопе он стоит тумблером в шапке, а сюда попал
+          по той же причине, что и всё остальное: в телефонную шапку он не
+          помещается. Спрятать его на телефоне вовсе было бы хуже — сверить
+          лист с книгой нужно как раз тому, кто смотрит на долги с телефона.
+        */}
+        <ActionRow
+          // Не та же иконка, что у «Обновить» строкой выше: два одинаковых
+          // значка подряд читаются как ошибка вёрстки, а не как два действия.
+          icon={<GridIcon size={18} />}
+          label={source === "books" ? "Считать по листу Google" : "Считать по внутренней книге"}
+          note={
+            source === "books"
+              ? "Сейчас цифры берутся из внутренней книги"
+              : "Сейчас цифры берутся напрямую из Google Sheets"
+          }
+          disabled={loading}
+          onClick={() => onSource(source === "books" ? "sheets" : "books")}
         />
         <ActionRow
           icon={<SearchIcon size={18} />}
