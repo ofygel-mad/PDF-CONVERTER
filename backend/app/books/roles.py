@@ -408,6 +408,7 @@ def roles_wanted_by_sections() -> tuple[str, ...]:
 __all__ = [
     "ROLES",
     "SECTIONS",
+    "SUBSTANTIVE_TYPES",
     "Role",
     "Section",
     "SectionStatus",
@@ -416,4 +417,18 @@ __all__ = [
     "roles_wanted_by_sections",
     "section_status",
     "sections",
+    "substantive_roles",
 ]
+
+
+#: Типы ролей, по которым определяется содержательность строки.
+#:
+#: Дата или деньги отличают операцию от разлиновки. Признак взят из парсера
+#: журнала («есть дата либо сумма»), где он годами работает, и обобщён: там
+#: колонки были известны заранее, здесь их называет привязка.
+SUBSTANTIVE_TYPES = frozenset({"date", "money"})
+
+
+def substantive_roles() -> tuple[str, ...]:
+    """Роли, наличие которых делает строку содержательной."""
+    return tuple(item.key for item in ROLES if item.value_type in SUBSTANTIVE_TYPES)
