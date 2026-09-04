@@ -34,6 +34,17 @@ ERRORS = frozenset(
 SPACES = "   ​"
 SPACE_RE = re.compile(f"[{SPACES}\\s]+")
 
+#: Год-месяц-день. Проверяется ПЕРВЫМ, и это не вкусовщина.
+#:
+#: `DATE_DMY` ищет свой шаблон в любом месте строки, и в «2026-06-01» он
+#: находит «26-06-01», начиная с третьего символа: получается 26 июня 2001
+#: года. День и год меняются местами молча.
+#:
+#: Поймано на живых данных: значения хранятся в ISO (иначе при следующем
+#: чтении их формат потеряется), и вся проекция дат в `row_facts` оказалась
+#: сдвинутой на четверть века — 3632 строки с уверенно неверными датами.
+DATE_ISO = re.compile(r"\b(\d{4})-(\d{1,2})-(\d{1,2})\b")
+
 DATE_DMY = re.compile(r"(\d{1,2})[.\-/](\d{1,2})[.\-/](\d{2,4})")
 
 _TRUE = frozenset({"TRUE", "ДА", "YES", "1", "+", "V", "ИСТИНА"})
@@ -106,14 +117,24 @@ def parse_money(value: object) -> float | None:
 
 
 def parse_date(value: object) -> date | None:
-    """Разбирает `21.05.2026` и `пн 18.05.26`. Двузначный год — двухтысячные.
+    """Разбирает `2026-05-21`, `21.05.2026` и `пн 18.05.26`.
 
-    Второй формат не выдуман: так выглядит колонка «Дата» в журнале — с
-    сокращением дня недели впереди и узким пробелом после него.
+    Двузначный год — двухтысячные. Формат с днём недели не выдуман: так
+    выглядит колонка «Дата» в журнале — с сокращением дня недели впереди и
+    узким пробелом после него.
+
+    Порядок проверок значим. ISO идёт первым, потому что `DATE_DMY` находит
+    свой шаблон и внутри ISO-строки: в «2026-06-01» он видит «26-06-01» с
+    третьего символа и читает как 26 июня 2001 года. Молча.
     """
     text = clean(value)
     if not text or text.upper() in ERRORS:
         return None
+
+    iso = DATE_ISO.search(text)
+    if iso is not None:
+        year, month, day = (int(part) for part in iso.groups())
+        return _date_or_none(year, month, day)
 
     match = DATE_DMY.search(text)
     if match is None:
@@ -122,6 +143,10 @@ def parse_date(value: object) -> date | None:
     day, month, year = (int(part) for part in match.groups())
     if year < 100:
         year += 2000
+    return _date_or_none(year, month, day)
+
+
+def _date_or_none(year: int, month: int, day: int) -> date | None:
     try:
         return date(year, month, day)
     except ValueError:
@@ -145,6 +170,7 @@ def parse_bool(value: object) -> bool | None:
 
 __all__ = [
     "DATE_DMY",
+    "DATE_ISO",
     "ERRORS",
     "SPACES",
     "SPACE_RE",

@@ -175,3 +175,32 @@ def test_date_renders_in_russian_order() -> None:
 def test_render_of_nothing_is_empty_not_none() -> None:
     assert render("money", None) == ""
     assert render("text", None) == ""
+
+
+# ── ISO-даты ─────────────────────────────────────────────────────────────────
+
+
+def test_iso_date_is_not_read_as_day_month_year() -> None:
+    """«2026-06-01» — первое июня 2026-го, а не 26 июня 2001-го.
+
+    Разборщик дат ищет шаблон «дд.мм.гг» в любом месте строки и внутри ISO-даты
+    находит «26-06-01», начиная с третьего символа. День и год меняются
+    местами, и ошибки не видно ниоткуда.
+
+    Поймано на живых данных: значения хранятся в ISO, и вся проекция дат
+    оказалась сдвинутой на четверть века — 3632 строки с уверенно неверными
+    датами. Поэтому ISO проверяется первым.
+    """
+    assert parse("date", "2026-06-01") == date(2026, 6, 1)
+    assert parse("date", "2026-12-31") == date(2026, 12, 31)
+
+
+def test_storage_round_trip_keeps_the_date() -> None:
+    """Дата, сохранённая и прочитанная обратно, остаётся собой.
+
+    Именно этот круг и был разорван: `coerce_for_storage` писал ISO, а `project`
+    читал его как день-месяц-год.
+    """
+    stored = coerce_for_storage("date", "пн 01.06.26")
+    assert stored == "2026-06-01"
+    assert project("date", stored).date_value == date(2026, 6, 1)
