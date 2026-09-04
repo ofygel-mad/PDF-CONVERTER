@@ -332,6 +332,16 @@ export type BbcLayout = {
 };
 
 export type BbcDataset = {
+  /** Откуда взяты строки: лист Google или внутренняя книга. */
+  source?: "sheets" | "books";
+  /** Чем размечена книга, если строки пришли из неё. */
+  source_info?: {
+    table?: string;
+    table_id?: string;
+    rows?: number;
+    covered?: number;
+    missing?: string[];
+  };
   revision: number;
   changed_at: string | null;
   scope: { departments: string[]; blocks: string[]; label: string };

@@ -98,13 +98,23 @@ export function BbcDashboardClient() {
     unauthorized,
     reload,
     refreshCooldown,
+    source,
+    setSource,
   } = useDataset();
 
   const onLiveChange = useCallback(() => {
     void reload();
   }, [reload]);
 
-  const live = useLive(dataset?.revision, onLiveChange, !unauthorized && !!dataset);
+  // Живой опрос следит за ревизией листа Google, и для внутренней книги он не
+  // просто бесполезен, а вреден: у книги ревизии нет (ноль), опрос видит у
+  // листа большее число, считает это изменением и перечитывает набор — и так
+  // каждые пять секунд без конца.
+  const live = useLive(
+    dataset?.revision,
+    onLiveChange,
+    !unauthorized && !!dataset && source === "sheets",
+  );
 
   const linkToken = typeof window === "undefined" ? null : currentLinkToken();
 
@@ -351,10 +361,40 @@ export function BbcDashboardClient() {
             {/* Ручное чтение идёт прямо в Google мимо фонового цикла, поэтому у
                 кнопки есть остывание: «не обновилось» обычно означает «в таблице
                 не меняли», а не «нажми ещё десять раз». */}
+            {/*
+              Откуда взяты цифры. Не украшение и не режим просмотра: это
+              разные источники одних и тех же величин, и пока идёт переезд,
+              их надо уметь сверить. Разошлись — видно сразу, а не через
+              квартал в отчёте.
+
+              Подписью, а не точкой: активный источник отличается весом и
+              фоном. Цветного индикатора «данные свежие» здесь нет намеренно —
+              горящий постоянно, он перестаёт что-либо значить.
+            */}
+            <div className="bbc-source" role="group" aria-label="Источник данных">
+              <button
+                type="button"
+                className={source === "sheets" ? "bbc-source-on" : ""}
+                onClick={() => setSource("sheets")}
+                disabled={loading}
+                title="Читать напрямую из Google Sheets"
+              >
+                Google
+              </button>
+              <button
+                type="button"
+                className={source === "books" ? "bbc-source-on" : ""}
+                onClick={() => setSource("books")}
+                disabled={loading}
+                title="Читать из внутренней книги — раздел «Книги»"
+              >
+                Книга
+              </button>
+            </div>
             <button
               type="button"
               onClick={() => void reload(true)}
-              disabled={loading || refreshCooldown > 0}
+              disabled={loading || refreshCooldown > 0 || source === "books"}
               className="btn-ghost text-xs px-2.5 py-1.5 flex items-center gap-1.5"
               title={
                 refreshCooldown > 0

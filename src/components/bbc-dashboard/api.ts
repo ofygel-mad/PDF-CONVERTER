@@ -338,8 +338,18 @@ export function touchFileUrl(fileId: number): string {
 
 /* ── Data ───────────────────────────────────────────────────────────────────── */
 
-export function fetchDataset(refresh = false): Promise<BbcDataset> {
-  return request<BbcDataset>(`/dataset${refresh ? "?refresh=true" : ""}`);
+/** Откуда дашборд берёт цифры: лист Google или внутренняя книга. */
+export type BbcSource = "sheets" | "books";
+
+export function fetchDataset(
+  refresh = false,
+  source: BbcSource = "sheets",
+): Promise<BbcDataset> {
+  const params = new URLSearchParams();
+  if (refresh) params.set("refresh", "true");
+  if (source !== "sheets") params.set("source", source);
+  const query = params.toString();
+  return request<BbcDataset>(`/dataset${query ? `?${query}` : ""}`);
 }
 
 /** Tiny poll: served from backend memory, never touches Google. */

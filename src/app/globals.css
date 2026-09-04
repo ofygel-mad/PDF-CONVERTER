@@ -2657,3 +2657,31 @@ html, body { overflow-x: clip; }
 }
 .bbc-reg-form .bbc-modal-body { flex: 1; min-height: 0; overflow-y: auto; }
 .bbc-reg-foot { flex-shrink: 0; }
+
+/* ── Переключатель источника цифр в шапке дашборда ──────────────────────────
+ *
+ * Активная сторона отличается фоном и весом подписи, а не точкой рядом.
+ * Индикатор «данные свежие», горящий постоянно, перестаёт что-либо значить
+ * ровно к тому моменту, когда должен был насторожить.
+ */
+.bbc-source {
+  display: inline-flex;
+  padding: 2px;
+  border-radius: 0.625rem;
+  background: var(--bg-raised);
+  border: 1px solid var(--border-subtle);
+}
+.bbc-source button {
+  padding: 0.25rem 0.625rem;
+  border-radius: 0.5rem;
+  font-size: 0.75rem;
+  color: var(--text-secondary);
+  transition: background var(--dur-fast) var(--ease-out), color var(--dur-fast) var(--ease-out);
+}
+.bbc-source button:hover:not(:disabled) { color: var(--text-primary); }
+.bbc-source button:disabled { opacity: 0.5; cursor: not-allowed; }
+.bbc-source-on {
+  background: var(--bg-surface);
+  color: var(--text-primary) !important;
+  font-weight: 600;
+}

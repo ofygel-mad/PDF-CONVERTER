@@ -14,7 +14,7 @@
  */
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
-import { BbcApiError, fetchDataset, fetchMe } from "./api";
+import { BbcApiError, fetchDataset, fetchMe, type BbcSource } from "./api";
 import type { BbcDataset, BbcMe, BbcMode, BbcRow } from "./types";
 
 /** Фаза первой загрузки — что сейчас в полёте. */
@@ -243,7 +243,17 @@ export function useDataset() {
    * 401 part of the normal path, which is noise in the console and, worse,
    * indistinguishable from a real backend fault.
    */
-  const load = useCallback(async (refresh = false) => {
+  /**
+   * Источник цифр. Живёт в состоянии, а не в адресе: это не вид данных, а то,
+   * откуда они взяты, и делиться такой ссылкой — значит навязать коллеге свой
+   * выбор источника, пока он смотрит на те же долги.
+   */
+  const [source, setSourceState] = useState<BbcSource>("sheets");
+  const sourceRef = useRef<BbcSource>("sheets");
+
+  const load = useCallback(async (refresh = false, next?: BbcSource) => {
+    const chosen = next ?? sourceRef.current;
+    sourceRef.current = chosen;
     setPhase("auth");
     if (refresh) {
       if (Date.now() - forcedAt.current < FORCE_MIN_MS) return;
@@ -269,7 +279,7 @@ export function useDataset() {
       setLoading(true);
       setPhase("reading");
 
-      const payload = await fetchDataset(refresh);
+      const payload = await fetchDataset(refresh, chosen);
       setDataset(payload);
       setUnauthorized(false);
       setError(null);
@@ -380,6 +390,15 @@ export function useDataset() {
     errorDetail,
     unauthorized,
     reload: load,
+    source,
+    /**
+     * Смена источника перечитывает набор сразу: показывать долги из книги под
+     * подписью «из Google» нельзя ни секунды.
+     */
+    setSource: (next: BbcSource) => {
+      setSourceState(next);
+      void load(false, next);
+    },
     /** Секунд до следующего разрешённого ручного обновления, 0 — можно. */
     refreshCooldown: cooldown,
   };
