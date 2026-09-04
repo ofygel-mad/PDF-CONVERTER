@@ -53,6 +53,10 @@ export type BoardSection = {
   key: string;
   title: string;
   computes: boolean;
+  /** Все обязательные роли раздела — чтобы отличить «сломан» от «не про эту книгу». */
+  required: string[];
+  /** Сколько обязательных ролей раздел получил именно отсюда. */
+  bound_required: number;
   missing_required: string[];
   missing_titles: string[];
 };

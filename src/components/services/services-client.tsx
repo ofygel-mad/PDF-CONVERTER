@@ -5,7 +5,7 @@ import Link from "next/link";
 import type { ComponentType } from "react";
 
 import { AutocallModal } from "@/components/services/autocall-modal";
-import { ArrowLeftIcon, GridIcon, PhoneIcon, PuzzleIcon } from "@/components/icons";
+import { ArrowLeftIcon, PhoneIcon, PuzzleIcon } from "@/components/icons";
 // BBC Dashboard (removable module — см. src/components/bbc-dashboard/README.md)
 import { BbcDashboardIcon } from "@/components/bbc-dashboard/icon";
 
@@ -33,14 +33,11 @@ const TILES: ServiceTile[] = [
     Icon: BbcDashboardIcon,
     href: "/bbc-dashboard",
   },
-  // «Книги» (удаляемый модуль)
-  {
-    key: "books",
-    title: "Книги",
-    description: "Книги компании внутри приложения: импорт из Google, разметка колонок, ввод",
-    Icon: GridIcon,
-    href: "/books",
-  },
+  // Плитки «Книги» здесь нет намеренно. Страница объявляет себя как «внешние
+  // сервисы, из которых мы тянем данные», а внутренние книги — не сервис и не
+  // источник: это наша копия чужой книги. Плитка стояла тут ровно потому, что
+  // тут была сетка плиток, и читалась как новая интеграция неизвестно с чем.
+  // Раздел живёт в сайдбаре дашборда, рядом с панелью управления.
 ];
 
 const TILE_CLASS =

@@ -2330,82 +2330,12 @@ html, body { overflow-x: clip; }
  * с классом отсюда молча не сработает.
  */
 
-.bk-shell {
-  min-height: 100vh;
-  min-height: 100dvh;
-  display: flex;
-  flex-direction: column;
-  background: var(--page-bg);
-}
-
-.bk-header {
-  position: sticky;
-  top: 0;
-  z-index: 40;
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 0.5rem;
-  padding: 0.625rem 1rem;
-  border-bottom: 1px solid var(--border-subtle);
-  background: var(--header-bg);
-  backdrop-filter: blur(12px);
-}
-.bk-header-left,
-.bk-header-right { display: flex; align-items: center; gap: 0.625rem; }
-.bk-title { font-size: 0.9375rem; font-weight: 600; color: var(--text-primary); letter-spacing: -0.01em; }
-
-.bk-body {
-  flex: 1;
-  display: grid;
-  grid-template-columns: minmax(200px, 260px) 1fr;
-  gap: 1rem;
-  padding: 1rem;
-  align-items: start;
-}
-@media (max-width: 860px) {
-  .bk-body { grid-template-columns: 1fr; }
-}
-
-.bk-side { display: flex; flex-direction: column; gap: 0.625rem; }
-
-.bk-book {
-  display: flex;
-  flex-direction: column;
-  gap: 0.375rem;
-  padding: 0.75rem;
-  border: 1px solid var(--border-subtle);
-  border-radius: 0.75rem;
-  background: var(--bg-surface);
-}
-.bk-book-title { font-size: 0.8125rem; font-weight: 600; color: var(--text-primary); }
-.bk-book-note { font-size: 0.6875rem; color: var(--text-muted); }
-.bk-book-tabs { display: flex; flex-wrap: wrap; gap: 0.25rem; margin-top: 0.25rem; }
-.bk-book-tab {
-  padding: 0.25rem 0.5rem;
-  border-radius: 0.5rem;
-  font-size: 0.75rem;
-  color: var(--text-secondary);
-  background: var(--bg-raised);
-  transition: background var(--dur-fast) var(--ease-out);
-}
-.bk-book-tab:hover { background: var(--bg-hover); }
-.bk-book-tab-on { background: var(--accent-soft); color: var(--text-accent); font-weight: 600; }
-
-.bk-main { min-width: 0; display: flex; flex-direction: column; gap: 1rem; }
-
-.bk-tabs { display: flex; gap: 0.375rem; }
-.bk-tab {
-  padding: 0.375rem 0.75rem;
-  border-radius: 0.625rem;
-  font-size: 0.8125rem;
-  color: var(--text-secondary);
-  transition: background var(--dur-fast) var(--ease-out);
-}
-.bk-tab:hover { background: var(--bg-hover); }
-.bk-tab-on { background: var(--bg-active); color: var(--text-primary); font-weight: 600; }
-
-/* ── Табло привязок ─────────────────────────────────────────────────────── */
+/* ── Вкладка «Колонки» ───────────────────────────────────────────────────────
+ *
+ * Стили отдельной страницы `/books` — оболочка, шапка, список книг сбоку,
+ * собственный грид строк — отсюда убраны вместе со страницей: раздел съехал в
+ * сайдбар дашборда, и держать вторую вёрстку тех же данных незачем.
+ */
 
 .bk-board { display: flex; flex-direction: column; gap: 1rem; }
 
@@ -2418,28 +2348,35 @@ html, body { overflow-x: clip; }
   color: var(--text-muted);
   margin-bottom: 0.75rem;
 }
-.bk-consequence-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
-  gap: 0.5rem;
-}
-.bk-section { display: flex; flex-direction: column; gap: 0.125rem; padding: 0.5rem 0; }
-.bk-section-name { font-size: 0.8125rem; color: var(--text-primary); }
-.bk-section-note { font-size: 0.6875rem; color: var(--text-muted); }
-.bk-section-waiting .bk-section-note { color: var(--accent-amber); }
-.bk-section-ok .bk-section-name { font-weight: 600; }
+
+/* Следствие — список строк, а не сетка карточек.
+ *
+ * Сеткой из четырёх колонок это выглядело как панель показателей, где все
+ * четыре ячейки равнозначны, и «Дебиторка: не хватает трёх ролей» весило
+ * столько же, сколько «Журнал операций: считается». Разделов, относящихся к
+ * одной книге, обычно один-два — им нужна строка, а не плитка. */
+.bk-lede { font-size: 0.8125rem; color: var(--text-secondary); line-height: 1.6; }
+.bk-outcome { display: flex; flex-direction: column; gap: 0.5rem; }
+.bk-outcome-line { display: flex; flex-direction: column; gap: 0.125rem; }
+.bk-outcome-name { font-size: 0.9375rem; font-weight: 600; color: var(--text-primary); }
+.bk-outcome-note { font-size: 0.75rem; color: var(--text-muted); line-height: 1.5; }
+/* Единственный цвет на экране — там, где раздел этой книги чего-то не получил.
+ * «Считается» цветом не помечается: горящий постоянно, он перестал бы значить
+ * что-либо ровно к тому моменту, когда должен был насторожить. */
+.bk-outcome-short .bk-outcome-note { color: var(--accent-amber); }
+.bk-outcome + .bk-hint { margin-top: 0.75rem; }
 
 .bk-refusals { border-color: var(--accent-rose); }
 .bk-refusals ul { display: flex; flex-direction: column; gap: 0.375rem; }
 .bk-refusals li { font-size: 0.8125rem; color: var(--accent-rose); }
 
-.bk-field-grid,
-.bk-role-grid {
+.bk-field-grid {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
   gap: 0.625rem;
 }
-.bk-fields, .bk-roles { display: flex; flex-direction: column; gap: 0.75rem; }
+.bk-fields { display: flex; flex-direction: column; gap: 0.75rem; }
+.bk-disclose { align-self: flex-start; }
 
 .bk-field { display: flex; flex-direction: column; gap: 0.5rem; padding: 0.75rem; }
 .bk-field-free { border-style: dashed; }
@@ -2456,61 +2393,10 @@ html, body { overflow-x: clip; }
 .bk-field-why { font-size: 0.6875rem; color: var(--text-muted); font-style: italic; }
 .bk-field-role select { width: 100%; font-size: 0.75rem; }
 
-.bk-role {
-  display: flex;
-  flex-direction: column;
-  gap: 0.125rem;
-  padding: 0.5rem 0.625rem;
-  border-radius: 0.5rem;
-  background: var(--bg-surface);
-}
-.bk-role-title { font-size: 0.75rem; color: var(--text-primary); }
-.bk-role-note { font-size: 0.6875rem; color: var(--text-secondary); }
-.bk-role-empty .bk-role-note { color: var(--text-muted); }
-
-/* ── Строки ─────────────────────────────────────────────────────────────── */
-
-.bk-rows { display: flex; flex-direction: column; gap: 0.5rem; }
-.bk-rows-scroll {
-  overflow-x: auto;
-  border: 1px solid var(--border-subtle);
-  border-radius: 0.75rem;
-  background: var(--bg-surface);
-}
-.bk-rows table { border-collapse: collapse; width: max-content; min-width: 100%; }
-.bk-rows th, .bk-rows td {
-  padding: 0.5rem 0.625rem;
-  text-align: left;
-  font-size: 0.75rem;
-  border-bottom: 1px solid var(--border-subtle);
-  white-space: nowrap;
-  max-width: 22rem;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-.bk-rows th { position: sticky; top: 0; background: var(--bg-raised); }
-.bk-rows td { color: var(--text-secondary); }
-.bk-col-title { display: block; font-weight: 600; color: var(--text-primary); }
-.bk-col-type { display: block; font-size: 0.625rem; color: var(--text-muted); font-weight: 400; }
-
 /* ── Прочее ─────────────────────────────────────────────────────────────── */
 
-.bk-empty {
-  margin: auto;
-  max-width: 32rem;
-  padding: 2rem 1rem;
-  display: flex;
-  flex-direction: column;
-  gap: 0.75rem;
-  align-items: flex-start;
-}
-.bk-empty h2 { font-size: 1.125rem; font-weight: 600; color: var(--text-primary); }
-.bk-empty p { font-size: 0.8125rem; color: var(--text-secondary); line-height: 1.6; }
-
 .bk-hint { font-size: 0.75rem; color: var(--text-muted); line-height: 1.6; }
-.bk-hint-center { margin: auto; padding: 2rem; }
 .bk-error { font-size: 0.8125rem; color: var(--accent-rose); line-height: 1.5; }
-.bk-error-page { padding: 0.75rem 1rem; }
 
 .bk-import { max-width: 40rem; }
 .bk-filter { width: 100%; margin-bottom: 0.75rem; }
@@ -2550,9 +2436,27 @@ html, body { overflow-x: clip; }
   border-top: 1px solid var(--border-subtle);
 }
 
-/* ── Реестры: приложенческий ввод во внутренние книги ────────────────────── */
+/* ── «Книги»: внутренние копии книг компании ─────────────────────────────── */
 
-.bbc-reg { display: flex; flex-direction: column; gap: 0.75rem; }
+/* `min-width: 0` не украшение. Внутри лежит таблица шириной `max-content`, и
+ * без него колонка грида дашборда растягивается под неё: прокручивается вся
+ * страница, а не таблица, и содержимое уезжает под сайдбар. Ровно это и было
+ * видно на проде — левая колонка реестра пряталась за меню. */
+.bbc-reg { display: flex; flex-direction: column; gap: 0.75rem; min-width: 0; max-width: 100%; }
+
+/* Зачем раздел нужен — текстом и один раз, наверху.
+ *
+ * Без этого экран открывался таблицей на двести строк, и по нему нельзя было
+ * понять ни что это за записи, ни откуда они взялись, ни что изменится, если
+ * их поправить. */
+.bbc-reg-lede {
+  display: flex;
+  flex-direction: column;
+  gap: 0.375rem;
+  max-width: 46rem;
+}
+.bbc-reg-lede p { font-size: 0.8125rem; color: var(--text-secondary); line-height: 1.6; }
+.bbc-reg-lede b { color: var(--text-primary); font-weight: 600; }
 
 .bbc-reg-bar {
   display: flex;
@@ -2563,6 +2467,17 @@ html, body { overflow-x: clip; }
 .bbc-reg-pick { flex: 1 1 16rem; min-width: 0; }
 .bbc-reg-pick select { width: 100%; }
 .bbc-reg-search { flex: 1 1 12rem; min-width: 0; }
+
+.bbc-reg-tabs { display: flex; gap: 0.375rem; }
+.bbc-reg-tab {
+  padding: 0.375rem 0.75rem;
+  border-radius: 0.625rem;
+  font-size: 0.8125rem;
+  color: var(--text-secondary);
+  transition: background var(--dur-fast) var(--ease-out);
+}
+.bbc-reg-tab:hover { background: var(--bg-hover); }
+.bbc-reg-tab-on { background: var(--bg-active); color: var(--text-primary); font-weight: 600; }
 
 .bbc-reg-hint { font-size: 0.75rem; color: var(--text-muted); line-height: 1.6; }
 .bbc-reg-error { font-size: 0.8125rem; color: var(--accent-rose); line-height: 1.5; }
@@ -2627,8 +2542,13 @@ html, body { overflow-x: clip; }
   color: var(--text-primary);
 }
 /* Роль поля подписью, а не значком: человек должен видеть, во что превратится
- * то, что он вводит, — «Дата операции», а не безымянная колонка. */
-.bbc-reg-hint {
+ * то, что он вводит, — «Дата операции», а не безымянная колонка.
+ *
+ * Класс называется `bbc-reg-role`, а не `bbc-reg-hint`, потому что вторым
+ * именем он уже был занят — подсказкой под списком записей. Одно имя на два
+ * смысла, и объявление ниже по файлу молча выигрывало: подсказка про записи
+ * ужималась до 10 пикселей и получала `nowrap`, которого ей не полагалось. */
+.bbc-reg-role {
   font-size: 0.625rem;
   font-weight: 400;
   color: var(--text-muted);
@@ -2666,10 +2586,19 @@ html, body { overflow-x: clip; }
  */
 .bbc-source {
   display: inline-flex;
+  align-items: center;
   padding: 2px;
   border-radius: 0.625rem;
   background: var(--bg-raised);
   border: 1px solid var(--border-subtle);
+}
+/* Подпись обязательна: без неё в шапке стояли два слова, «Google» и «Книга»,
+ * и по ним нельзя было понять ни что переключается, ни зачем. */
+.bbc-source-label {
+  padding: 0 0.5rem 0 0.375rem;
+  font-size: 0.6875rem;
+  color: var(--text-muted);
+  white-space: nowrap;
 }
 .bbc-source button {
   padding: 0.25rem 0.625rem;

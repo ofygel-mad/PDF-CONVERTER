@@ -136,7 +136,7 @@ export function RecordModal({ table, row, onClose, onSaved }: Props) {
       <label key={field.key} className="bbc-reg-field">
         <span className="bbc-reg-label">
           {label}
-          <span className="bbc-reg-hint">{hint}</span>
+          <span className="bbc-reg-role">{hint}</span>
         </span>
         {field.type === "bool" ? (
           <select className="input-field" value={value} onChange={(e) => set(e.target.value)}>

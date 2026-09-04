@@ -37,10 +37,6 @@ export const BLOCKS: BlockDefinition[] = [
   // Журнал касаний стоит сразу за дебиторкой: это её продолжение, а не
   // самостоятельный раздел. Из реестра в него проваливаются по клиенту.
   { key: "touches", title: "Журнал касаний", short: "Журнал касаний", icon: TouchesIcon, requires: "touches" },
-  // Реестры стоят рядом с журналом касаний: обе поверхности про ввод, а не про
-  // чтение. Разница в том, куда пишут — касание живёт только у нас, а запись
-  // реестра ложится во внутреннюю книгу, ту же, что открыта в разделе «Книги».
-  { key: "registries", title: "Реестры", short: "Реестры", icon: RegistriesIcon, requires: "registries" },
   { key: "calendar", title: "Платёжный календарь", short: "Календарь", icon: CalendarIcon, requires: "calendar" },
   { key: "reports", title: "Отчёты", short: "Отчёты", icon: ReportsIcon, requires: "reports" },
   { key: "analytics", title: "Аналитика", short: "Аналитика", icon: AnalyticsIcon, requires: "analytics" },
@@ -50,6 +46,15 @@ export const BLOCKS: BlockDefinition[] = [
   { key: "sales", title: "Отдел продаж", short: "Продажи", icon: SalesIcon, requires: "sales" },
   { key: "warnings", title: "Предупреждения", short: "Предупреждения", icon: WarningIcon, requires: "warnings" },
   { key: "roadmap", title: "Будущие инструменты", short: "Планы", icon: RoadmapIcon, requires: "roadmap" },
+  // «Книги» стоят внизу, у панели управления, а не среди отчётов: это раздел
+  // не про цифры, а про то, откуда они берутся. Сначала он назывался «Реестры»
+  // и стоял третьим, рядом с журналом касаний, — и оказался неотличим от
+  // «Журнала операций» по названию и непонятен по месту.
+  //
+  // Ключ остался `registries`: у выданных учёток право с таким именем уже
+  // записано в базе, и переименование отняло бы у них раздел. Ключ — адрес,
+  // название — то, что читает человек; менять их вместе незачем.
+  { key: "registries", title: "Книги", short: "Книги", icon: RegistriesIcon, requires: "registries" },
 ];
 
 /**

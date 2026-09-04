@@ -32,7 +32,7 @@ import { JournalBlock } from "./blocks/journal";
 import { RoadmapBlock } from "./blocks/pending";
 import { SalesBlock } from "./blocks/sales";
 import { ReceivablesBlock } from "./blocks/receivables";
-import { RegistriesBlock } from "@/components/bbc-dashboard/blocks/registries";
+import { BooksBlock } from "@/components/bbc-dashboard/blocks/books";
 import { ReportsBlock } from "./blocks/reports";
 import { WarningsBlock } from "./blocks/warnings";
 import { CommandPalette } from "./command-palette";
@@ -371,13 +371,19 @@ export function BbcDashboardClient() {
               фоном. Цветного индикатора «данные свежие» здесь нет намеренно —
               горящий постоянно, он перестаёт что-либо значить.
             */}
-            <div className="bbc-source" role="group" aria-label="Источник данных">
+            <div className="bbc-source" role="group" aria-label="Откуда взяты цифры">
+              {/* Подпись обязательна. Без неё в шапке стояли два слова,
+                  «Google» и «Книга», и по ним нельзя было догадаться ни что
+                  это переключает, ни почему их два. Прячется на телефоне через
+                  `.only-desktop`, а не `sm:hidden`: у элемента есть класс из
+                  globals.css, и утилита display на нём не сработает. */}
+              <span className="bbc-source-label only-desktop">Цифры из</span>
               <button
                 type="button"
                 className={source === "sheets" ? "bbc-source-on" : ""}
                 onClick={() => setSource("sheets")}
                 disabled={loading}
-                title="Читать напрямую из Google Sheets"
+                title="Считать по книгам Google напрямую — так, как было всегда"
               >
                 Google
               </button>
@@ -386,9 +392,9 @@ export function BbcDashboardClient() {
                 className={source === "books" ? "bbc-source-on" : ""}
                 onClick={() => setSource("books")}
                 disabled={loading}
-                title="Читать из внутренней книги — раздел «Книги»"
+                title="Считать по внутренней копии книги — той, что открыта в разделе «Книги»"
               >
-                Книга
+                Книги
               </button>
             </div>
             <button
@@ -397,9 +403,11 @@ export function BbcDashboardClient() {
               disabled={loading || refreshCooldown > 0 || source === "books"}
               className="btn-ghost text-xs px-2.5 py-1.5 flex items-center gap-1.5"
               title={
-                refreshCooldown > 0
-                  ? `Только что читали таблицу. Следующее ручное чтение через ${refreshCooldown} с — фоновое обновление идёт само каждые 15 секунд.`
-                  : "Перечитать таблицу сейчас"
+                source === "books"
+                  ? "Цифры взяты из внутренней книги — перечитывать нечего. Книга обновляется, когда её привозят из Google в разделе «Книги»."
+                  : refreshCooldown > 0
+                    ? `Только что читали таблицу. Следующее ручное чтение через ${refreshCooldown} с — фоновое обновление идёт само каждые 15 секунд.`
+                    : "Перечитать таблицу сейчас"
               }
             >
               <RefreshIcon size={15} />
@@ -564,9 +572,9 @@ export function BbcDashboardClient() {
                   />
                 ) : null}
                 {activeBlock.key === "registries" ? (
-                  <RegistriesBlock
-                    // Держатель ссылки отдела читает реестр, но не пишет в
-                    // него: у ссылки нет автора, и подписать запись нечем —
+                  <BooksBlock
+                    // Держатель ссылки отдела читает книгу, но не пишет в
+                    // неё: у ссылки нет автора, и подписать запись нечем —
                     // то же правило, что в журнале касаний.
                     canWrite={!!me?.authenticated && !me?.link_label}
                   />
