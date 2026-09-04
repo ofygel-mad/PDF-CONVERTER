@@ -290,8 +290,15 @@ class BookRow(BooksBase):
 class RoleCatalog(BooksBase):
     """Роль — гнездо, которое разделу нужно заполнить, чтобы считать.
 
-    Общая на все компании: роли объявляет раздел приложения, а не арендатор.
-    Специфична для компании только привязка поля к роли.
+    Общая на все компании: роли объявляет продукт, а не арендатор. Специфична
+    для компании только привязка поля к роли.
+
+    Раздела здесь нет намеренно. Роль «заказчик» нужна сразу дебиторке,
+    журналу касаний и календарю — колонка `section` заставила бы либо
+    заводить три почти одинаковые роли, либо приписывать общую роль одному
+    разделу и врать. Что каждому разделу требуется, объявляет код продукта
+    (`books/roles.py`): разделы — это функции приложения, а не настройка
+    арендатора, и в базе им делать нечего.
     """
 
     __tablename__ = "role_catalog"
@@ -302,10 +309,6 @@ class RoleCatalog(BooksBase):
     key: Mapped[str] = mapped_column(sa.Text, primary_key=True)
     title: Mapped[str] = mapped_column(sa.Text)
     value_type: Mapped[str] = mapped_column(sa.Text)
-    #: Раздел, который эту роль просит: receivables, journal, calendar…
-    section: Mapped[str] = mapped_column(sa.Text, default="")
-    #: Без неё раздел не считается вовсе (в отличие от уточняющих ролей).
-    required: Mapped[bool] = mapped_column(sa.Boolean, default=True)
     description: Mapped[str] = mapped_column(sa.Text, default="")
     position: Mapped[int] = mapped_column(sa.Integer, default=0)
 

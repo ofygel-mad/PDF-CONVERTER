@@ -71,8 +71,6 @@ def upgrade() -> None:
     sa.Column('key', sa.Text(), nullable=False),
     sa.Column('title', sa.Text(), nullable=False),
     sa.Column('value_type', sa.Text(), nullable=False),
-    sa.Column('section', sa.Text(), nullable=False),
-    sa.Column('required', sa.Boolean(), nullable=False),
     sa.Column('description', sa.Text(), nullable=False),
     sa.Column('position', sa.Integer(), nullable=False),
     sa.CheckConstraint("value_type IN ('text', 'number', 'money', 'date', 'bool', 'enum', 'formula', 'unknown')", name=op.f('ck_role_catalog_value_type')),
