@@ -187,17 +187,6 @@ export function BooksBlock({ canWrite }: Props) {
 
   return (
     <div className="bbc-reg">
-      {/* ── Зачем этот раздел вообще существует ───────────────────────── */}
-      <div className="bbc-reg-lede">
-        <p>
-          Таблицы <b>Google / Книга</b>
-          
-        </p>
-        <p className="bbc-reg-hint">
-          
-        </p>
-      </div>
-
       {error && (
         <p className="bbc-reg-error" role="alert">
           {error}
